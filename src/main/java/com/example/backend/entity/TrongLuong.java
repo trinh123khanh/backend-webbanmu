@@ -12,7 +12,6 @@ public class TrongLuong {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
     
-    @Column(nullable = false)
     private BigDecimal giaTriTrongLuong;
     
     @Column(length = 10)
@@ -20,6 +19,5 @@ public class TrongLuong {
     
     private String moTa;
     
-    @Column(nullable = false)
-    private boolean trangThai;
+    private Boolean trangThai;
 }

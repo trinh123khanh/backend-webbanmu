@@ -55,6 +55,5 @@ public class SanPham {
     
     private LocalDate ngayTao;
     
-    @Column(nullable = false)
-    private boolean trangThai;
+    private Boolean trangThai;
 }

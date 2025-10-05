@@ -11,8 +11,10 @@ public class ChatLieuVo {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
     
-    @Column(nullable = false, unique = true)
+    @Column(unique = true)
     private String tenChatLieu;
     private String moTa;
-    private boolean trangThai;
+    
+    @Column(columnDefinition = "boolean default true")
+    private Boolean trangThai;
 }
