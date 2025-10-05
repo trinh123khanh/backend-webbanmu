@@ -40,8 +40,7 @@ public class PhieuGiamGia {
     @Column(nullable = false)
     private LoaiGiamGia loaiGiamGia;
     
-    @Column(nullable = false)
-    private boolean trangThai;
+    private Boolean trangThai;
     
     public enum LoaiGiamGia {
         PHAN_TRAM,

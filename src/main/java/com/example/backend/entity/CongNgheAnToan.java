@@ -11,11 +11,11 @@ public class CongNgheAnToan {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
     
-    @Column(nullable = false, unique = true)
+    @Column(unique = true)
     private String tenCongNghe;
     
     @Column(columnDefinition = "TEXT")
     private String moTa;
     
-    private boolean trangThai;
+    private Boolean trangThai;
 }

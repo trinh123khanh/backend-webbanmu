@@ -12,7 +12,6 @@ public class KhachHang {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
     
-    @Column(nullable = false)
     private String tenKhachHang;
     
     @Column(unique = true)
@@ -20,10 +19,10 @@ public class KhachHang {
     
     private String soDienThoai;
     private LocalDate ngaySinh;
-    private boolean gioiTinh;
+    private Boolean gioiTinh;
     private Integer diemTichLuy;
     private LocalDate ngayTao;
-    private boolean trangThai;
+    private Boolean trangThai;
     
     @OneToOne
     @JoinColumn(name = "user_id", unique = true)

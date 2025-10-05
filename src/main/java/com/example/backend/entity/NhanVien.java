@@ -12,7 +12,6 @@ public class NhanVien {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
     
-    @Column(nullable = false)
     private String hoTen;
     
     @Column(unique = true)
@@ -20,10 +19,10 @@ public class NhanVien {
     
     private String soDienThoai;
     private String diaChi;
-    private boolean gioiTinh;
+    private Boolean gioiTinh;
     private LocalDate ngaySinh;
     private LocalDate ngayVaoLam;
-    private boolean trangThai;
+    private Boolean trangThai;
     
     @OneToOne
     @JoinColumn(name = "user_id", unique = true)

@@ -33,7 +33,7 @@ public class DiaChiKhachHang {
     @Column(nullable = false)
     private String phuongXa;
     
-    private boolean macDinh;
+    private Boolean macDinh;
     
-    private boolean trangThai;
+    private Boolean trangThai;
 }

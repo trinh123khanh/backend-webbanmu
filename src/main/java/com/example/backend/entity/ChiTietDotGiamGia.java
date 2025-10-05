@@ -23,6 +23,5 @@ public class ChiTietDotGiamGia {
     @Column(nullable = false)
     private BigDecimal phanTramGiam;
     
-    @Column(nullable = false)
-    private boolean trangThai;
+    private Boolean trangThai;
 }

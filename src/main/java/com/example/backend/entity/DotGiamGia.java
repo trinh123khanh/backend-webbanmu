@@ -30,6 +30,5 @@ public class DotGiamGia {
     @Column(nullable = false)
     private int soLuongSuDung;
     
-    @Column(nullable = false)
-    private boolean trangThai;
+    private Boolean trangThai;
 }

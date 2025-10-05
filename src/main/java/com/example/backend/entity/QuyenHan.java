@@ -11,11 +11,10 @@ public class QuyenHan {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
     
-    @Column(nullable = false, unique = true)
+    @Column(unique = true)
     private String tenQuyen;
     
     private String moTa;
     
-    @Column(nullable = false)
-    private boolean trangThai;
+    private Boolean trangThai;
 }

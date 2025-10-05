@@ -30,6 +30,5 @@ public class ChiTietSanPham {
     @Column(nullable = false)
     private BigDecimal giaBan;
     
-    @Column(nullable = false)
-    private boolean trangThai;
+    private Boolean trangThai;
 }

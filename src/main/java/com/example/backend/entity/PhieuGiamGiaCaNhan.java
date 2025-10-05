@@ -20,8 +20,7 @@ public class PhieuGiamGiaCaNhan {
     @JoinColumn(name = "khach_hang_id", nullable = false)
     private KhachHang khachHang;
     
-    @Column(nullable = false)
-    private boolean daSuDung;
+    private Boolean daSuDung;
     
     private LocalDateTime ngaySuDung;
     

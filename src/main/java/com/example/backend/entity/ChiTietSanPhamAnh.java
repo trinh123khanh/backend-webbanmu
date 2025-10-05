@@ -19,5 +19,5 @@ public class ChiTietSanPhamAnh {
     @JoinColumn(name = "anh_san_pham_id", nullable = false)
     private AnhSanPham anhSanPham;
     
-    private boolean anhChinh;
+    private Boolean anhChinh;
 }
