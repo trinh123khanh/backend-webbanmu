@@ -1,12 +1,16 @@
 package com.example.backend.controller;
 
-import com.example.backend.entity.TrongLuong;
-import com.example.backend.repository.TrongLuongRepository;
+import com.example.backend.dto.TrongLuongRequest;
+import com.example.backend.dto.TrongLuongResponse;
+import com.example.backend.service.TrongLuongService;
+import jakarta.validation.Valid;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.CrossOrigin;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
@@ -15,16 +19,50 @@ import java.util.List;
 @CrossOrigin(origins = {"http://localhost:4200", "http://localhost:3000"})
 public class TrongLuongController {
 
-    private final TrongLuongRepository repository;
+    private final TrongLuongService service;
 
-    public TrongLuongController(TrongLuongRepository repository) {
-        this.repository = repository;
+    public TrongLuongController(TrongLuongService service) {
+        this.service = service;
+    }
+
+    @PostMapping
+    public ResponseEntity<TrongLuongResponse> create(@Valid @RequestBody TrongLuongRequest request) {
+        return ResponseEntity.status(HttpStatus.CREATED).body(service.create(request));
+    }
+
+    @PutMapping("/{id}")
+    public ResponseEntity<TrongLuongResponse> update(@PathVariable Long id, @Valid @RequestBody TrongLuongRequest request) {
+        return ResponseEntity.ok(service.update(id, request));
+    }
+
+    @DeleteMapping("/{id}")
+    public ResponseEntity<Void> delete(@PathVariable Long id) {
+        service.delete(id);
+        return ResponseEntity.noContent().build();
+    }
+
+    @GetMapping("/{id}")
+    public ResponseEntity<TrongLuongResponse> getById(@PathVariable Long id) {
+        return ResponseEntity.ok(service.getById(id));
+    }
+
+    @GetMapping
+    public ResponseEntity<Page<TrongLuongResponse>> search(
+            @RequestParam(required = false) String keyword,
+            @RequestParam(required = false) Boolean trangThai,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size,
+            @RequestParam(defaultValue = "id,desc") String sort
+    ) {
+        String[] sortParts = sort.split(",");
+        Sort.Direction direction = sortParts.length > 1 && "asc".equalsIgnoreCase(sortParts[1]) ? Sort.Direction.ASC : Sort.Direction.DESC;
+        Sort sortObj = Sort.by(direction, sortParts[0]);
+        Pageable pageable = PageRequest.of(page, size, sortObj);
+        return ResponseEntity.ok(service.search(keyword, trangThai, pageable));
     }
 
     @GetMapping("/all")
-    public ResponseEntity<List<TrongLuong>> getAllActive() {
-        return ResponseEntity.ok(repository.findAll());
+    public ResponseEntity<List<TrongLuongResponse>> getAllActive() {
+        return ResponseEntity.ok(service.getAllActive());
     }
 }
-
-
