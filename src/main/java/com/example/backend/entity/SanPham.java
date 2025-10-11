@@ -50,6 +50,13 @@ public class SanPham {
     @JoinColumn(name = "cong_nghe_an_toan_id")
     private CongNgheAnToan congNgheAnToan;
     
+    @ManyToOne
+    @JoinColumn(name = "mau_sac_id")
+    private MauSac mauSac;
+    
+    @Column(columnDefinition = "TEXT")
+    private String anhSanPham; // URL hoặc đường dẫn ảnh sản phẩm
+    
     @Column(nullable = false)
     private BigDecimal giaBan;
     

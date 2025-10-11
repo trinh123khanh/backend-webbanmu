@@ -22,6 +22,10 @@ public class SanPhamResponse {
     private String kieuDangMuTen;
     private Long congNgheAnToanId;
     private String congNgheAnToanTen;
+    private Long mauSacId;
+    private String mauSacTen;
+    private String mauSacMa;
+    private String anhSanPham;
     private BigDecimal giaBan;
     private LocalDate ngayTao;
     private Boolean trangThai;
@@ -62,6 +66,14 @@ public class SanPhamResponse {
     public void setCongNgheAnToanId(Long congNgheAnToanId) { this.congNgheAnToanId = congNgheAnToanId; }
     public String getCongNgheAnToanTen() { return congNgheAnToanTen; }
     public void setCongNgheAnToanTen(String congNgheAnToanTen) { this.congNgheAnToanTen = congNgheAnToanTen; }
+    public Long getMauSacId() { return mauSacId; }
+    public void setMauSacId(Long mauSacId) { this.mauSacId = mauSacId; }
+    public String getMauSacTen() { return mauSacTen; }
+    public void setMauSacTen(String mauSacTen) { this.mauSacTen = mauSacTen; }
+    public String getMauSacMa() { return mauSacMa; }
+    public void setMauSacMa(String mauSacMa) { this.mauSacMa = mauSacMa; }
+    public String getAnhSanPham() { return anhSanPham; }
+    public void setAnhSanPham(String anhSanPham) { this.anhSanPham = anhSanPham; }
     public BigDecimal getGiaBan() { return giaBan; }
     public void setGiaBan(BigDecimal giaBan) { this.giaBan = giaBan; }
     public LocalDate getNgayTao() { return ngayTao; }

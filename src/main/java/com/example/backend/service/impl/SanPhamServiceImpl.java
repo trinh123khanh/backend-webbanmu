@@ -6,6 +6,7 @@ import com.example.backend.entity.SanPham;
 import com.example.backend.repository.ChatLieuVoRepository;
 import com.example.backend.repository.CongNgheAnToanRepository;
 import com.example.backend.repository.LoaiMuBaoHiemRepository;
+import com.example.backend.repository.MauSacRepository;
 import com.example.backend.repository.NhaSanXuatRepository;
 import com.example.backend.repository.KieuDangMuRepository;
 import com.example.backend.repository.SanPhamRepository;
@@ -34,6 +35,7 @@ public class SanPhamServiceImpl implements SanPhamService {
     private final XuatXuRepository xuatXuRepository;
     private final KieuDangMuRepository kieuDangMuRepository;
     private final CongNgheAnToanRepository congNgheAnToanRepository;
+    private final MauSacRepository mauSacRepository;
 
     public SanPhamServiceImpl(SanPhamRepository sanPhamRepository,
                               LoaiMuBaoHiemRepository loaiMuBaoHiemRepository,
@@ -42,7 +44,8 @@ public class SanPhamServiceImpl implements SanPhamService {
                               TrongLuongRepository trongLuongRepository,
                               XuatXuRepository xuatXuRepository,
                               KieuDangMuRepository kieuDangMuRepository,
-                              CongNgheAnToanRepository congNgheAnToanRepository) {
+                              CongNgheAnToanRepository congNgheAnToanRepository,
+                              MauSacRepository mauSacRepository) {
         this.sanPhamRepository = sanPhamRepository;
         this.loaiMuBaoHiemRepository = loaiMuBaoHiemRepository;
         this.nhaSanXuatRepository = nhaSanXuatRepository;
@@ -51,6 +54,7 @@ public class SanPhamServiceImpl implements SanPhamService {
         this.xuatXuRepository = xuatXuRepository;
         this.kieuDangMuRepository = kieuDangMuRepository;
         this.congNgheAnToanRepository = congNgheAnToanRepository;
+        this.mauSacRepository = mauSacRepository;
     }
 
     @Override
@@ -122,6 +126,9 @@ public class SanPhamServiceImpl implements SanPhamService {
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Kiểu dáng mũ không hợp lệ")));
         e.setCongNgheAnToan(congNgheAnToanRepository.findById(r.getCongNgheAnToanId())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Công nghệ an toàn không hợp lệ")));
+        e.setMauSac(mauSacRepository.findById(r.getMauSacId())
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Màu sắc không hợp lệ")));
+        e.setAnhSanPham(r.getAnhSanPham());
         e.setGiaBan(r.getGiaBan());
         e.setTrangThai(Boolean.TRUE.equals(r.getTrangThai()));
     }
@@ -139,6 +146,12 @@ public class SanPhamServiceImpl implements SanPhamService {
         if (e.getXuatXu() != null) { r.setXuatXuId(e.getXuatXu().getId()); r.setXuatXuTen(e.getXuatXu().getTenXuatXu()); }
         if (e.getKieuDangMu() != null) { r.setKieuDangMuId(e.getKieuDangMu().getId()); r.setKieuDangMuTen(e.getKieuDangMu().getTenKieuDang()); }
         if (e.getCongNgheAnToan() != null) { r.setCongNgheAnToanId(e.getCongNgheAnToan().getId()); r.setCongNgheAnToanTen(e.getCongNgheAnToan().getTenCongNghe()); }
+        if (e.getMauSac() != null) { 
+            r.setMauSacId(e.getMauSac().getId()); 
+            r.setMauSacTen(e.getMauSac().getTenMau()); 
+            r.setMauSacMa(e.getMauSac().getMaMau()); 
+        }
+        r.setAnhSanPham(e.getAnhSanPham());
         r.setGiaBan(e.getGiaBan());
         r.setNgayTao(e.getNgayTao());
         r.setTrangThai(e.getTrangThai());
