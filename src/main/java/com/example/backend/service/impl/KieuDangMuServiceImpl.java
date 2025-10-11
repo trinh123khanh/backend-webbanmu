@@ -55,7 +55,24 @@ public class KieuDangMuServiceImpl implements KieuDangMuService {
 
     @Override
     public void delete(Long id) {
-        repository.deleteById(id);
+        // Kiểm tra xem kiểu dáng mũ có tồn tại không
+        if (!repository.existsById(id)) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Không tìm thấy kiểu dáng mũ");
+        }
+        
+        try {
+            // Hard delete: xóa cứng khỏi database
+            repository.deleteById(id);
+        } catch (Exception e) {
+            // Nếu có lỗi foreign key constraint, báo lỗi rõ ràng
+            if (e.getMessage() != null && e.getMessage().contains("foreign key constraint")) {
+                throw new ResponseStatusException(HttpStatus.CONFLICT, 
+                    "Không thể xóa kiểu dáng mũ này vì đang được sử dụng trong sản phẩm. " +
+                    "Vui lòng cập nhật hoặc xóa các sản phẩm liên quan trước.");
+            }
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, 
+                "Lỗi khi xóa kiểu dáng mũ: " + e.getMessage());
+        }
     }
 
     @Override

@@ -14,6 +14,9 @@ public interface KichThuocRepository extends JpaRepository<KichThuoc, Long> {
     Page<KichThuoc> search(@Param("keyword") String keyword,
                            @Param("trangThai") Boolean trangThai,
                            Pageable pageable);
+
+    @Query(value = "SELECT setval('kich_thuoc_id_seq', (SELECT COALESCE(MAX(id), 0) + 1 FROM kich_thuoc))", nativeQuery = true)
+    void fixSequence();
 }
 
 

@@ -70,6 +70,11 @@ public class ChatLieuVoServiceImpl implements ChatLieuVoService {
         return repository.search(keyword, trangThai, pageable).map(this::map);
     }
 
+    @Override
+    public void fixSequence() {
+        repository.fixSequence();
+    }
+
     private ChatLieuVoResponse map(ChatLieuVo e) {
         ChatLieuVoResponse r = new ChatLieuVoResponse();
         r.setId(e.getId());

@@ -70,6 +70,11 @@ public class KichThuocServiceImpl implements KichThuocService {
         return repository.search(keyword, trangThai, pageable).map(this::map);
     }
 
+    @Override
+    public void fixSequence() {
+        repository.fixSequence();
+    }
+
     private KichThuocResponse map(KichThuoc e) {
         KichThuocResponse r = new KichThuocResponse();
         r.setId(e.getId());

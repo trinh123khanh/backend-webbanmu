@@ -11,6 +11,7 @@ public interface KichThuocService {
     void delete(Long id);
     KichThuocResponse getById(Long id);
     Page<KichThuocResponse> search(String keyword, Boolean trangThai, Pageable pageable);
+    void fixSequence();
 }
 
 
