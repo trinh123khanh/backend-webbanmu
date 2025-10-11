@@ -53,7 +53,21 @@ public class SanPham {
     @Column(nullable = false)
     private BigDecimal giaBan;
     
+    @Column
+    private Integer soLuongTon;
+    
+    @Column
+    private String danhMuc;
+    
+    @Column
+    private String thuongHieu;
+    
     private LocalDate ngayTao;
     
+    private LocalDate ngayCapNhat;
+    
     private Boolean trangThai;
+    
+    @Column
+    private String hinhAnh;
 }

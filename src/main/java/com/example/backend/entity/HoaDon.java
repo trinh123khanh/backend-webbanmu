@@ -4,7 +4,6 @@ import jakarta.persistence.*;
 import lombok.Data;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
-import java.util.List;
 
 @Data
 @Entity
@@ -14,42 +13,36 @@ public class HoaDon {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
     
-    @Column(nullable = false, unique = true)
+    @Column(name = "ma_hoa_don", nullable = false, unique = true)
     private String maHoaDon;
     
-    @ManyToOne
-    @JoinColumn(name = "khach_hang_id")
-    private KhachHang khachHang;
+    @Column(name = "khach_hang_id")
+    private Long khachHangId;
     
-    @ManyToOne
-    @JoinColumn(name = "nhan_vien_id")
-    private NhanVien nhanVien;
+    @Column(name = "nhan_vien_id")
+    private Long nhanVienId;
     
-    @Column(nullable = false)
+    @Column(name = "ngay_tao", nullable = false)
     private LocalDateTime ngayTao;
     
+    @Column(name = "ngay_thanh_toan")
     private LocalDateTime ngayThanhToan;
     
-    @Column(nullable = false)
+    @Column(name = "tong_tien", nullable = false, precision = 38, scale = 2)
     private BigDecimal tongTien;
     
+    @Column(name = "tien_giam_gia", precision = 38, scale = 2)
     private BigDecimal tienGiamGia;
     
-    @Column(nullable = false)
+    @Column(name = "thanh_tien", nullable = false, precision = 38, scale = 2)
     private BigDecimal thanhTien;
     
-    @Column(columnDefinition = "TEXT")
+    @Column(name = "ghi_chu", columnDefinition = "TEXT")
     private String ghiChu;
     
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false)
+    @Column(name = "trang_thai", nullable = false)
     private TrangThaiHoaDon trangThai;
-    
-    @OneToMany(mappedBy = "hoaDon", cascade = CascadeType.ALL, orphanRemoval = true)
-    private List<HoaDonChiTiet> danhSachChiTiet;
-    
-    @OneToMany(mappedBy = "hoaDon", cascade = CascadeType.ALL, orphanRemoval = true)
-    private List<PhuongThucThanhToan> phuongThucThanhToan;
     
     public enum TrangThaiHoaDon {
         CHO_XAC_NHAN,

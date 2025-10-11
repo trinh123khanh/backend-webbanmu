@@ -12,13 +12,11 @@ public class HoaDonChiTiet {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
     
-    @ManyToOne
-    @JoinColumn(name = "hoa_don_id", nullable = false)
-    private HoaDon hoaDon;
+    @Column(name = "hoa_don_id", nullable = false)
+    private Long hoaDonId;
     
-    @ManyToOne
-    @JoinColumn(name = "chi_tiet_san_pham_id", nullable = false)
-    private ChiTietSanPham chiTietSanPham;
+    @Column(name = "san_pham_id", nullable = false)
+    private Long sanPhamId;
     
     @Column(nullable = false)
     private int soLuong;
@@ -30,4 +28,6 @@ public class HoaDonChiTiet {
     
     @Column(nullable = false)
     private BigDecimal thanhTien;
+    
+    private String ghiChu;
 }

@@ -8,6 +8,7 @@ import lombok.NoArgsConstructor;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.List;
 
 @Data
 @Builder
@@ -17,11 +18,11 @@ public class HoaDonDTO {
     private Long id;
     private String maHoaDon;
     private Long khachHangId;
-    private String tenKhachHang;
-    private String emailKhachHang;
-    private String soDienThoaiKhachHang;
+    private String tenKhachHang; // For display on frontend
+    private String soDienThoaiKhachHang; // For display on frontend
+    private String emailKhachHang; // For display on frontend
     private Long nhanVienId;
-    private String tenNhanVien;
+    private String tenNhanVien; // For display on frontend
     private LocalDateTime ngayTao;
     private LocalDateTime ngayThanhToan;
     private BigDecimal tongTien;
@@ -29,11 +30,7 @@ public class HoaDonDTO {
     private BigDecimal thanhTien;
     private String ghiChu;
     private HoaDon.TrangThaiHoaDon trangThai;
-    private Integer soLuongSanPham;
-
-    // Constructors, getters, and setters
-
-
-
-
+    private String viTriBanHang; // "Tại quầy" or "Online"
+    private Integer soLuongSanPham; // Total quantity of products
+    private List<SanPhamTrongHoaDon> danhSachSanPham;
 }

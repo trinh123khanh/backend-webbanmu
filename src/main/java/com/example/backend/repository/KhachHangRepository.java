@@ -13,4 +13,8 @@ public interface KhachHangRepository extends JpaRepository<KhachHang, Long> {
     Optional<KhachHang> findByEmail(String email);
     
     List<KhachHang> findBySoDienThoai(String soDienThoai);
+    
+    List<KhachHang> findByTenKhachHangContainingIgnoreCase(String name);
+    
+    Optional<KhachHang> findByTenKhachHangIgnoreCase(String name);
 }
