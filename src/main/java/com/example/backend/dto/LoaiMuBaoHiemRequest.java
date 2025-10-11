@@ -1,18 +1,15 @@
 package com.example.backend.dto;
 
-public class LoaiMuBaoHiemResponse {
-    private Long id;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Size;
+
+public class LoaiMuBaoHiemRequest {
+    @NotBlank(message = "Tên loại mũ bảo hiểm là bắt buộc")
+    @Size(max = 255, message = "Tên loại mũ bảo hiểm không được vượt quá 255 ký tự")
     private String tenLoai;
+    
     private String moTa;
     private Boolean trangThai;
-
-    public Long getId() {
-        return id;
-    }
-
-    public void setId(Long id) {
-        this.id = id;
-    }
 
     public String getTenLoai() {
         return tenLoai;
@@ -38,5 +35,3 @@ public class LoaiMuBaoHiemResponse {
         this.trangThai = trangThai;
     }
 }
-
-
