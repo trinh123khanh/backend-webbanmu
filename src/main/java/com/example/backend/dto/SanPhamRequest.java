@@ -36,6 +36,9 @@ public class SanPhamRequest {
     private Long congNgheAnToanId;
 
     @NotNull
+    private Long mauSacId;
+
+    @NotNull
     private BigDecimal giaBan;
 
     private Boolean trangThai;
@@ -69,6 +72,9 @@ public class SanPhamRequest {
 
     public Long getCongNgheAnToanId() { return congNgheAnToanId; }
     public void setCongNgheAnToanId(Long congNgheAnToanId) { this.congNgheAnToanId = congNgheAnToanId; }
+
+    public Long getMauSacId() { return mauSacId; }
+    public void setMauSacId(Long mauSacId) { this.mauSacId = mauSacId; }
 
     public BigDecimal getGiaBan() { return giaBan; }
     public void setGiaBan(BigDecimal giaBan) { this.giaBan = giaBan; }
