@@ -31,3 +31,28 @@ hs_err_pid*
 # IntelliJ IDEA files
 .idea/
 *.iml
+# Ignore conflicting files
+src/main/java/com/example/backend/entity/PhieuGiamGia.java
+src/main/java/com/example/backend/entity/PhieuGiamGiaCaNhan.java
+src/main/java/com/example/backend/controller/SanPhamController.java
+src/main/java/com/example/backend/repository/SanPhamRepository.java
+
+# Ignore logs
+logs/
+
+# Ignore test files
+src/main/java/com/example/backend/controller/TestController.java
+
+# Ignore other entity files not related to invoice
+src/main/java/com/example/backend/entity/AnhSanPham.java
+src/main/java/com/example/backend/entity/ChiTietDotGiamGia.java
+src/main/java/com/example/backend/entity/ChiTietSanPhamAnh.java
+src/main/java/com/example/backend/entity/DiaChiKhachHang.java
+src/main/java/com/example/backend/entity/DotGiamGia.java
+src/main/java/com/example/backend/entity/GioHang.java
+src/main/java/com/example/backend/entity/GioHangChiTiet.java
+src/main/java/com/example/backend/entity/HinhThucThanhToan.java
+src/main/java/com/example/backend/entity/OtpToken.java
+src/main/java/com/example/backend/entity/PhuongThucThanhToan.java
+src/main/java/com/example/backend/entity/QuyenHan.java
+src/main/java/com/example/backend/entity/ThongTinDonHang.java
