@@ -58,6 +58,16 @@ public class ChatLieuVoController {
         Pageable pageable = PageRequest.of(page, size, sortObj);
         return ResponseEntity.ok(service.search(keyword, trangThai, pageable));
     }
+
+    @GetMapping("/admin/fix-sequence")
+    public ResponseEntity<String> fixSequence() {
+        try {
+            service.fixSequence();
+            return ResponseEntity.ok("Chat lieu vo sequence fixed successfully");
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body("Error fixing sequence: " + e.getMessage());
+        }
+    }
 }
 
 

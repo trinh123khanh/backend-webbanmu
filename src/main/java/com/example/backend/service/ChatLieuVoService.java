@@ -11,6 +11,7 @@ public interface ChatLieuVoService {
     void delete(Long id);
     ChatLieuVoResponse getById(Long id);
     Page<ChatLieuVoResponse> search(String keyword, Boolean trangThai, Pageable pageable);
+    void fixSequence();
 }
 
 

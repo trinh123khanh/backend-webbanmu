@@ -14,6 +14,9 @@ public interface ChatLieuVoRepository extends JpaRepository<ChatLieuVo, Long> {
     Page<ChatLieuVo> search(@Param("keyword") String keyword,
                             @Param("trangThai") Boolean trangThai,
                             Pageable pageable);
+
+    @Query(value = "SELECT setval('chat_lieu_vo_id_seq', (SELECT COALESCE(MAX(id), 0) + 1 FROM chat_lieu_vo))", nativeQuery = true)
+    void fixSequence();
 }
 
 

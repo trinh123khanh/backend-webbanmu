@@ -7,8 +7,10 @@ import com.example.backend.repository.NhaSanXuatRepository;
 import com.example.backend.service.NhaSanXuatService;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.server.ResponseStatusException;
 
 @Service
 @Transactional
@@ -46,7 +48,24 @@ public class NhaSanXuatServiceImpl implements NhaSanXuatService {
 
     @Override
     public void delete(Long id) {
-        repository.deleteById(id);
+        // Kiểm tra xem nhà sản xuất có tồn tại không
+        if (!repository.existsById(id)) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Không tìm thấy nhà sản xuất");
+        }
+        
+        try {
+            // Hard delete: xóa cứng khỏi database
+            repository.deleteById(id);
+        } catch (Exception e) {
+            // Nếu có lỗi foreign key constraint, báo lỗi rõ ràng
+            if (e.getMessage() != null && e.getMessage().contains("foreign key constraint")) {
+                throw new ResponseStatusException(HttpStatus.CONFLICT, 
+                    "Không thể xóa nhà sản xuất này vì đang được sử dụng trong sản phẩm. " +
+                    "Vui lòng cập nhật hoặc xóa các sản phẩm liên quan trước.");
+            }
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, 
+                "Lỗi khi xóa nhà sản xuất: " + e.getMessage());
+        }
     }
 
     @Override
