@@ -2,48 +2,89 @@ package com.example.backend.entity;
 
 import jakarta.persistence.*;
 import lombok.Data;
+import lombok.NoArgsConstructor;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+
 import java.math.BigDecimal;
-import java.time.LocalDateTime;
+import java.time.LocalDate;
+import java.util.List;
 
 @Data
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
 @Entity
 @Table(name = "phieu_giam_gia")
 public class PhieuGiamGia {
+    
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
     
-    @Column(nullable = false, unique = true)
+    @Column(name = "ma_phieu", nullable = false, unique = true)
     private String maPhieu;
     
-    @Column(nullable = false)
-    private String tenPhieu;
+    @Column(name = "ten_phieu_giam_gia", nullable = false)
+    private String tenPhieuGiamGia;
     
-    private String moTa;
+    @Column(name = "loai_phieu_giam_gia", nullable = false)
+    private Boolean loaiPhieuGiamGia; // false = phần trăm, true = tiền mặt
     
-    @Column(nullable = false)
-    private LocalDateTime ngayBatDau;
-    
-    @Column(nullable = false)
-    private LocalDateTime ngayKetThuc;
-    
-    @Column(nullable = false)
+    @Column(name = "gia_tri_giam", nullable = false, precision = 38, scale = 2)
     private BigDecimal giaTriGiam;
     
-    @Column(nullable = false)
+    @Column(name = "gia_tri_toi_thieu", nullable = false, precision = 38, scale = 2)
     private BigDecimal giaTriToiThieu;
     
-    @Column(nullable = false)
-    private int soLuong;
+    @Column(name = "so_tien_toi_da", nullable = false, precision = 38, scale = 2)
+    private BigDecimal soTienToiDa;
     
-    @Enumerated(EnumType.STRING)
-    @Column(nullable = false)
-    private LoaiGiamGia loaiGiamGia;
+    @Column(name = "hoa_don_toi_thieu", nullable = false, precision = 38, scale = 2)
+    private BigDecimal hoaDonToiThieu;
     
-    private Boolean trangThai;
+    @Column(name = "so_luong_dung", nullable = false)
+    private Integer soLuongDung;
     
-    public enum LoaiGiamGia {
-        PHAN_TRAM,
-        TIEN_MAT
+    @Column(name = "ngay_bat_dau", nullable = false)
+    private LocalDate ngayBatDau;
+    
+    @Column(name = "ngay_ket_thuc", nullable = false)
+    private LocalDate ngayKetThuc;
+    
+    @Builder.Default
+    @Column(name = "trang_thai", nullable = false)
+    private Boolean trangThai = true;
+    
+    // Relationship với PhieuGiamGiaCaNhan
+    @OneToMany(mappedBy = "phieuGiamGia", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    private List<com.example.backend.entity.PhieuGiamGiaCaNhan> phieuGiamGiaCaNhans;
+    
+    // Helper methods
+    public boolean isPhanTram() {
+        return !loaiPhieuGiamGia; // false = phần trăm
+    }
+    
+    public boolean isTienMat() {
+        return loaiPhieuGiamGia; // true = tiền mặt
+    }
+    
+    public String getLoaiPhieuGiamGiaText() {
+        return loaiPhieuGiamGia ? "Tiền mặt" : "Phần trăm";
+    }
+    
+    public boolean isActive() {
+        LocalDate now = LocalDate.now();
+        return trangThai && 
+               ngayBatDau.isBefore(now.plusDays(1)) && 
+               ngayKetThuc.isAfter(now.minusDays(1));
+    }
+    
+    public boolean isExpired() {
+        return ngayKetThuc.isBefore(LocalDate.now());
+    }
+    
+    public boolean isNotStarted() {
+        return ngayBatDau.isAfter(LocalDate.now());
     }
 }
