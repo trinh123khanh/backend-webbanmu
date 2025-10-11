@@ -128,6 +128,7 @@ public class SanPhamServiceImpl implements SanPhamService {
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Công nghệ an toàn không hợp lệ")));
         e.setMauSac(mauSacRepository.findById(r.getMauSacId())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Màu sắc không hợp lệ")));
+        e.setAnhSanPham(r.getAnhSanPham());
         e.setGiaBan(r.getGiaBan());
         e.setTrangThai(Boolean.TRUE.equals(r.getTrangThai()));
     }
@@ -150,6 +151,7 @@ public class SanPhamServiceImpl implements SanPhamService {
             r.setMauSacTen(e.getMauSac().getTenMau()); 
             r.setMauSacMa(e.getMauSac().getMaMau()); 
         }
+        r.setAnhSanPham(e.getAnhSanPham());
         r.setGiaBan(e.getGiaBan());
         r.setNgayTao(e.getNgayTao());
         r.setTrangThai(e.getTrangThai());

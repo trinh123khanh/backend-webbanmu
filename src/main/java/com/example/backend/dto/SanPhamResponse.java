@@ -25,6 +25,7 @@ public class SanPhamResponse {
     private Long mauSacId;
     private String mauSacTen;
     private String mauSacMa;
+    private String anhSanPham;
     private BigDecimal giaBan;
     private LocalDate ngayTao;
     private Boolean trangThai;
@@ -71,6 +72,8 @@ public class SanPhamResponse {
     public void setMauSacTen(String mauSacTen) { this.mauSacTen = mauSacTen; }
     public String getMauSacMa() { return mauSacMa; }
     public void setMauSacMa(String mauSacMa) { this.mauSacMa = mauSacMa; }
+    public String getAnhSanPham() { return anhSanPham; }
+    public void setAnhSanPham(String anhSanPham) { this.anhSanPham = anhSanPham; }
     public BigDecimal getGiaBan() { return giaBan; }
     public void setGiaBan(BigDecimal giaBan) { this.giaBan = giaBan; }
     public LocalDate getNgayTao() { return ngayTao; }

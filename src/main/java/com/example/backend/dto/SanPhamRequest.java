@@ -38,6 +38,8 @@ public class SanPhamRequest {
     @NotNull
     private Long mauSacId;
 
+    private String anhSanPham;
+
     @NotNull
     private BigDecimal giaBan;
 
@@ -75,6 +77,9 @@ public class SanPhamRequest {
 
     public Long getMauSacId() { return mauSacId; }
     public void setMauSacId(Long mauSacId) { this.mauSacId = mauSacId; }
+
+    public String getAnhSanPham() { return anhSanPham; }
+    public void setAnhSanPham(String anhSanPham) { this.anhSanPham = anhSanPham; }
 
     public BigDecimal getGiaBan() { return giaBan; }
     public void setGiaBan(BigDecimal giaBan) { this.giaBan = giaBan; }
