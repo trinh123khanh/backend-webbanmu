@@ -11,6 +11,7 @@ public interface SanPhamService {
     void delete(Long id);
     SanPhamResponse getById(Long id);
     Page<SanPhamResponse> search(String keyword, Boolean trangThai, Pageable pageable);
+    SanPhamResponse[] getAll();
 }
 
 
