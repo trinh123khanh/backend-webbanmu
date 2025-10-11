@@ -99,12 +99,23 @@ public class SanPhamServiceImpl implements SanPhamService {
         return sanPhamRepository.search(keyword, trangThai, pageable).map(this::map);
     }
 
+    @Override
+    @Transactional(readOnly = true)
+    public SanPhamResponse[] getAll() {
+        return sanPhamRepository.findAll().stream()
+                .map(this::map)
+                .toArray(SanPhamResponse[]::new);
+    }
+
     private void validateRequest(SanPhamRequest request) {
         if (!StringUtils.hasText(request.getMaSanPham()) || !StringUtils.hasText(request.getTenSanPham())) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Mã và Tên sản phẩm là bắt buộc");
         }
         if (request.getGiaBan() == null) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Giá bán là bắt buộc");
+        }
+        if (request.getSoLuongTon() == null || request.getSoLuongTon() < 0) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Số lượng tồn phải lớn hơn hoặc bằng 0");
         }
     }
 
@@ -130,6 +141,7 @@ public class SanPhamServiceImpl implements SanPhamService {
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Màu sắc không hợp lệ")));
         e.setAnhSanPham(r.getAnhSanPham());
         e.setGiaBan(r.getGiaBan());
+        e.setSoLuongTon(r.getSoLuongTon());
         e.setTrangThai(Boolean.TRUE.equals(r.getTrangThai()));
     }
 
@@ -153,6 +165,7 @@ public class SanPhamServiceImpl implements SanPhamService {
         }
         r.setAnhSanPham(e.getAnhSanPham());
         r.setGiaBan(e.getGiaBan());
+        r.setSoLuongTon(e.getSoLuongTon());
         r.setNgayTao(e.getNgayTao());
         r.setTrangThai(e.getTrangThai());
         return r;

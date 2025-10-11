@@ -43,6 +43,9 @@ public class SanPhamRequest {
     @NotNull
     private BigDecimal giaBan;
 
+    @NotNull
+    private Integer soLuongTon;
+
     private Boolean trangThai;
 
     public String getMaSanPham() { return maSanPham; }
@@ -83,6 +86,9 @@ public class SanPhamRequest {
 
     public BigDecimal getGiaBan() { return giaBan; }
     public void setGiaBan(BigDecimal giaBan) { this.giaBan = giaBan; }
+
+    public Integer getSoLuongTon() { return soLuongTon; }
+    public void setSoLuongTon(Integer soLuongTon) { this.soLuongTon = soLuongTon; }
 
     public Boolean getTrangThai() { return trangThai; }
     public void setTrangThai(Boolean trangThai) { this.trangThai = trangThai; }

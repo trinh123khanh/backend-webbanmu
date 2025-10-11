@@ -60,6 +60,9 @@ public class SanPham {
     @Column(nullable = false)
     private BigDecimal giaBan;
     
+    @Column(nullable = false)
+    private Integer soLuongTon = 0;
+    
     private LocalDate ngayTao;
     
     private Boolean trangThai;
