@@ -13,7 +13,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
-@RequestMapping("/cong-nghe-an-toan")
+@RequestMapping("/api/cong-nghe-an-toan")
 @CrossOrigin(origins = {"http://localhost:4200", "http://localhost:3000"})
 public class CongNgheAnToanController {
 

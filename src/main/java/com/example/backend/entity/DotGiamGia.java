@@ -12,23 +12,33 @@ public class DotGiamGia {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
     
-    @Column(nullable = false, unique = true)
+    @Column(name = "ma_dot_giam_gia", nullable = false, unique = true)
     private String maDotGiamGia;
     
-    @Column(nullable = false)
-    private String tenDotGiamGia;
+    @Column(name = "loai_dot_giam_gia")
+    private String loaiDotGiamGia;
     
-    @Column(columnDefinition = "TEXT")
+    @Column(name = "gia_tri_dot_giam")
+    private String giaTriDotGiam;
+    
+    @Column(name = "so_tien")
+    private Long soTien;
+    
+    @Column(name = "mo_ta", columnDefinition = "TEXT")
     private String moTa;
     
-    @Column(nullable = false)
+    @Column(name = "ngay_bat_dau", nullable = false)
     private LocalDateTime ngayBatDau;
     
-    @Column(nullable = false)
+    @Column(name = "ngay_ket_thuc", nullable = false)
     private LocalDateTime ngayKetThuc;
     
-    @Column(nullable = false)
-    private int soLuongSuDung;
+    @Column(name = "so_luong_su_dung", nullable = false)
+    private Integer soLuongSuDung;
     
+    @Column(name = "ten_dot_giam_gia", nullable = false)
+    private String tenDotGiamGia;
+    
+    @Column(name = "trang_thai", nullable = false)
     private Boolean trangThai;
 }
