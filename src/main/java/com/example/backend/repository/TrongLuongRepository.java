@@ -17,6 +17,9 @@ public interface TrongLuongRepository extends JpaRepository<TrongLuong, Long> {
     // Kiểm tra trọng lượng đã tồn tại chưa (theo giá trị và đơn vị)
     boolean existsByGiaTriTrongLuongAndDonVi(BigDecimal giaTriTrongLuong, String donVi);
     
+    // Kiểm tra trọng lượng đã tồn tại chưa (theo giá trị và đơn vị) loại trừ ID hiện tại
+    boolean existsByGiaTriTrongLuongAndDonViAndIdNot(BigDecimal giaTriTrongLuong, String donVi, Long id);
+    
     // Tìm kiếm với keyword và trạng thái
     @Query("SELECT t FROM TrongLuong t WHERE " +
            "(:keyword IS NULL OR :keyword = '' OR " +
