@@ -2,7 +2,9 @@ package com.example.backend.entity;
 
 import jakarta.persistence.*;
 import lombok.Data;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import java.time.LocalDate;
+import java.util.List;
 
 @Data
 @Entity
@@ -26,5 +28,10 @@ public class KhachHang {
     
     @OneToOne
     @JoinColumn(name = "user_id", unique = true)
+    @JsonIgnore
     private User user;
+    
+    @OneToMany(mappedBy = "khachHang", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    @JsonIgnore
+    private List<DiaChiKhachHang> danhSachDiaChi;
 }

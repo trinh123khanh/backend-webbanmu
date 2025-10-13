@@ -20,6 +20,7 @@ public class HoaDonDTO {
     private String tenKhachHang;
     private String emailKhachHang;
     private String soDienThoaiKhachHang;
+    private String diaChiKhachHang; // Địa chỉ khách hàng từ bảng dia_chi_khach_hang
     private Long nhanVienId;
     private String tenNhanVien;
     private LocalDateTime ngayTao;

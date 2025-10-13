@@ -22,6 +22,10 @@ public class HoaDon {
     private KhachHang khachHang;
     
     @ManyToOne
+    @JoinColumn(name = "dia_chi_giao_hang_id")
+    private DiaChiKhachHang diaChiGiaoHang;
+    
+    @ManyToOne
     @JoinColumn(name = "nhan_vien_id")
     private NhanVien nhanVien;
     
