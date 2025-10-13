@@ -2,6 +2,7 @@ package com.example.backend.entity;
 
 import jakarta.persistence.*;
 import lombok.Data;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 
 @Data
 @Entity
@@ -13,6 +14,7 @@ public class DiaChiKhachHang {
     
     @ManyToOne
     @JoinColumn(name = "khach_hang_id", nullable = false)
+    @JsonIgnore
     private KhachHang khachHang;
     
     @Column(nullable = false)
