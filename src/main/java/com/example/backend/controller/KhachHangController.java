@@ -176,4 +176,11 @@ public class KhachHangController {
             public final boolean exists = phoneExists;
         });
     }
+    
+    // Lấy danh sách khách hàng cho form phiếu giảm giá (endpoint đặc biệt)
+    @GetMapping("/for-voucher")
+    public ResponseEntity<List<KhachHangDTO>> getAllCustomersForVoucher() {
+        List<KhachHangDTO> customers = khachHangService.getAllCustomersForVoucher();
+        return ResponseEntity.ok(customers);
+    }
 }

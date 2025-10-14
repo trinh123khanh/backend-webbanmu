@@ -231,4 +231,12 @@ public class KhachHangService {
             khachHang.setTrangThai(khachHangDTO.getTrangThai());
         }
     }
+    
+    // Lấy danh sách khách hàng cho form phiếu giảm giá
+    public List<KhachHangDTO> getAllCustomersForVoucher() {
+        List<KhachHang> khachHangList = khachHangRepository.findAll();
+        return khachHangList.stream()
+                .map(this::convertToDTO)
+                .collect(Collectors.toList());
+    }
 }

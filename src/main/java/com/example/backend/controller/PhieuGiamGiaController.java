@@ -50,6 +50,20 @@ public class PhieuGiamGiaController {
         }
     }
     
+    // Toggle trạng thái phiếu giảm giá
+    @PutMapping("/{id}/toggle")
+    public ResponseEntity<ApiResponse<PhieuGiamGiaResponse>> togglePhieuGiamGiaStatus(@PathVariable Long id) {
+        log.info("Toggle trạng thái phiếu giảm giá ID: {}", id);
+        
+        ApiResponse<PhieuGiamGiaResponse> response = phieuGiamGiaService.togglePhieuGiamGiaStatus(id);
+        
+        if (response.isSuccess()) {
+            return ResponseEntity.ok(response);
+        } else {
+            return ResponseEntity.badRequest().body(response);
+        }
+    }
+    
     // Xóa phiếu giảm giá
     @DeleteMapping("/{id}")
     public ResponseEntity<ApiResponse<String>> deletePhieuGiamGia(@PathVariable Long id) {
@@ -62,6 +76,16 @@ public class PhieuGiamGiaController {
         } else {
             return ResponseEntity.badRequest().body(response);
         }
+    }
+    
+    // Lấy danh sách khách hàng cho form phiếu giảm giá
+    @GetMapping("/customers")
+    public ResponseEntity<ApiResponse<java.util.List<com.example.backend.dto.KhachHangDTO>>> getAllCustomersForVoucher() {
+        log.info("Lấy danh sách khách hàng cho form phiếu giảm giá");
+        
+        ApiResponse<java.util.List<com.example.backend.dto.KhachHangDTO>> response = phieuGiamGiaService.getAllCustomersForVoucher();
+        
+        return ResponseEntity.ok(response);
     }
     
     // Lấy phiếu giảm giá theo ID

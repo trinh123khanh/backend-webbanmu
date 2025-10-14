@@ -3,6 +3,7 @@ package com.example.backend.service;
 import com.example.backend.dto.*;
 import com.example.backend.entity.PhieuGiamGia;
 import com.example.backend.repository.PhieuGiamGiaRepository;
+import com.example.backend.repository.KhachHangRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -25,6 +26,7 @@ import java.util.stream.Collectors;
 public class PhieuGiamGiaService {
     
     private final PhieuGiamGiaRepository phieuGiamGiaRepository;
+    private final KhachHangRepository khachHangRepository;
     
     // Tạo phiếu giảm giá mới
     public ApiResponse<PhieuGiamGiaResponse> createPhieuGiamGia(PhieuGiamGiaRequest request) {
@@ -345,5 +347,80 @@ public class PhieuGiamGiaService {
         }
         
         return null; // Không có lỗi
+    }
+    
+    // Lấy danh sách khách hàng cho form phiếu giảm giá
+    public ApiResponse<java.util.List<com.example.backend.dto.KhachHangDTO>> getAllCustomersForVoucher() {
+        try {
+            log.info("Lấy danh sách khách hàng cho form phiếu giảm giá");
+            
+            // Lấy tất cả khách hàng từ database
+            List<com.example.backend.entity.KhachHang> khachHangList = khachHangRepository.findAll();
+            
+            // Chuyển đổi sang DTO
+            List<com.example.backend.dto.KhachHangDTO> khachHangDTOList = khachHangList.stream()
+                    .map(this::convertKhachHangToDTO)
+                    .collect(Collectors.toList());
+            
+            log.info("Lấy được {} khách hàng", khachHangDTOList.size());
+            return ApiResponse.success(khachHangDTOList);
+            
+        } catch (Exception e) {
+            log.error("Lỗi khi lấy danh sách khách hàng: {}", e.getMessage(), e);
+            return ApiResponse.error("Không thể lấy danh sách khách hàng: " + e.getMessage());
+        }
+    }
+    
+    // Chuyển đổi KhachHang entity sang DTO
+    private com.example.backend.dto.KhachHangDTO convertKhachHangToDTO(com.example.backend.entity.KhachHang khachHang) {
+        return com.example.backend.dto.KhachHangDTO.builder()
+                .id(khachHang.getId())
+                .tenKhachHang(khachHang.getTenKhachHang())
+                .email(khachHang.getEmail())
+                .soDienThoai(khachHang.getSoDienThoai())
+                .ngaySinh(khachHang.getNgaySinh())
+                .gioiTinh(khachHang.getGioiTinh())
+                .diemTichLuy(khachHang.getDiemTichLuy())
+                .ngayTao(khachHang.getNgayTao())
+                .trangThai(khachHang.getTrangThai())
+                .userId(khachHang.getUser() != null ? khachHang.getUser().getId() : null)
+                .build();
+    }
+
+    /**
+     * Toggle trạng thái của phiếu giảm giá
+     */
+    public ApiResponse<PhieuGiamGiaResponse> togglePhieuGiamGiaStatus(Long id) {
+        try {
+            log.info("Toggle trạng thái phiếu giảm giá ID: {}", id);
+            
+            // Tìm phiếu giảm giá theo ID
+            Optional<PhieuGiamGia> phieuGiamGiaOpt = phieuGiamGiaRepository.findById(id);
+            
+            if (phieuGiamGiaOpt.isEmpty()) {
+                log.warn("Không tìm thấy phiếu giảm giá với ID: {}", id);
+                return ApiResponse.error("Không tìm thấy phiếu giảm giá với ID: " + id);
+            }
+            
+            PhieuGiamGia phieuGiamGia = phieuGiamGiaOpt.get();
+            
+            // Toggle trạng thái
+            phieuGiamGia.setTrangThai(!phieuGiamGia.getTrangThai());
+            
+            // Lưu vào database
+            PhieuGiamGia savedPhieuGiamGia = phieuGiamGiaRepository.save(phieuGiamGia);
+            
+            // Chuyển đổi sang response
+            PhieuGiamGiaResponse response = convertToResponse(savedPhieuGiamGia);
+            
+            log.info("Toggle trạng thái thành công cho phiếu giảm giá ID: {}, trạng thái mới: {}", 
+                    id, savedPhieuGiamGia.getTrangThai());
+            
+            return ApiResponse.success(response);
+            
+        } catch (Exception e) {
+            log.error("Lỗi khi toggle trạng thái phiếu giảm giá ID: {}", id, e);
+            return ApiResponse.error("Lỗi khi cập nhật trạng thái phiếu giảm giá: " + e.getMessage());
+        }
     }
 }
