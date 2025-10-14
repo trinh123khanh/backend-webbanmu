@@ -15,25 +15,27 @@ public class DiaChiKhachHang {
     @JoinColumn(name = "khach_hang_id", nullable = false)
     private KhachHang khachHang;
     
-    @Column(nullable = false)
+    @Column(name = "ten_nguoi_nhan")
     private String tenNguoiNhan;
     
-    @Column(nullable = false)
+    @Column(name = "so_dien_thoai")
     private String soDienThoai;
     
-    @Column(nullable = false)
+    @Column(name = "dia_chi", nullable = false)
     private String diaChi;
     
-    @Column(nullable = false)
+    @Column(name = "tinh_thanh")
     private String tinhThanh;
     
-    @Column(nullable = false)
+    @Column(name = "quan_huyen")
     private String quanHuyen;
     
-    @Column(nullable = false)
+    @Column(name = "phuong_xa")
     private String phuongXa;
     
-    private Boolean macDinh;
+    @Column(name = "mac_dinh")
+    private Boolean macDinh = false;
     
-    private Boolean trangThai;
+    @Column(name = "trang_thai")
+    private Boolean trangThai = true;
 }

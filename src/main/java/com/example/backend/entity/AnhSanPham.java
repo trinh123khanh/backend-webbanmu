@@ -11,7 +11,12 @@ public class AnhSanPham {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
     
+    @Column(name = "ten_anh")
     private String tenAnh;
+    
+    @Column(name = "duong_dan")
     private String duongDan;
+    
+    @Column(name = "trang_thai")
     private Boolean trangThai;
 }
