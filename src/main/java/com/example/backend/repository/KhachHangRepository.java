@@ -56,6 +56,32 @@ public interface KhachHangRepository extends JpaRepository<KhachHang, Long> {
                                    @Param("trangThai") Boolean trangThai, 
                                    Pageable pageable);
     
+    // Lấy tất cả khách hàng với địa chỉ mặc định
+    @Query("SELECT DISTINCT k FROM KhachHang k " +
+           "LEFT JOIN FETCH k.danhSachDiaChi d " +
+           "WHERE d.macDinh = true OR d.id IS NULL OR " +
+           "(k.id NOT IN (SELECT DISTINCT dc.khachHang.id FROM DiaChiKhachHang dc WHERE dc.macDinh = true))")
+    Page<KhachHang> findAllWithDefaultAddress(Pageable pageable);
+    
+    // Lấy tất cả khách hàng với tất cả địa chỉ
+    @Query("SELECT DISTINCT k FROM KhachHang k " +
+           "LEFT JOIN FETCH k.danhSachDiaChi d")
+    Page<KhachHang> findAllWithAddresses(Pageable pageable);
+    
+    // Tìm kiếm khách hàng với địa chỉ mặc định
+    @Query("SELECT k FROM KhachHang k " +
+           "LEFT JOIN FETCH k.danhSachDiaChi d " +
+           "WHERE (d.macDinh = true OR d.id IS NULL) AND " +
+           "(:keyword IS NULL OR :keyword = '' OR " +
+           "LOWER(k.tenKhachHang) LIKE LOWER(CONCAT('%', :keyword, '%')) OR " +
+           "LOWER(k.email) LIKE LOWER(CONCAT('%', :keyword, '%')) OR " +
+           "LOWER(k.maKhachHang) LIKE LOWER(CONCAT('%', :keyword, '%')) OR " +
+           "LOWER(k.soDienThoai) LIKE LOWER(CONCAT('%', :keyword, '%'))) AND " +
+           "(:trangThai IS NULL OR k.trangThai = :trangThai)")
+    Page<KhachHang> findWithFiltersAndDefaultAddress(@Param("keyword") String keyword, 
+                                                   @Param("trangThai") Boolean trangThai, 
+                                                   Pageable pageable);
+    
     // Đếm số khách hàng theo trạng thái
     long countByTrangThai(Boolean trangThai);
 }

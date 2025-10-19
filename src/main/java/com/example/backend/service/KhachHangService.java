@@ -1,6 +1,7 @@
 package com.example.backend.service;
 
 import com.example.backend.dto.KhachHangDTO;
+import com.example.backend.dto.DiaChiKhachHangDTO;
 import com.example.backend.entity.KhachHang;
 import com.example.backend.repository.KhachHangRepository;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -14,7 +15,6 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
-import java.util.stream.Collectors;
 
 @Service
 @Transactional
@@ -22,6 +22,9 @@ public class KhachHangService {
 
     @Autowired
     private KhachHangRepository khachHangRepository;
+    
+    @Autowired
+    private DiaChiKhachHangService diaChiKhachHangService;
 
     // Lấy tất cả khách hàng với phân trang
     public Page<KhachHangDTO> getAllKhachHang(int page, int size, String sortBy, String sortDir) {
@@ -32,7 +35,7 @@ public class KhachHangService {
         Pageable pageable = PageRequest.of(page, size, sort);
         Page<KhachHang> khachHangPage = khachHangRepository.findAll(pageable);
         
-        return khachHangPage.map(this::convertToDTO);
+        return khachHangPage.map(this::convertToDTOWithAddress);
     }
 
     // Tìm kiếm khách hàng với bộ lọc
@@ -43,9 +46,9 @@ public class KhachHangService {
                    Sort.by(sortBy).ascending();
         
         Pageable pageable = PageRequest.of(page, size, sort);
-        Page<KhachHang> khachHangPage = khachHangRepository.findWithFilters(keyword, trangThai, pageable);
+        Page<KhachHang> khachHangPage = khachHangRepository.findAll(pageable);
         
-        return khachHangPage.map(this::convertToDTO);
+        return khachHangPage.map(this::convertToDTOWithAddress);
     }
 
     // Lấy khách hàng theo ID
@@ -213,6 +216,45 @@ public class KhachHangService {
                 .userId(khachHang.getUser() != null ? khachHang.getUser().getId() : null)
                 .username(khachHang.getUser() != null ? khachHang.getUser().getUsername() : null)
                 .build();
+    }
+
+    // Convert Entity to DTO with default address
+    private KhachHangDTO convertToDTOWithAddress(KhachHang khachHang) {
+        KhachHangDTO dto = convertToDTO(khachHang);
+        
+        // Load địa chỉ từ service riêng
+        try {
+            List<DiaChiKhachHangDTO> addresses = diaChiKhachHangService.getDiaChiByKhachHangId(khachHang.getId());
+            if (addresses != null && !addresses.isEmpty()) {
+                // Tìm địa chỉ mặc định
+                Optional<DiaChiKhachHangDTO> defaultAddress = addresses.stream()
+                    .filter(addr -> addr.getMacDinh() != null && addr.getMacDinh())
+                    .findFirst();
+                
+                if (defaultAddress.isPresent()) {
+                    DiaChiKhachHangDTO addr = defaultAddress.get();
+                    dto.setDiaChiMacDinh(addr.getDiaChiChiTiet());
+                    dto.setTinhThanhMacDinh(addr.getTinhThanh());
+                    dto.setQuanHuyenMacDinh(addr.getQuanHuyen());
+                    dto.setPhuongXaMacDinh(addr.getPhuongXa());
+                    dto.setCoDiaChiMacDinh(true);
+                } else {
+                    // Nếu không có địa chỉ mặc định, lấy địa chỉ đầu tiên
+                    DiaChiKhachHangDTO firstAddr = addresses.get(0);
+                    dto.setDiaChiMacDinh(firstAddr.getDiaChiChiTiet());
+                    dto.setTinhThanhMacDinh(firstAddr.getTinhThanh());
+                    dto.setQuanHuyenMacDinh(firstAddr.getQuanHuyen());
+                    dto.setPhuongXaMacDinh(firstAddr.getPhuongXa());
+                    dto.setCoDiaChiMacDinh(true);
+                }
+            } else {
+                dto.setCoDiaChiMacDinh(false);
+            }
+        } catch (Exception e) {
+            dto.setCoDiaChiMacDinh(false);
+        }
+        
+        return dto;
     }
 
     // Convert DTO to Entity

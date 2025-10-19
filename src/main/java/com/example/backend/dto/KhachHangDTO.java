@@ -26,5 +26,12 @@ public class KhachHangDTO {
     // Thông tin user (nếu có)
     private Long userId;
     private String username;
+    
+    // Địa chỉ mặc định từ bảng dia_chi_khach_hang
+    private Boolean coDiaChiMacDinh;
+    private String diaChiMacDinh;
+    private String phuongXaMacDinh;
+    private String quanHuyenMacDinh;
+    private String tinhThanhMacDinh;
 }
 
