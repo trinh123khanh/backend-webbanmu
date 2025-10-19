@@ -14,15 +14,18 @@ public class KhachHang {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
     
+    @Column(unique = true, nullable = false)
+    private String maKhachHang;
+    
     private String tenKhachHang;
     
     @Column(unique = true)
     private String email;
     
     private String soDienThoai;
+    private String diaChi;
     private LocalDate ngaySinh;
     private Boolean gioiTinh;
-    private Integer diemTichLuy;
     private LocalDate ngayTao;
     private Boolean trangThai;
     

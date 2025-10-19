@@ -21,9 +21,7 @@ public class HoaDon {
     @JoinColumn(name = "khach_hang_id")
     private KhachHang khachHang;
     
-    @ManyToOne
-    @JoinColumn(name = "dia_chi_giao_hang_id")
-    private DiaChiKhachHang diaChiGiaoHang;
+    // Removed DiaChiKhachHang relationship as the entity was deleted
     
     @ManyToOne
     @JoinColumn(name = "nhan_vien_id")

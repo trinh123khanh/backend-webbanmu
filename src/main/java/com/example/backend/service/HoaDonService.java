@@ -2,19 +2,16 @@ package com.example.backend.service;
 
 import com.example.backend.dto.HoaDonDTO;
 import com.example.backend.entity.HoaDon;
-import com.example.backend.entity.KhachHang;
+// Removed KhachHang import as KhachHangRepository was deleted
 import com.example.backend.entity.NhanVien;
-import com.example.backend.entity.DiaChiKhachHang;
 import com.example.backend.repository.HoaDonRepository;
-import com.example.backend.repository.KhachHangRepository;
 import com.example.backend.repository.NhanVienRepository;
-import com.example.backend.repository.DiaChiKhachHangRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
-import java.util.Optional;
+// Removed unused import
 import java.util.stream.Collectors;
 
 @Service
@@ -22,25 +19,15 @@ import java.util.stream.Collectors;
 public class HoaDonService {
 
     private final HoaDonRepository hoaDonRepository;
-    private final KhachHangRepository khachHangRepository;
     private final NhanVienRepository nhanVienRepository;
-    private final DiaChiKhachHangRepository diaChiKhachHangRepository;
 
     public HoaDonService(HoaDonRepository hoaDonRepository, 
-                        KhachHangRepository khachHangRepository,
-                        NhanVienRepository nhanVienRepository,
-                        DiaChiKhachHangRepository diaChiKhachHangRepository) {
+                        NhanVienRepository nhanVienRepository) {
         this.hoaDonRepository = hoaDonRepository;
-        this.khachHangRepository = khachHangRepository;
         this.nhanVienRepository = nhanVienRepository;
-        this.diaChiKhachHangRepository = diaChiKhachHangRepository;
     }
 
     // Expose repositories for controller access
-    public KhachHangRepository getKhachHangRepository() {
-        return khachHangRepository;
-    }
-
     public NhanVienRepository getNhanVienRepository() {
         return nhanVienRepository;
     }
@@ -71,12 +58,7 @@ public class HoaDonService {
                 .collect(Collectors.toList());
     }
     
-    public List<HoaDonDTO> getHoaDonByKhachHang(Long khachHangId) {
-        return hoaDonRepository.findByKhachHangId(khachHangId)
-                .stream()
-                .map(this::convertToDTO)
-                .collect(Collectors.toList());
-    }
+    // Removed getHoaDonByKhachHang method as KhachHangRepository was deleted
     
     public List<HoaDonDTO> getHoaDonByNhanVien(Long nhanVienId) {
         return hoaDonRepository.findByNhanVienId(nhanVienId)
@@ -120,17 +102,7 @@ public class HoaDonService {
         existingHoaDon.setGhiChu(hoaDonDTO.getGhiChu());
         existingHoaDon.setTrangThai(hoaDonDTO.getTrangThai());
         
-        // Update relationships - xử lý khách hàng
-        if (hoaDonDTO.getKhachHangId() != null) {
-            // Nếu có ID khách hàng, tìm khách hàng theo ID
-            KhachHang khachHang = khachHangRepository.findById(hoaDonDTO.getKhachHangId())
-                    .orElseThrow(() -> new RuntimeException("Không tìm thấy khách hàng với ID: " + hoaDonDTO.getKhachHangId()));
-            existingHoaDon.setKhachHang(khachHang);
-        } else if (hoaDonDTO.getTenKhachHang() != null && !hoaDonDTO.getTenKhachHang().isEmpty()) {
-            // Nếu không có ID nhưng có tên khách hàng, tạo hoặc tìm khách hàng mới
-            KhachHang khachHang = createOrFindKhachHang(hoaDonDTO);
-            existingHoaDon.setKhachHang(khachHang);
-        }
+        // Removed customer relationship handling as KhachHangRepository was deleted
         
         // Update relationships - xử lý nhân viên
         if (hoaDonDTO.getNhanVienId() != null) {
@@ -191,16 +163,7 @@ public class HoaDonService {
         hoaDon.setGhiChu(dto.getGhiChu());
         hoaDon.setTrangThai(dto.getTrangThai());
         
-        // Xử lý khách hàng
-        if (dto.getKhachHangId() != null) {
-            // Nếu có ID khách hàng, tìm khách hàng theo ID
-            KhachHang khachHang = khachHangRepository.findById(dto.getKhachHangId()).orElse(null);
-            hoaDon.setKhachHang(khachHang);
-        } else if (dto.getTenKhachHang() != null && !dto.getTenKhachHang().isEmpty()) {
-            // Nếu không có ID nhưng có tên khách hàng, tạo khách hàng mới
-            KhachHang khachHang = createOrFindKhachHang(dto);
-            hoaDon.setKhachHang(khachHang);
-        }
+        // Removed customer handling as KhachHangRepository was deleted
         
         // Xử lý nhân viên
         if (dto.getNhanVienId() != null) {
@@ -219,11 +182,11 @@ public class HoaDonService {
         return HoaDonDTO.builder()
                 .id(hoaDon.getId())
                 .maHoaDon(hoaDon.getMaHoaDon())
-                .khachHangId(hoaDon.getKhachHang() != null ? hoaDon.getKhachHang().getId() : null)
-                .tenKhachHang(hoaDon.getKhachHang() != null ? hoaDon.getKhachHang().getTenKhachHang() : null)
-                .emailKhachHang(hoaDon.getKhachHang() != null ? hoaDon.getKhachHang().getEmail() : null)
-                .soDienThoaiKhachHang(hoaDon.getKhachHang() != null ? hoaDon.getKhachHang().getSoDienThoai() : null)
-                .diaChiKhachHang(getDiaChiKhachHang(hoaDon.getKhachHang()))
+                .khachHangId(null) // Removed customer data as KhachHangRepository was deleted
+                .tenKhachHang(null)
+                .emailKhachHang(null)
+                .soDienThoaiKhachHang(null)
+                .diaChiKhachHang(null)
                 .nhanVienId(hoaDon.getNhanVien() != null ? hoaDon.getNhanVien().getId() : null)
                 .tenNhanVien(hoaDon.getNhanVien() != null ? hoaDon.getNhanVien().getHoTen() : null)
                 .ngayTao(hoaDon.getNgayTao())
@@ -237,110 +200,7 @@ public class HoaDonService {
                 .build();
     }
 
-    private String buildFullAddress(DiaChiKhachHang diaChi) {
-        if (diaChi == null) return null;
-        
-        StringBuilder address = new StringBuilder();
-        if (diaChi.getDiaChi() != null && !diaChi.getDiaChi().trim().isEmpty()) {
-            address.append(diaChi.getDiaChi().trim());
-        }
-        if (diaChi.getPhuongXa() != null && !diaChi.getPhuongXa().trim().isEmpty()) {
-            if (address.length() > 0) address.append(", ");
-            address.append(diaChi.getPhuongXa().trim());
-        }
-        if (diaChi.getQuanHuyen() != null && !diaChi.getQuanHuyen().trim().isEmpty()) {
-            if (address.length() > 0) address.append(", ");
-            address.append(diaChi.getQuanHuyen().trim());
-        }
-        if (diaChi.getTinhThanh() != null && !diaChi.getTinhThanh().trim().isEmpty()) {
-            if (address.length() > 0) address.append(", ");
-            address.append(diaChi.getTinhThanh().trim());
-        }
-        
-        return address.length() > 0 ? address.toString() : null;
-    }
-
-    private String getDiaChiKhachHang(KhachHang khachHang) {
-        if (khachHang == null || khachHang.getId() == null) {
-            return null;
-        }
-        
-        // Tìm địa chỉ mặc định của khách hàng
-        List<DiaChiKhachHang> diaChiMacDinhList = diaChiKhachHangRepository.findDiaChiMacDinhByKhachHangId(khachHang.getId());
-        if (!diaChiMacDinhList.isEmpty()) {
-            return buildFullAddress(diaChiMacDinhList.get(0));
-        }
-        
-        // Nếu không có địa chỉ mặc định, lấy địa chỉ đầu tiên
-        List<DiaChiKhachHang> danhSachDiaChi = diaChiKhachHangRepository.findDiaChiActiveByKhachHangId(khachHang.getId());
-        if (!danhSachDiaChi.isEmpty()) {
-            return buildFullAddress(danhSachDiaChi.get(0));
-        }
-        
-        return null;
-    }
-
-    private KhachHang createOrFindKhachHang(HoaDonDTO dto) {
-        // Tìm khách hàng theo tên và số điện thoại để tránh duplicate
-        if (dto.getSoDienThoaiKhachHang() != null && !dto.getSoDienThoaiKhachHang().isEmpty()) {
-            Optional<KhachHang> existingByPhone = khachHangRepository.findBySoDienThoai(dto.getSoDienThoaiKhachHang());
-            if (existingByPhone.isPresent()) {
-                // Kiểm tra xem tên có khác không
-                KhachHang existingKhachHang = existingByPhone.get();
-                if (existingKhachHang.getTenKhachHang().equals(dto.getTenKhachHang())) {
-                    // Cùng tên và số điện thoại -> trả về khách hàng cũ
-                    return existingKhachHang;
-                } else {
-                    // Khác tên nhưng cùng số điện thoại -> tạo khách hàng mới với số điện thoại khác
-                    System.out.println("Tìm thấy khách hàng cũ với số điện thoại " + dto.getSoDienThoaiKhachHang() + 
-                                     " nhưng tên khác (" + existingKhachHang.getTenKhachHang() + " vs " + dto.getTenKhachHang() + 
-                                     "). Tạo khách hàng mới.");
-                }
-            }
-        }
-        
-        // Tạo khách hàng mới
-        KhachHang khachHang = new KhachHang();
-        khachHang.setTenKhachHang(dto.getTenKhachHang());
-        khachHang.setEmail(dto.getEmailKhachHang());
-        
-        // Nếu số điện thoại đã tồn tại với tên khác, tạo số điện thoại mới
-        if (dto.getSoDienThoaiKhachHang() != null && !dto.getSoDienThoaiKhachHang().isEmpty()) {
-            Optional<KhachHang> existingByPhone = khachHangRepository.findBySoDienThoai(dto.getSoDienThoaiKhachHang());
-            if (existingByPhone.isPresent()) {
-                // Tạo số điện thoại mới bằng cách thay đổi số cuối
-                String originalPhone = dto.getSoDienThoaiKhachHang();
-                String newPhone;
-                if (originalPhone.length() >= 10) {
-                    // Thay đổi 2 số cuối
-                    newPhone = originalPhone.substring(0, originalPhone.length() - 2) + 
-                              String.format("%02d", (System.currentTimeMillis() % 100));
-                } else {
-                    // Nếu số điện thoại ngắn, thêm số vào cuối
-                    newPhone = originalPhone + String.format("%02d", (System.currentTimeMillis() % 100));
-                }
-                khachHang.setSoDienThoai(newPhone);
-                System.out.println("Tạo số điện thoại mới: " + newPhone);
-            } else {
-                khachHang.setSoDienThoai(dto.getSoDienThoaiKhachHang());
-            }
-        } else {
-            khachHang.setSoDienThoai("0000000000"); // Default phone
-        }
-        
-        khachHang.setNgaySinh(java.time.LocalDate.of(1990, 1, 1)); // Default date
-        khachHang.setGioiTinh(true); // Default gender
-        khachHang.setDiemTichLuy(0);
-        khachHang.setNgayTao(java.time.LocalDate.now());
-        khachHang.setTrangThai(true);
-        
-        KhachHang savedKhachHang = khachHangRepository.save(khachHang);
-        System.out.println("Đã tạo khách hàng mới với ID: " + savedKhachHang.getId() + 
-                         ", Tên: " + savedKhachHang.getTenKhachHang() + 
-                         ", SĐT: " + savedKhachHang.getSoDienThoai());
-        
-        return savedKhachHang;
-    }
+    // Removed all DiaChiKhachHang and KhachHang related methods as repositories were deleted
 
     private NhanVien createOrFindNhanVien(HoaDonDTO dto) {
         // Tìm nhân viên theo tên
