@@ -1,12 +1,11 @@
 package com.example.backend.dto;
 
-import lombok.Data;
-import lombok.Builder;
-import lombok.NoArgsConstructor;
 import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Data;
+import lombok.NoArgsConstructor;
 
 import java.time.LocalDate;
-import java.util.List;
 
 @Data
 @Builder
@@ -14,16 +13,18 @@ import java.util.List;
 @AllArgsConstructor
 public class KhachHangDTO {
     private Long id;
+    private String maKhachHang;
     private String tenKhachHang;
     private String email;
     private String soDienThoai;
+    private String diaChi;
     private LocalDate ngaySinh;
     private Boolean gioiTinh;
-    private Integer diemTichLuy;
     private LocalDate ngayTao;
     private Boolean trangThai;
+    
+    // Thông tin user (nếu có)
     private Long userId;
     private String username;
-    private String fullName;
-    private List<DiaChiKhachHangDTO> danhSachDiaChi;
 }
+
