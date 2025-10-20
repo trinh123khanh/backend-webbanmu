@@ -61,9 +61,7 @@ public class TrongLuongServiceImpl implements TrongLuongService {
         }
         
         // Kiểm tra trùng lặp (trừ chính nó)
-        if (repository.existsByGiaTriTrongLuongAndDonVi(request.getGiaTriTrongLuong(), request.getDonVi()) &&
-            !(request.getGiaTriTrongLuong().equals(entity.getGiaTriTrongLuong()) && 
-              request.getDonVi().equals(entity.getDonVi()))) {
+        if (repository.existsByGiaTriTrongLuongAndDonViAndIdNot(request.getGiaTriTrongLuong(), request.getDonVi(), id)) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Trọng lượng với giá trị và đơn vị này đã tồn tại");
         }
         

@@ -14,6 +14,9 @@ public class NhanVien {
     
     private String hoTen;
     
+    @Column(unique = true, nullable = false)
+    private String maNhanVien;
+    
     @Column(unique = true)
     private String email;
     
