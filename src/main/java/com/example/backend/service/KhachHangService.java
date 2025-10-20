@@ -44,14 +44,14 @@ public class KhachHangService {
     }
 
     // Tìm kiếm khách hàng với bộ lọc
-    public Page<KhachHangDTO> searchKhachHang(String tenKhachHang, String email, String soDienThoai, 
+    public Page<KhachHangDTO> searchKhachHang(String maKhachHang, String tenKhachHang, String email, String soDienThoai, 
                                             Boolean trangThai, int page, int size, String sortBy, String sortDir) {
         Sort sort = sortDir.equalsIgnoreCase("desc") ? 
             Sort.by(sortBy).descending() : Sort.by(sortBy).ascending();
         Pageable pageable = PageRequest.of(page, size, sort);
         
         Page<KhachHang> khachHangPage = khachHangRepository.findWithFilters(
-            tenKhachHang, email, soDienThoai, trangThai, pageable);
+            maKhachHang, tenKhachHang, email, soDienThoai, trangThai, pageable);
         
         return khachHangPage.map(this::convertToDTO);
     }
@@ -62,6 +62,8 @@ public class KhachHangService {
         khachHang.setNgayTao(LocalDate.now());
         khachHang.setDiemTichLuy(0);
         khachHang.setTrangThai(true);
+        khachHang.setSoLanMua(0);
+        khachHang.setLanMuaGanNhat(null);
         
         KhachHang savedKhachHang = khachHangRepository.save(khachHang);
         return convertToDTO(savedKhachHang);
@@ -105,6 +107,17 @@ public class KhachHangService {
     // Kiểm tra số điện thoại đã tồn tại
     public boolean existsBySoDienThoai(String soDienThoai) {
         return khachHangRepository.findBySoDienThoai(soDienThoai).isPresent();
+    }
+
+    // Kiểm tra mã khách hàng đã tồn tại
+    public boolean existsByMaKhachHang(String maKhachHang) {
+        return khachHangRepository.existsByMaKhachHang(maKhachHang);
+    }
+
+    // Lấy khách hàng theo mã khách hàng
+    public Optional<KhachHangDTO> getKhachHangByMaKhachHang(String maKhachHang) {
+        return khachHangRepository.findByMaKhachHang(maKhachHang)
+                .map(this::convertToDTO);
     }
 
     // Lấy khách hàng theo email
@@ -162,6 +175,7 @@ public class KhachHangService {
 
         return KhachHangDTO.builder()
                 .id(khachHang.getId())
+                .maKhachHang(khachHang.getMaKhachHang())
                 .tenKhachHang(khachHang.getTenKhachHang())
                 .email(khachHang.getEmail())
                 .soDienThoai(khachHang.getSoDienThoai())
@@ -170,6 +184,8 @@ public class KhachHangService {
                 .diemTichLuy(khachHang.getDiemTichLuy())
                 .ngayTao(khachHang.getNgayTao())
                 .trangThai(khachHang.getTrangThai())
+                .soLanMua(khachHang.getSoLanMua())
+                .lanMuaGanNhat(khachHang.getLanMuaGanNhat())
                 .userId(khachHang.getUser() != null ? khachHang.getUser().getId() : null)
                 .username(khachHang.getUser() != null ? khachHang.getUser().getUsername() : null)
                 .fullName(khachHang.getUser() != null ? khachHang.getUser().getFullName() : null)
@@ -196,6 +212,7 @@ public class KhachHangService {
     // Convert DTO to Entity
     private KhachHang convertToEntity(KhachHangDTO khachHangDTO) {
         KhachHang khachHang = new KhachHang();
+        khachHang.setMaKhachHang(khachHangDTO.getMaKhachHang());
         khachHang.setTenKhachHang(khachHangDTO.getTenKhachHang());
         khachHang.setEmail(khachHangDTO.getEmail());
         khachHang.setSoDienThoai(khachHangDTO.getSoDienThoai());
@@ -204,11 +221,16 @@ public class KhachHangService {
         khachHang.setDiemTichLuy(khachHangDTO.getDiemTichLuy());
         khachHang.setNgayTao(khachHangDTO.getNgayTao());
         khachHang.setTrangThai(khachHangDTO.getTrangThai());
+        khachHang.setSoLanMua(khachHangDTO.getSoLanMua());
+        khachHang.setLanMuaGanNhat(khachHangDTO.getLanMuaGanNhat());
         return khachHang;
     }
 
     // Update Entity from DTO
     private void updateEntityFromDTO(KhachHang khachHang, KhachHangDTO khachHangDTO) {
+        if (khachHangDTO.getMaKhachHang() != null) {
+            khachHang.setMaKhachHang(khachHangDTO.getMaKhachHang());
+        }
         if (khachHangDTO.getTenKhachHang() != null) {
             khachHang.setTenKhachHang(khachHangDTO.getTenKhachHang());
         }
@@ -229,6 +251,12 @@ public class KhachHangService {
         }
         if (khachHangDTO.getTrangThai() != null) {
             khachHang.setTrangThai(khachHangDTO.getTrangThai());
+        }
+        if (khachHangDTO.getSoLanMua() != null) {
+            khachHang.setSoLanMua(khachHangDTO.getSoLanMua());
+        }
+        if (khachHangDTO.getLanMuaGanNhat() != null) {
+            khachHang.setLanMuaGanNhat(khachHangDTO.getLanMuaGanNhat());
         }
     }
     

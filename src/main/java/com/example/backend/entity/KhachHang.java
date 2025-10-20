@@ -16,7 +16,7 @@ public class KhachHang {
 
     // Bổ sung mã khách hàng cho khớp với cột "ma_khach_hang"
     @Column(name = "ma_khach_hang")
-    private Integer maKhachHang;
+    private String maKhachHang;
 
     @Column(name = "ten_khach_hang")
     private String tenKhachHang;
@@ -41,6 +41,12 @@ public class KhachHang {
 
     @Column(name = "trang_thai")
     private Boolean trangThai;
+
+    @Column(name = "so_lan_mua")
+    private Integer soLanMua;
+
+    @Column(name = "lan_mua_gan_nhat")
+    private LocalDate lanMuaGanNhat;
 
     @OneToOne
     @JoinColumn(name = "user_id", unique = true)

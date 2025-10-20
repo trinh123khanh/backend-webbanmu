@@ -13,10 +13,10 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.LocalDateTime;
 import java.util.List;
-import java.util.Optional;
+import java.util.Map;
 import java.util.stream.Collectors;
+import java.util.ArrayList;
 
 @Service
 @RequiredArgsConstructor
@@ -26,24 +26,192 @@ public class PhieuGiamGiaCaNhanService {
     private final PhieuGiamGiaCaNhanRepository phieuGiamGiaCaNhanRepository;
     
     /**
+     * Tạo phiếu giảm giá cá nhân cho một khách hàng
+     */
+    @Transactional
+    public PhieuGiamGiaCaNhan createPhieuGiamGiaCaNhan(Long phieuGiamGiaId, Long khachHangId) {
+        try {
+            log.info("Tạo phiếu giảm giá cá nhân cho phiếu ID: {} và khách hàng ID: {}", phieuGiamGiaId, khachHangId);
+            
+            // Validate input
+            if (phieuGiamGiaId == null || phieuGiamGiaId <= 0) {
+                throw new IllegalArgumentException("ID phiếu giảm giá không hợp lệ: " + phieuGiamGiaId);
+            }
+            if (khachHangId == null || khachHangId <= 0) {
+                throw new IllegalArgumentException("ID khách hàng không hợp lệ: " + khachHangId);
+            }
+            
+            // Kiểm tra xem khách hàng đã có phiếu giảm giá này chưa
+            if (phieuGiamGiaCaNhanRepository.existsByKhachHangIdAndPhieuGiamGiaId(khachHangId, phieuGiamGiaId)) {
+                log.warn("Khách hàng ID: {} đã có phiếu giảm giá ID: {}", khachHangId, phieuGiamGiaId);
+                throw new RuntimeException("Khách hàng đã có phiếu giảm giá này");
+            }
+            
+            PhieuGiamGiaCaNhan entity = PhieuGiamGiaCaNhan.builder()
+                    .phieuGiamGiaId(phieuGiamGiaId)
+                    .khachHangId(khachHangId)
+                    .build();
+            
+            PhieuGiamGiaCaNhan savedEntity = phieuGiamGiaCaNhanRepository.save(entity);
+            
+            log.info("Tạo thành công phiếu giảm giá cá nhân ID: {}", savedEntity.getId());
+            
+            return savedEntity;
+            
+        } catch (Exception e) {
+            log.error("Lỗi khi tạo phiếu giảm giá cá nhân", e);
+            throw new RuntimeException("Lỗi khi tạo phiếu giảm giá cá nhân: " + e.getMessage());
+        }
+    }
+    
+    /**
+     * Tạo phiếu giảm giá cá nhân cho nhiều khách hàng
+     */
+    @Transactional
+    public List<PhieuGiamGiaCaNhan> createPhieuGiamGiaCaNhanForMultipleCustomers(Long phieuGiamGiaId, List<Long> khachHangIds) {
+        try {
+            log.info("Tạo phiếu giảm giá cá nhân cho phiếu ID: {} và {} khách hàng: {}", 
+                    phieuGiamGiaId, khachHangIds.size(), khachHangIds);
+            
+            List<PhieuGiamGiaCaNhan> createdEntities = new ArrayList<>();
+            List<String> errors = new ArrayList<>();
+            
+            for (Long khachHangId : khachHangIds) {
+                try {
+                    log.info("Đang tạo phiếu cá nhân cho khách hàng ID: {} với phiếu giảm giá ID: {}", 
+                            khachHangId, phieuGiamGiaId);
+                    
+                    PhieuGiamGiaCaNhan createdEntity = createPhieuGiamGiaCaNhan(phieuGiamGiaId, khachHangId);
+                    createdEntities.add(createdEntity);
+                    
+                    log.info("✅ Tạo thành công phiếu cá nhân ID: {} cho khách hàng ID: {}", 
+                            createdEntity.getId(), khachHangId);
+                    
+                } catch (Exception e) {
+                    String errorMsg = String.format("Lỗi khi tạo phiếu cá nhân cho khách hàng ID %d: %s", 
+                            khachHangId, e.getMessage());
+                    errors.add(errorMsg);
+                    log.error("❌ {}", errorMsg, e);
+                }
+            }
+            
+            if (!errors.isEmpty()) {
+                String allErrors = String.join("; ", errors);
+                log.error("Có {} lỗi khi tạo phiếu cá nhân: {}", errors.size(), allErrors);
+                throw new RuntimeException("Lỗi khi tạo phiếu cá nhân cho một số khách hàng: " + allErrors);
+            }
+            
+            log.info("🎉 Tạo thành công {} phiếu giảm giá cá nhân cho {} khách hàng", 
+                    createdEntities.size(), khachHangIds.size());
+            
+            return createdEntities;
+            
+        } catch (Exception e) {
+            log.error("Lỗi khi tạo phiếu giảm giá cá nhân cho nhiều khách hàng", e);
+            throw new RuntimeException("Lỗi khi tạo phiếu giảm giá cá nhân: " + e.getMessage());
+        }
+    }
+    
+    /**
+     * Lấy tất cả phiếu giảm giá cá nhân theo phiếu giảm giá
+     */
+    public List<PhieuGiamGiaCaNhan> getPhieuGiamGiaCaNhanByPhieuGiamGiaId(Long phieuGiamGiaId) {
+        try {
+            log.info("Lấy phiếu giảm giá cá nhân theo phiếu ID: {}", phieuGiamGiaId);
+            
+            List<PhieuGiamGiaCaNhan> entities = phieuGiamGiaCaNhanRepository.findByPhieuGiamGiaIdWithDetails(phieuGiamGiaId);
+            
+            log.info("Lấy thành công {} phiếu giảm giá cá nhân", entities.size());
+            
+            return entities;
+            
+        } catch (Exception e) {
+            log.error("Lỗi khi lấy phiếu giảm giá cá nhân theo phiếu ID: {}", phieuGiamGiaId, e);
+            throw new RuntimeException("Lỗi khi lấy phiếu giảm giá cá nhân: " + e.getMessage());
+        }
+    }
+    
+    /**
+     * Lấy tất cả phiếu giảm giá cá nhân theo khách hàng
+     */
+    public List<PhieuGiamGiaCaNhan> getPhieuGiamGiaCaNhanByKhachHangId(Long khachHangId) {
+        try {
+            log.info("Lấy phiếu giảm giá cá nhân theo khách hàng ID: {}", khachHangId);
+            
+            List<PhieuGiamGiaCaNhan> entities = phieuGiamGiaCaNhanRepository.findByKhachHangId(khachHangId);
+            
+            log.info("Lấy thành công {} phiếu giảm giá cá nhân", entities.size());
+            
+            return entities;
+            
+        } catch (Exception e) {
+            log.error("Lỗi khi lấy phiếu giảm giá cá nhân theo khách hàng ID: {}", khachHangId, e);
+            throw new RuntimeException("Lỗi khi lấy phiếu giảm giá cá nhân: " + e.getMessage());
+        }
+    }
+    
+    /**
+     * Xóa tất cả phiếu giảm giá cá nhân theo phiếu giảm giá
+     */
+    @Transactional
+    public void deletePhieuGiamGiaCaNhanByPhieuGiamGiaId(Long phieuGiamGiaId) {
+        try {
+            log.info("Xóa phiếu giảm giá cá nhân theo phiếu ID: {}", phieuGiamGiaId);
+            
+            phieuGiamGiaCaNhanRepository.deleteByPhieuGiamGiaId(phieuGiamGiaId);
+            
+            log.info("Xóa thành công phiếu giảm giá cá nhân theo phiếu ID: {}", phieuGiamGiaId);
+            
+        } catch (Exception e) {
+            log.error("Lỗi khi xóa phiếu giảm giá cá nhân theo phiếu ID: {}", phieuGiamGiaId, e);
+            throw new RuntimeException("Lỗi khi xóa phiếu giảm giá cá nhân: " + e.getMessage());
+        }
+    }
+    
+    /**
+     * Đếm số phiếu giảm giá cá nhân theo phiếu giảm giá
+     */
+    public Long countPhieuGiamGiaCaNhanByPhieuGiamGiaId(Long phieuGiamGiaId) {
+        try {
+            return phieuGiamGiaCaNhanRepository.countByPhieuGiamGiaId(phieuGiamGiaId);
+        } catch (Exception e) {
+            log.error("Lỗi khi đếm phiếu giảm giá cá nhân theo phiếu ID: {}", phieuGiamGiaId, e);
+            return 0L;
+        }
+    }
+    
+    /**
+     * Đếm số phiếu giảm giá cá nhân theo khách hàng
+     */
+    public Long countPhieuGiamGiaCaNhanByKhachHangId(Long khachHangId) {
+        try {
+            return phieuGiamGiaCaNhanRepository.countByKhachHangId(khachHangId);
+        } catch (Exception e) {
+            log.error("Lỗi khi đếm phiếu giảm giá cá nhân theo khách hàng ID: {}", khachHangId, e);
+            return 0L;
+        }
+    }
+    
+    // ========== CÁC METHOD CHO CONTROLLER ==========
+    
+    /**
      * Lấy tất cả phiếu giảm giá cá nhân
      */
     public ApiResponse<List<PhieuGiamGiaCaNhanResponse>> getAllPhieuGiamGiaCaNhan() {
         try {
-            log.info("Lấy danh sách phiếu giảm giá cá nhân");
+            log.info("Lấy tất cả phiếu giảm giá cá nhân");
             
-            List<PhieuGiamGiaCaNhan> entities = phieuGiamGiaCaNhanRepository.findAllWithPhieuGiamGia();
-            
+            List<PhieuGiamGiaCaNhan> entities = phieuGiamGiaCaNhanRepository.findAll();
             List<PhieuGiamGiaCaNhanResponse> responses = entities.stream()
                     .map(this::convertToResponse)
                     .collect(Collectors.toList());
             
-            log.info("Lấy danh sách thành công: {} phiếu giảm giá cá nhân", responses.size());
+            log.info("Lấy thành công {} phiếu giảm giá cá nhân", responses.size());
             
-            return ApiResponse.success(responses);
+            return ApiResponse.success("Lấy danh sách phiếu giảm giá cá nhân thành công", responses);
             
         } catch (Exception e) {
-            log.error("Lỗi khi lấy danh sách phiếu giảm giá cá nhân", e);
+            log.error("Lỗi khi lấy tất cả phiếu giảm giá cá nhân", e);
             return ApiResponse.error("Lỗi khi lấy danh sách phiếu giảm giá cá nhân: " + e.getMessage());
         }
     }
@@ -53,19 +221,19 @@ public class PhieuGiamGiaCaNhanService {
      */
     public ApiResponse<Page<PhieuGiamGiaCaNhanResponse>> getAllPhieuGiamGiaCaNhanWithPagination(int page, int size) {
         try {
-            log.info("Lấy danh sách phiếu giảm giá cá nhân với phân trang - Page: {}, Size: {}", page, size);
+            log.info("Lấy phiếu giảm giá cá nhân với phân trang - Page: {}, Size: {}", page, size);
             
             Pageable pageable = PageRequest.of(page, size);
-            Page<PhieuGiamGiaCaNhan> entities = phieuGiamGiaCaNhanRepository.findAllWithPhieuGiamGia(pageable);
+            Page<PhieuGiamGiaCaNhan> entityPage = phieuGiamGiaCaNhanRepository.findAll(pageable);
             
-            Page<PhieuGiamGiaCaNhanResponse> responses = entities.map(this::convertToResponse);
+            Page<PhieuGiamGiaCaNhanResponse> responsePage = entityPage.map(this::convertToResponse);
             
-            log.info("Lấy danh sách thành công: {} phiếu giảm giá cá nhân", responses.getTotalElements());
+            log.info("Lấy thành công {} phiếu giảm giá cá nhân với phân trang", responsePage.getContent().size());
             
-            return ApiResponse.success(responses);
+            return ApiResponse.success("Lấy danh sách phiếu giảm giá cá nhân với phân trang thành công", responsePage);
             
         } catch (Exception e) {
-            log.error("Lỗi khi lấy danh sách phiếu giảm giá cá nhân với phân trang", e);
+            log.error("Lỗi khi lấy phiếu giảm giá cá nhân với phân trang", e);
             return ApiResponse.error("Lỗi khi lấy danh sách phiếu giảm giá cá nhân: " + e.getMessage());
         }
     }
@@ -77,18 +245,14 @@ public class PhieuGiamGiaCaNhanService {
         try {
             log.info("Lấy phiếu giảm giá cá nhân theo ID: {}", id);
             
-            Optional<PhieuGiamGiaCaNhan> entityOpt = phieuGiamGiaCaNhanRepository.findByIdWithPhieuGiamGia(id);
+            PhieuGiamGiaCaNhan entity = phieuGiamGiaCaNhanRepository.findById(id)
+                    .orElseThrow(() -> new RuntimeException("Không tìm thấy phiếu giảm giá cá nhân với ID: " + id));
             
-            if (entityOpt.isEmpty()) {
-                log.warn("Không tìm thấy phiếu giảm giá cá nhân với ID: {}", id);
-                return ApiResponse.error("Không tìm thấy phiếu giảm giá cá nhân với ID: " + id);
-            }
-            
-            PhieuGiamGiaCaNhanResponse response = convertToResponse(entityOpt.get());
+            PhieuGiamGiaCaNhanResponse response = convertToResponse(entity);
             
             log.info("Lấy thành công phiếu giảm giá cá nhân ID: {}", id);
             
-            return ApiResponse.success(response);
+            return ApiResponse.success("Lấy phiếu giảm giá cá nhân thành công", response);
             
         } catch (Exception e) {
             log.error("Lỗi khi lấy phiếu giảm giá cá nhân theo ID: {}", id, e);
@@ -104,18 +268,17 @@ public class PhieuGiamGiaCaNhanService {
             log.info("Lấy phiếu giảm giá cá nhân theo khách hàng ID: {}", khachHangId);
             
             List<PhieuGiamGiaCaNhan> entities = phieuGiamGiaCaNhanRepository.findByKhachHangId(khachHangId);
-            
             List<PhieuGiamGiaCaNhanResponse> responses = entities.stream()
                     .map(this::convertToResponse)
                     .collect(Collectors.toList());
             
-            log.info("Lấy thành công: {} phiếu giảm giá cá nhân cho khách hàng ID: {}", responses.size(), khachHangId);
+            log.info("Lấy thành công {} phiếu giảm giá cá nhân cho khách hàng ID: {}", responses.size(), khachHangId);
             
-            return ApiResponse.success(responses);
+            return ApiResponse.success("Lấy danh sách phiếu giảm giá cá nhân theo khách hàng thành công", responses);
             
         } catch (Exception e) {
             log.error("Lỗi khi lấy phiếu giảm giá cá nhân theo khách hàng ID: {}", khachHangId, e);
-            return ApiResponse.error("Lỗi khi lấy phiếu giảm giá cá nhân: " + e.getMessage());
+            return ApiResponse.error("Lỗi khi lấy phiếu giảm giá cá nhân theo khách hàng: " + e.getMessage());
         }
     }
     
@@ -127,108 +290,39 @@ public class PhieuGiamGiaCaNhanService {
             log.info("Lấy phiếu giảm giá cá nhân theo khách hàng ID: {} với phân trang - Page: {}, Size: {}", khachHangId, page, size);
             
             Pageable pageable = PageRequest.of(page, size);
-            Page<PhieuGiamGiaCaNhan> entities = phieuGiamGiaCaNhanRepository.findByKhachHangId(khachHangId, pageable);
+            Page<PhieuGiamGiaCaNhan> entityPage = phieuGiamGiaCaNhanRepository.findByKhachHangId(khachHangId, pageable);
             
-            Page<PhieuGiamGiaCaNhanResponse> responses = entities.map(this::convertToResponse);
+            Page<PhieuGiamGiaCaNhanResponse> responsePage = entityPage.map(this::convertToResponse);
             
-            log.info("Lấy thành công: {} phiếu giảm giá cá nhân cho khách hàng ID: {}", responses.getTotalElements(), khachHangId);
+            log.info("Lấy thành công {} phiếu giảm giá cá nhân cho khách hàng ID: {} với phân trang", 
+                    responsePage.getContent().size(), khachHangId);
             
-            return ApiResponse.success(responses);
+            return ApiResponse.success("Lấy danh sách phiếu giảm giá cá nhân theo khách hàng với phân trang thành công", responsePage);
             
         } catch (Exception e) {
             log.error("Lỗi khi lấy phiếu giảm giá cá nhân theo khách hàng ID: {} với phân trang", khachHangId, e);
-            return ApiResponse.error("Lỗi khi lấy phiếu giảm giá cá nhân: " + e.getMessage());
+            return ApiResponse.error("Lỗi khi lấy phiếu giảm giá cá nhân theo khách hàng: " + e.getMessage());
         }
     }
     
     /**
-     * Lấy phiếu giảm giá cá nhân có thể sử dụng
+     * Tạo mới phiếu giảm giá cá nhân từ Request
      */
-    public ApiResponse<List<PhieuGiamGiaCaNhanResponse>> getAvailableVouchers() {
-        try {
-            log.info("Lấy danh sách phiếu giảm giá cá nhân có thể sử dụng");
-            
-            List<PhieuGiamGiaCaNhan> entities = phieuGiamGiaCaNhanRepository.findAvailableVouchers();
-            
-            List<PhieuGiamGiaCaNhanResponse> responses = entities.stream()
-                    .map(this::convertToResponse)
-                    .collect(Collectors.toList());
-            
-            log.info("Lấy thành công: {} phiếu giảm giá cá nhân có thể sử dụng", responses.size());
-            
-            return ApiResponse.success(responses);
-            
-        } catch (Exception e) {
-            log.error("Lỗi khi lấy phiếu giảm giá cá nhân có thể sử dụng", e);
-            return ApiResponse.error("Lỗi khi lấy phiếu giảm giá cá nhân: " + e.getMessage());
-        }
-    }
-    
-    /**
-     * Lấy phiếu giảm giá cá nhân có thể sử dụng của khách hàng
-     */
-    public ApiResponse<List<PhieuGiamGiaCaNhanResponse>> getAvailableVouchersByKhachHang(Long khachHangId) {
-        try {
-            log.info("Lấy phiếu giảm giá cá nhân có thể sử dụng của khách hàng ID: {}", khachHangId);
-            
-            List<PhieuGiamGiaCaNhan> entities = phieuGiamGiaCaNhanRepository.findAvailableVouchersByKhachHang(khachHangId);
-            
-            List<PhieuGiamGiaCaNhanResponse> responses = entities.stream()
-                    .map(this::convertToResponse)
-                    .collect(Collectors.toList());
-            
-            log.info("Lấy thành công: {} phiếu giảm giá cá nhân có thể sử dụng cho khách hàng ID: {}", responses.size(), khachHangId);
-            
-            return ApiResponse.success(responses);
-            
-        } catch (Exception e) {
-            log.error("Lỗi khi lấy phiếu giảm giá cá nhân có thể sử dụng của khách hàng ID: {}", khachHangId, e);
-            return ApiResponse.error("Lỗi khi lấy phiếu giảm giá cá nhân: " + e.getMessage());
-        }
-    }
-    
-    /**
-     * Tạo mới phiếu giảm giá cá nhân
-     */
-    @Transactional
     public ApiResponse<PhieuGiamGiaCaNhanResponse> createPhieuGiamGiaCaNhan(PhieuGiamGiaCaNhanRequest request) {
         try {
-            log.info("Tạo mới phiếu giảm giá cá nhân cho khách hàng ID: {}, phiếu giảm giá ID: {}", 
+            log.info("Tạo mới phiếu giảm giá cá nhân từ request cho khách hàng ID: {}, phiếu giảm giá ID: {}", 
                     request.getKhachHangId(), request.getPhieuGiamGiaId());
             
-            // Kiểm tra xem khách hàng đã có phiếu giảm giá này chưa
-            if (phieuGiamGiaCaNhanRepository.existsByKhachHangIdAndPhieuGiamGiaId(
-                    request.getKhachHangId(), request.getPhieuGiamGiaId())) {
-                log.warn("Khách hàng ID: {} đã có phiếu giảm giá ID: {}", 
-                        request.getKhachHangId(), request.getPhieuGiamGiaId());
-                return ApiResponse.error("Khách hàng đã có phiếu giảm giá này");
-            }
+            // Sử dụng method có sẵn với 2 parameters
+            PhieuGiamGiaCaNhan entity = createPhieuGiamGiaCaNhan(request.getPhieuGiamGiaId(), request.getKhachHangId());
+            PhieuGiamGiaCaNhanResponse response = convertToResponse(entity);
             
-            PhieuGiamGiaCaNhan entity = PhieuGiamGiaCaNhan.builder()
-                    .khachHangId(request.getKhachHangId())
-                    .phieuGiamGiaId(request.getPhieuGiamGiaId())
-                    .daSuDung(request.getDaSuDung() != null ? request.getDaSuDung() : false)
-                    .ngayHetHan(request.getNgayHetHan())
-                    .ngaySuDung(request.getNgaySuDung())
-                    .build();
+            log.info("Tạo thành công phiếu giảm giá cá nhân ID: {}", entity.getId());
             
-            PhieuGiamGiaCaNhan savedEntity = phieuGiamGiaCaNhanRepository.save(entity);
-            
-            // Lấy lại với thông tin liên quan
-            Optional<PhieuGiamGiaCaNhan> entityWithDetails = phieuGiamGiaCaNhanRepository.findByIdWithPhieuGiamGia(savedEntity.getId());
-            
-            if (entityWithDetails.isEmpty()) {
-                return ApiResponse.error("Lỗi khi tạo phiếu giảm giá cá nhân");
-            }
-            
-            PhieuGiamGiaCaNhanResponse response = convertToResponse(entityWithDetails.get());
-            
-            log.info("Tạo thành công phiếu giảm giá cá nhân ID: {}", savedEntity.getId());
-            
-            return ApiResponse.success(response);
+            return ApiResponse.success("Tạo phiếu giảm giá cá nhân thành công", response);
             
         } catch (Exception e) {
-            log.error("Lỗi khi tạo phiếu giảm giá cá nhân", e);
+            log.error("Lỗi khi tạo phiếu giảm giá cá nhân từ request", e);
             return ApiResponse.error("Lỗi khi tạo phiếu giảm giá cá nhân: " + e.getMessage());
         }
     }
@@ -236,51 +330,23 @@ public class PhieuGiamGiaCaNhanService {
     /**
      * Cập nhật phiếu giảm giá cá nhân
      */
-    @Transactional
     public ApiResponse<PhieuGiamGiaCaNhanResponse> updatePhieuGiamGiaCaNhan(Long id, PhieuGiamGiaCaNhanRequest request) {
         try {
             log.info("Cập nhật phiếu giảm giá cá nhân ID: {}", id);
             
-            Optional<PhieuGiamGiaCaNhan> entityOpt = phieuGiamGiaCaNhanRepository.findById(id);
+            PhieuGiamGiaCaNhan entity = phieuGiamGiaCaNhanRepository.findById(id)
+                    .orElseThrow(() -> new RuntimeException("Không tìm thấy phiếu giảm giá cá nhân với ID: " + id));
             
-            if (entityOpt.isEmpty()) {
-                log.warn("Không tìm thấy phiếu giảm giá cá nhân với ID: {}", id);
-                return ApiResponse.error("Không tìm thấy phiếu giảm giá cá nhân với ID: " + id);
-            }
-            
-            PhieuGiamGiaCaNhan entity = entityOpt.get();
-            
-            // Cập nhật các trường
-            if (request.getKhachHangId() != null) {
-                entity.setKhachHangId(request.getKhachHangId());
-            }
-            if (request.getPhieuGiamGiaId() != null) {
-                entity.setPhieuGiamGiaId(request.getPhieuGiamGiaId());
-            }
-            if (request.getDaSuDung() != null) {
-                entity.setDaSuDung(request.getDaSuDung());
-            }
-            if (request.getNgayHetHan() != null) {
-                entity.setNgayHetHan(request.getNgayHetHan());
-            }
-            if (request.getNgaySuDung() != null) {
-                entity.setNgaySuDung(request.getNgaySuDung());
-            }
+            // Cập nhật thông tin
+            entity.setKhachHangId(request.getKhachHangId());
+            entity.setPhieuGiamGiaId(request.getPhieuGiamGiaId());
             
             PhieuGiamGiaCaNhan savedEntity = phieuGiamGiaCaNhanRepository.save(entity);
-            
-            // Lấy lại với thông tin liên quan
-            Optional<PhieuGiamGiaCaNhan> entityWithDetails = phieuGiamGiaCaNhanRepository.findByIdWithPhieuGiamGia(savedEntity.getId());
-            
-            if (entityWithDetails.isEmpty()) {
-                return ApiResponse.error("Lỗi khi cập nhật phiếu giảm giá cá nhân");
-            }
-            
-            PhieuGiamGiaCaNhanResponse response = convertToResponse(entityWithDetails.get());
+            PhieuGiamGiaCaNhanResponse response = convertToResponse(savedEntity);
             
             log.info("Cập nhật thành công phiếu giảm giá cá nhân ID: {}", id);
             
-            return ApiResponse.success(response);
+            return ApiResponse.success("Cập nhật phiếu giảm giá cá nhân thành công", response);
             
         } catch (Exception e) {
             log.error("Lỗi khi cập nhật phiếu giảm giá cá nhân ID: {}", id, e);
@@ -289,76 +355,24 @@ public class PhieuGiamGiaCaNhanService {
     }
     
     /**
-     * Xóa phiếu giảm giá cá nhân
+     * Xóa phiếu giảm giá cá nhân theo ID
      */
-    @Transactional
     public ApiResponse<Void> deletePhieuGiamGiaCaNhan(Long id) {
         try {
             log.info("Xóa phiếu giảm giá cá nhân ID: {}", id);
             
-            if (!phieuGiamGiaCaNhanRepository.existsById(id)) {
-                log.warn("Không tìm thấy phiếu giảm giá cá nhân với ID: {}", id);
-                return ApiResponse.error("Không tìm thấy phiếu giảm giá cá nhân với ID: " + id);
-            }
+            PhieuGiamGiaCaNhan entity = phieuGiamGiaCaNhanRepository.findById(id)
+                    .orElseThrow(() -> new RuntimeException("Không tìm thấy phiếu giảm giá cá nhân với ID: " + id));
             
-            phieuGiamGiaCaNhanRepository.deleteById(id);
+            phieuGiamGiaCaNhanRepository.delete(entity);
             
             log.info("Xóa thành công phiếu giảm giá cá nhân ID: {}", id);
             
-            return ApiResponse.success(null);
+            return ApiResponse.success("Xóa phiếu giảm giá cá nhân thành công", null);
             
         } catch (Exception e) {
             log.error("Lỗi khi xóa phiếu giảm giá cá nhân ID: {}", id, e);
             return ApiResponse.error("Lỗi khi xóa phiếu giảm giá cá nhân: " + e.getMessage());
-        }
-    }
-    
-    /**
-     * Đánh dấu phiếu giảm giá cá nhân đã sử dụng
-     */
-    @Transactional
-    public ApiResponse<PhieuGiamGiaCaNhanResponse> markAsUsed(Long id) {
-        try {
-            log.info("Đánh dấu phiếu giảm giá cá nhân ID: {} đã sử dụng", id);
-            
-            Optional<PhieuGiamGiaCaNhan> entityOpt = phieuGiamGiaCaNhanRepository.findById(id);
-            
-            if (entityOpt.isEmpty()) {
-                log.warn("Không tìm thấy phiếu giảm giá cá nhân với ID: {}", id);
-                return ApiResponse.error("Không tìm thấy phiếu giảm giá cá nhân với ID: " + id);
-            }
-            
-            PhieuGiamGiaCaNhan entity = entityOpt.get();
-            
-            if (entity.getDaSuDung()) {
-                log.warn("Phiếu giảm giá cá nhân ID: {} đã được sử dụng", id);
-                return ApiResponse.error("Phiếu giảm giá cá nhân đã được sử dụng");
-            }
-            
-            if (entity.isExpired()) {
-                log.warn("Phiếu giảm giá cá nhân ID: {} đã hết hạn", id);
-                return ApiResponse.error("Phiếu giảm giá cá nhân đã hết hạn");
-            }
-            
-            entity.markAsUsed();
-            PhieuGiamGiaCaNhan savedEntity = phieuGiamGiaCaNhanRepository.save(entity);
-            
-            // Lấy lại với thông tin liên quan
-            Optional<PhieuGiamGiaCaNhan> entityWithDetails = phieuGiamGiaCaNhanRepository.findByIdWithPhieuGiamGia(savedEntity.getId());
-            
-            if (entityWithDetails.isEmpty()) {
-                return ApiResponse.error("Lỗi khi đánh dấu phiếu giảm giá cá nhân đã sử dụng");
-            }
-            
-            PhieuGiamGiaCaNhanResponse response = convertToResponse(entityWithDetails.get());
-            
-            log.info("Đánh dấu thành công phiếu giảm giá cá nhân ID: {} đã sử dụng", id);
-            
-            return ApiResponse.success(response);
-            
-        } catch (Exception e) {
-            log.error("Lỗi khi đánh dấu phiếu giảm giá cá nhân ID: {} đã sử dụng", id, e);
-            return ApiResponse.error("Lỗi khi đánh dấu phiếu giảm giá cá nhân đã sử dụng: " + e.getMessage());
         }
     }
     
@@ -369,21 +383,17 @@ public class PhieuGiamGiaCaNhanService {
         try {
             log.info("Lấy thống kê phiếu giảm giá cá nhân cho khách hàng ID: {}", khachHangId);
             
-            Long totalCount = phieuGiamGiaCaNhanRepository.countByKhachHangId(khachHangId);
-            Long usedCount = phieuGiamGiaCaNhanRepository.countUsedVouchersByKhachHang(khachHangId);
-            Long availableCount = phieuGiamGiaCaNhanRepository.countAvailableVouchersByKhachHang(khachHangId);
+            Long totalCount = countPhieuGiamGiaCaNhanByKhachHangId(khachHangId);
             
-            Object statistics = new Object() {
-                public final Long totalVouchers = totalCount;
-                public final Long usedVouchers = usedCount;
-                public final Long availableVouchers = availableCount;
-                public final Long expiredVouchers = totalCount - usedCount - availableCount;
-            };
+            Map<String, Object> statistics = Map.of(
+                    "khachHangId", khachHangId,
+                    "totalPhieuGiamGiaCaNhan", totalCount,
+                    "message", "Thống kê phiếu giảm giá cá nhân theo khách hàng"
+            );
             
-            log.info("Lấy thành công thống kê cho khách hàng ID: {} - Tổng: {}, Đã dùng: {}, Có thể dùng: {}", 
-                    khachHangId, totalCount, usedCount, availableCount);
+            log.info("Lấy thành công thống kê cho khách hàng ID: {}, tổng số phiếu: {}", khachHangId, totalCount);
             
-            return ApiResponse.success(statistics);
+            return ApiResponse.success("Lấy thống kê phiếu giảm giá cá nhân thành công", statistics);
             
         } catch (Exception e) {
             log.error("Lỗi khi lấy thống kê phiếu giảm giá cá nhân cho khách hàng ID: {}", khachHangId, e);
@@ -392,25 +402,61 @@ public class PhieuGiamGiaCaNhanService {
     }
     
     /**
-     * Chuyển đổi entity sang response
+     * Tạo phiếu giảm giá cá nhân với thông tin chi tiết và validation đầy đủ
+     */
+    @Transactional
+    public ApiResponse<List<PhieuGiamGiaCaNhanResponse>> createPersonalVouchersWithDetails(
+            Long phieuGiamGiaId, List<Long> khachHangIds) {
+        try {
+            log.info("🚀 Bắt đầu tạo phiếu giảm giá cá nhân cho phiếu ID: {} và {} khách hàng", 
+                    phieuGiamGiaId, khachHangIds.size());
+            
+            // Validate input
+            if (phieuGiamGiaId == null || phieuGiamGiaId <= 0) {
+                return ApiResponse.error("ID phiếu giảm giá không hợp lệ");
+            }
+            if (khachHangIds == null || khachHangIds.isEmpty()) {
+                return ApiResponse.error("Danh sách khách hàng không được để trống");
+            }
+            
+            // Tạo phiếu cá nhân cho từng khách hàng
+            List<PhieuGiamGiaCaNhan> createdEntities = createPhieuGiamGiaCaNhanForMultipleCustomers(phieuGiamGiaId, khachHangIds);
+            
+            // Convert to response
+            List<PhieuGiamGiaCaNhanResponse> responses = createdEntities.stream()
+                    .map(this::convertToResponse)
+                    .collect(Collectors.toList());
+            
+            log.info("✅ Hoàn thành tạo {} phiếu giảm giá cá nhân", responses.size());
+            
+            return ApiResponse.success(
+                    String.format("Tạo thành công %d phiếu giảm giá cá nhân cho %d khách hàng", 
+                            responses.size(), khachHangIds.size()), 
+                    responses);
+            
+        } catch (Exception e) {
+            log.error("❌ Lỗi khi tạo phiếu giảm giá cá nhân với thông tin chi tiết", e);
+            return ApiResponse.error("Lỗi khi tạo phiếu giảm giá cá nhân: " + e.getMessage());
+        }
+    }
+    
+    /**
+     * Chuyển đổi Entity sang Response DTO
      */
     private PhieuGiamGiaCaNhanResponse convertToResponse(PhieuGiamGiaCaNhan entity) {
         return PhieuGiamGiaCaNhanResponse.builder()
                 .id(entity.getId())
                 .khachHangId(entity.getKhachHangId())
                 .phieuGiamGiaId(entity.getPhieuGiamGiaId())
-                .daSuDung(entity.getDaSuDung())
-                .ngayHetHan(entity.getNgayHetHan())
-                .ngaySuDung(entity.getNgaySuDung())
-                .trangThai(entity.getTrangThaiText())
-                .soLanDaDung(entity.getDaSuDung() ? 1 : 0)
-                .tenKhachHang("Khách hàng " + entity.getKhachHangId()) // Tạm thời, sẽ cần join với bảng khách hàng
-                .tenPhieuGiamGia(entity.getPhieuGiamGia() != null ? entity.getPhieuGiamGia().getTenPhieuGiamGia() : "N/A")
-                .maPhieuGiamGia(entity.getPhieuGiamGia() != null ? entity.getPhieuGiamGia().getMaPhieu() : "N/A")
-                .giaTriGiam(entity.getPhieuGiamGia() != null ? entity.getPhieuGiamGia().getGiaTriGiam().doubleValue() : 0.0)
-                .loaiPhieuGiamGia(entity.getPhieuGiamGia() != null ? entity.getPhieuGiamGia().getLoaiPhieuGiamGia() : false)
-                .loaiPhieuGiamGiaText(entity.getPhieuGiamGia() != null ? 
-                    (entity.getPhieuGiamGia().getLoaiPhieuGiamGia() ? "Tiền mặt" : "Phần trăm") : "N/A")
+                .trangThai("Chưa sử dụng") // Default value vì Entity không có field này
+                .soLanDaDung(0) // Default value vì Entity không có field này
+                // Các thông tin liên quan có thể được populate từ các service khác
+                .tenKhachHang("Khách hàng " + entity.getKhachHangId()) // Placeholder
+                .tenPhieuGiamGia("Phiếu giảm giá " + entity.getPhieuGiamGiaId()) // Placeholder
+                .maPhieuGiamGia("PGG" + entity.getPhieuGiamGiaId()) // Placeholder
+                .giaTriGiam(0.0) // Placeholder
+                .loaiPhieuGiamGia(false) // Placeholder
+                .loaiPhieuGiamGiaText("Phần trăm") // Placeholder
                 .build();
     }
 }

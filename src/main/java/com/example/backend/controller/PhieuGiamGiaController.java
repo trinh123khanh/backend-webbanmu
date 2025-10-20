@@ -88,6 +88,30 @@ public class PhieuGiamGiaController {
         return ResponseEntity.ok(response);
     }
     
+    // Lấy tất cả phiếu giảm giá với trạng thái động được tính toán
+    @GetMapping("/dynamic-status")
+    public ResponseEntity<ApiResponse<java.util.List<PhieuGiamGiaResponse>>> getAllPhieuGiamGiaWithDynamicStatus() {
+        log.info("Lấy tất cả phiếu giảm giá với trạng thái động");
+        
+        ApiResponse<java.util.List<PhieuGiamGiaResponse>> response = phieuGiamGiaService.getAllPhieuGiamGiaWithDynamicStatus();
+        
+        return ResponseEntity.ok(response);
+    }
+    
+    // Lấy phiếu giảm giá theo trạng thái động (sắp diễn ra, đang diễn ra, kết thúc)
+    @GetMapping("/status/{status}")
+    public ResponseEntity<ApiResponse<java.util.List<PhieuGiamGiaResponse>>> getPhieuGiamGiaByDynamicStatus(@PathVariable String status) {
+        log.info("Lấy phiếu giảm giá theo trạng thái động: {}", status);
+        
+        ApiResponse<java.util.List<PhieuGiamGiaResponse>> response = phieuGiamGiaService.getPhieuGiamGiaByDynamicStatus(status);
+        
+        if (response.isSuccess()) {
+            return ResponseEntity.ok(response);
+        } else {
+            return ResponseEntity.badRequest().body(response);
+        }
+    }
+    
     // Lấy phiếu giảm giá theo ID
     @GetMapping("/{id}")
     public ResponseEntity<ApiResponse<PhieuGiamGiaResponse>> getPhieuGiamGiaById(@PathVariable Long id) {

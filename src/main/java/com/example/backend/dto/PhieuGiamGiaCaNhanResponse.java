@@ -5,8 +5,6 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
-import java.time.LocalDateTime;
-
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
@@ -15,9 +13,6 @@ public class PhieuGiamGiaCaNhanResponse {
     private Long id;
     private Long khachHangId;
     private Long phieuGiamGiaId;
-    private Boolean daSuDung;
-    private LocalDateTime ngayHetHan;
-    private LocalDateTime ngaySuDung;
     private String trangThai;
     private Integer soLanDaDung;
     

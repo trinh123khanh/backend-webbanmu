@@ -111,39 +111,7 @@ public class PhieuGiamGiaCaNhanController {
         }
     }
     
-    /**
-     * Lấy phiếu giảm giá cá nhân có thể sử dụng
-     */
-    @GetMapping("/available")
-    public ResponseEntity<ApiResponse<List<PhieuGiamGiaCaNhanResponse>>> getAvailableVouchers() {
-        log.info("API: Lấy phiếu giảm giá cá nhân có thể sử dụng");
-        
-        ApiResponse<List<PhieuGiamGiaCaNhanResponse>> response = phieuGiamGiaCaNhanService.getAvailableVouchers();
-        
-        if (response.isSuccess()) {
-            return ResponseEntity.ok(response);
-        } else {
-            return ResponseEntity.badRequest().body(response);
-        }
-    }
     
-    /**
-     * Lấy phiếu giảm giá cá nhân có thể sử dụng của khách hàng
-     */
-    @GetMapping("/available/khach-hang/{khachHangId}")
-    public ResponseEntity<ApiResponse<List<PhieuGiamGiaCaNhanResponse>>> getAvailableVouchersByKhachHang(
-            @PathVariable Long khachHangId) {
-        log.info("API: Lấy phiếu giảm giá cá nhân có thể sử dụng của khách hàng ID: {}", khachHangId);
-        
-        ApiResponse<List<PhieuGiamGiaCaNhanResponse>> response = 
-                phieuGiamGiaCaNhanService.getAvailableVouchersByKhachHang(khachHangId);
-        
-        if (response.isSuccess()) {
-            return ResponseEntity.ok(response);
-        } else {
-            return ResponseEntity.badRequest().body(response);
-        }
-    }
     
     /**
      * Tạo mới phiếu giảm giá cá nhân
@@ -197,21 +165,6 @@ public class PhieuGiamGiaCaNhanController {
         }
     }
     
-    /**
-     * Đánh dấu phiếu giảm giá cá nhân đã sử dụng
-     */
-    @PutMapping("/{id}/mark-used")
-    public ResponseEntity<ApiResponse<PhieuGiamGiaCaNhanResponse>> markAsUsed(@PathVariable Long id) {
-        log.info("API: Đánh dấu phiếu giảm giá cá nhân ID: {} đã sử dụng", id);
-        
-        ApiResponse<PhieuGiamGiaCaNhanResponse> response = phieuGiamGiaCaNhanService.markAsUsed(id);
-        
-        if (response.isSuccess()) {
-            return ResponseEntity.ok(response);
-        } else {
-            return ResponseEntity.badRequest().body(response);
-        }
-    }
     
     /**
      * Lấy thống kê phiếu giảm giá cá nhân theo khách hàng

@@ -7,6 +7,7 @@ import lombok.Builder;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.List;
 
 @Data
 @NoArgsConstructor
@@ -24,4 +25,8 @@ public class PhieuGiamGiaRequest {
     private LocalDate ngayBatDau;
     private LocalDate ngayKetThuc;
     private Boolean trangThai;
+    
+    // Các field mới cho chế độ Công khai/Cá nhân
+    private Boolean isPublic; // true = Công khai, false = Cá nhân
+    private List<Long> selectedCustomerIds; // Danh sách ID khách hàng được chọn (chỉ dùng cho chế độ Cá nhân)
 }
