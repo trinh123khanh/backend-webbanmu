@@ -11,7 +11,8 @@ public class DotGiamGia {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
-    
+
+
     @Column(name = "ma_dot_giam_gia", nullable = false, unique = true)
     private String maDotGiamGia;
     

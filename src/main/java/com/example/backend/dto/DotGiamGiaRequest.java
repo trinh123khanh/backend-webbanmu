@@ -9,6 +9,10 @@ import java.time.LocalDateTime;
 public class DotGiamGiaRequest {
     @NotBlank(message = "Mã đợt giảm giá không được để trống")
     private String maDotGiamGia;
+
+
+
+        //jkmgvhbjknhvkljhvnklhj
     
     private String loaiDotGiamGia;
     
@@ -18,7 +22,7 @@ public class DotGiamGiaRequest {
     
     private String moTa;
     
-    @NotNull(message = "Ngày bắt đầu không được để trống")
+    @NotNull(message = "Ngày bắt đầu không được để trống ")
     private LocalDateTime ngayBatDau;
     
     @NotNull(message = "Ngày kết thúc không được để trống")

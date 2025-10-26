@@ -5,6 +5,7 @@ import java.time.LocalDateTime;
 
 @Data
 public class DotGiamGiaResponse {
+
     private Long id;
     private String maDotGiamGia;
     private String loaiDotGiamGia;

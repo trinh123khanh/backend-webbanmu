@@ -31,6 +31,9 @@ public class DotGiamGiaController {
     private final DotGiamGiaService dotGiamGiaService;
 
     @PostMapping
+
+    //jkmgvhbjknhvkljhvnklhj
+
     @Operation(summary = "Tạo đợt giảm giá mới", description = "Tạo một đợt giảm giá mới trong hệ thống")
     public ResponseEntity<ApiResponse<DotGiamGiaResponse>> createDotGiamGia(
             @Valid @RequestBody DotGiamGiaRequest request) {
@@ -53,7 +56,7 @@ public class DotGiamGiaController {
         try {
             log.info("Getting DotGiamGia by id: {}", id);
             DotGiamGiaResponse response = dotGiamGiaService.getDotGiamGiaById(id);
-            return ResponseEntity.ok(ApiResponse.success("Lấy thông tin đợt giảm giá thành công", response));
+            return ResponseEntity.ok(ApiResponse.success("Lấy thông tin đợt giảm giá thành công ", response));
         } catch (Exception e) {
             log.error("Error getting DotGiamGia by id {}: {}", id, e.getMessage());
             return ResponseEntity.status(HttpStatus.NOT_FOUND)
