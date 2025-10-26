@@ -18,7 +18,6 @@ public class PhieuGiamGiaCaNhan {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
     
-    
     @Column(name = "khach_hang_id", nullable = false)
     private Long khachHangId;
     

@@ -14,7 +14,7 @@ public class NhanVien {
     
     private String hoTen;
     
-    @Column(unique = true, nullable = false)
+    @Column(unique = true, nullable = true) // Tạm thời cho phép NULL
     private String maNhanVien;
     
     @Column(unique = true)

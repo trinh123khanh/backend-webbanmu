@@ -30,6 +30,7 @@ public class PhieuGiamGiaService {
     private final PhieuGiamGiaRepository phieuGiamGiaRepository;
     private final KhachHangRepository khachHangRepository;
     private final PhieuGiamGiaCaNhanService phieuGiamGiaCaNhanService;
+    private final EmailService emailService;
     
     // Tạo phiếu giảm giá mới với 2 chế độ: Công khai và Cá nhân
     public ApiResponse<PhieuGiamGiaResponse> createPhieuGiamGia(PhieuGiamGiaRequest request) {
@@ -100,6 +101,41 @@ public class PhieuGiamGiaService {
                     for (PhieuGiamGiaCaNhan personalVoucher : createdPersonalVouchers) {
                         log.info("Đã tạo phiếu cá nhân ID: {} cho khách hàng ID: {} với phiếu giảm giá ID: {}", 
                                 personalVoucher.getId(), personalVoucher.getKhachHangId(), personalVoucher.getPhieuGiamGiaId());
+                    }
+                    
+                    // Gửi email thông báo cho các khách hàng đã chọn
+                    try {
+                        log.info("Bắt đầu gửi email thông báo cho {} khách hàng", request.getSelectedCustomerIds().size());
+                        
+                        for (Long customerId : request.getSelectedCustomerIds()) {
+                            // Lấy thông tin khách hàng từ database
+                            Optional<com.example.backend.entity.KhachHang> khachHangOpt = khachHangRepository.findById(customerId);
+                            
+                            if (khachHangOpt.isPresent()) {
+                                com.example.backend.entity.KhachHang khachHang = khachHangOpt.get();
+                                
+                                // Chỉ gửi email nếu khách hàng có email
+                                if (khachHang.getEmail() != null && !khachHang.getEmail().trim().isEmpty()) {
+                                    emailService.sendPhieuGiamGiaNotification(
+                                            khachHang.getEmail(),
+                                            khachHang.getTenKhachHang(),
+                                            savedPhieuGiamGia.getMaPhieu(),
+                                            savedPhieuGiamGia.getTenPhieuGiamGia()
+                                    );
+                                    log.info("Đã gửi email thông báo tới khách hàng {} ({})", khachHang.getTenKhachHang(), khachHang.getEmail());
+                                } else {
+                                    log.warn("Khách hàng ID: {} không có email, bỏ qua gửi email", customerId);
+                                }
+                            } else {
+                                log.warn("Không tìm thấy khách hàng với ID: {}, bỏ qua gửi email", customerId);
+                            }
+                        }
+                        
+                        log.info("Hoàn thành gửi email thông báo");
+                        
+                    } catch (Exception emailException) {
+                        // Không throw exception để không ảnh hưởng đến việc tạo phiếu giảm giá
+                        log.error("Lỗi khi gửi email thông báo, nhưng phiếu giảm giá đã được tạo thành công: {}", emailException.getMessage());
                     }
                     
                 } catch (Exception e) {
