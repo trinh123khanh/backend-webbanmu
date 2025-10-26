@@ -43,6 +43,7 @@ public class KhachHangController {
     // Tìm kiếm khách hàng với bộ lọc
     @GetMapping("/search")
     public ResponseEntity<Page<KhachHangDTO>> searchKhachHang(
+            @RequestParam(required = false) String maKhachHang,
             @RequestParam(required = false) String tenKhachHang,
             @RequestParam(required = false) String email,
             @RequestParam(required = false) String soDienThoai,
@@ -53,7 +54,7 @@ public class KhachHangController {
             @RequestParam(defaultValue = "asc") String sortDir) {
         
         Page<KhachHangDTO> khachHangPage = khachHangService.searchKhachHang(
-            tenKhachHang, email, soDienThoai, trangThai, page, size, sortBy, sortDir);
+            maKhachHang, tenKhachHang, email, soDienThoai, trangThai, page, size, sortBy, sortDir);
         return ResponseEntity.ok(khachHangPage);
     }
 
@@ -112,6 +113,14 @@ public class KhachHangController {
     @GetMapping("/phone/{soDienThoai}")
     public ResponseEntity<KhachHangDTO> getKhachHangBySoDienThoai(@PathVariable String soDienThoai) {
         Optional<KhachHangDTO> khachHang = khachHangService.getKhachHangBySoDienThoai(soDienThoai);
+        return khachHang.map(ResponseEntity::ok)
+                .orElse(ResponseEntity.notFound().build());
+    }
+
+    // Lấy khách hàng theo mã khách hàng
+    @GetMapping("/code/{maKhachHang}")
+    public ResponseEntity<KhachHangDTO> getKhachHangByMaKhachHang(@PathVariable String maKhachHang) {
+        Optional<KhachHangDTO> khachHang = khachHangService.getKhachHangByMaKhachHang(maKhachHang);
         return khachHang.map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
     }
@@ -175,5 +184,21 @@ public class KhachHangController {
         return ResponseEntity.ok(new Object() {
             public final boolean exists = phoneExists;
         });
+    }
+
+    // Kiểm tra mã khách hàng đã tồn tại
+    @GetMapping("/check-code/{maKhachHang}")
+    public ResponseEntity<Object> checkMaKhachHangExists(@PathVariable String maKhachHang) {
+        boolean codeExists = khachHangService.existsByMaKhachHang(maKhachHang);
+        return ResponseEntity.ok(new Object() {
+            public final boolean exists = codeExists;
+        });
+    }
+    
+    // Lấy danh sách khách hàng cho form phiếu giảm giá (endpoint đặc biệt)
+    @GetMapping("/for-voucher")
+    public ResponseEntity<List<KhachHangDTO>> getAllCustomersForVoucher() {
+        List<KhachHangDTO> customers = khachHangService.getAllCustomersForVoucher();
+        return ResponseEntity.ok(customers);
     }
 }

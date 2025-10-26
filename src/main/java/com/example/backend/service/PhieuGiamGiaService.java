@@ -2,7 +2,9 @@ package com.example.backend.service;
 
 import com.example.backend.dto.*;
 import com.example.backend.entity.PhieuGiamGia;
+import com.example.backend.entity.PhieuGiamGiaCaNhan;
 import com.example.backend.repository.PhieuGiamGiaRepository;
+import com.example.backend.repository.KhachHangRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -14,6 +16,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
@@ -25,10 +28,15 @@ import java.util.stream.Collectors;
 public class PhieuGiamGiaService {
     
     private final PhieuGiamGiaRepository phieuGiamGiaRepository;
+    private final KhachHangRepository khachHangRepository;
+    private final PhieuGiamGiaCaNhanService phieuGiamGiaCaNhanService;
+    private final EmailService emailService;
     
-    // Tạo phiếu giảm giá mới
+    // Tạo phiếu giảm giá mới với 2 chế độ: Công khai và Cá nhân
     public ApiResponse<PhieuGiamGiaResponse> createPhieuGiamGia(PhieuGiamGiaRequest request) {
         try {
+            log.info("Tạo phiếu giảm giá mới với chế độ: {}", request.getIsPublic() ? "Công khai" : "Cá nhân");
+            
             // Kiểm tra mã phiếu đã tồn tại chưa
             if (phieuGiamGiaRepository.existsByMaPhieu(request.getMaPhieu())) {
                 return ApiResponse.error("Mã phiếu giảm giá đã tồn tại: " + request.getMaPhieu());
@@ -38,6 +46,11 @@ public class PhieuGiamGiaService {
             String validationError = validatePhieuGiamGiaRequest(request);
             if (validationError != null) {
                 return ApiResponse.error(validationError);
+            }
+            
+            // Validate cho chế độ Cá nhân
+            if (!request.getIsPublic() && (request.getSelectedCustomerIds() == null || request.getSelectedCustomerIds().isEmpty())) {
+                return ApiResponse.error("Chế độ Cá nhân yêu cầu phải chọn ít nhất một khách hàng");
             }
             
             // Tạo entity
@@ -55,14 +68,90 @@ public class PhieuGiamGiaService {
                     .trangThai(request.getTrangThai() != null ? request.getTrangThai() : true)
                     .build();
             
-            // Lưu vào database
+            // Lưu vào database và lấy ID
             PhieuGiamGia savedPhieuGiamGia = phieuGiamGiaRepository.save(phieuGiamGia);
+            Long phieuGiamGiaId = savedPhieuGiamGia.getId();
+            
+            log.info("Tạo phiếu giảm giá thành công với ID: {}", phieuGiamGiaId);
+            
+            // Xử lý chế độ Cá nhân
+            if (!request.getIsPublic() && request.getSelectedCustomerIds() != null && !request.getSelectedCustomerIds().isEmpty()) {
+                try {
+                    log.info("Tạo phiếu giảm giá cá nhân cho {} khách hàng: {}", 
+                            request.getSelectedCustomerIds().size(), request.getSelectedCustomerIds());
+                    
+                    // Validate khách hàng tồn tại
+                    List<Long> invalidCustomerIds = validateCustomerIds(request.getSelectedCustomerIds());
+                    if (!invalidCustomerIds.isEmpty()) {
+                        log.error("Không tìm thấy khách hàng với ID: {}", invalidCustomerIds);
+                        throw new RuntimeException("Không tìm thấy khách hàng với ID: " + invalidCustomerIds);
+                    }
+                    
+                    // Tạo phiếu giảm giá cá nhân cho từng khách hàng
+                    List<PhieuGiamGiaCaNhan> createdPersonalVouchers = 
+                            phieuGiamGiaCaNhanService.createPhieuGiamGiaCaNhanForMultipleCustomers(
+                                    phieuGiamGiaId, 
+                                    request.getSelectedCustomerIds()
+                            );
+                    
+                    log.info("Tạo thành công {} phiếu giảm giá cá nhân cho {} khách hàng", 
+                            createdPersonalVouchers.size(), request.getSelectedCustomerIds().size());
+                    
+                    // Log chi tiết từng phiếu đã tạo
+                    for (PhieuGiamGiaCaNhan personalVoucher : createdPersonalVouchers) {
+                        log.info("Đã tạo phiếu cá nhân ID: {} cho khách hàng ID: {} với phiếu giảm giá ID: {}", 
+                                personalVoucher.getId(), personalVoucher.getKhachHangId(), personalVoucher.getPhieuGiamGiaId());
+                    }
+                    
+                    // Gửi email thông báo cho các khách hàng đã chọn
+                    try {
+                        log.info("Bắt đầu gửi email thông báo cho {} khách hàng", request.getSelectedCustomerIds().size());
+                        
+                        for (Long customerId : request.getSelectedCustomerIds()) {
+                            // Lấy thông tin khách hàng từ database
+                            Optional<com.example.backend.entity.KhachHang> khachHangOpt = khachHangRepository.findById(customerId);
+                            
+                            if (khachHangOpt.isPresent()) {
+                                com.example.backend.entity.KhachHang khachHang = khachHangOpt.get();
+                                
+                                // Chỉ gửi email nếu khách hàng có email
+                                if (khachHang.getEmail() != null && !khachHang.getEmail().trim().isEmpty()) {
+                                    emailService.sendPhieuGiamGiaNotification(
+                                            khachHang.getEmail(),
+                                            khachHang.getTenKhachHang(),
+                                            savedPhieuGiamGia.getMaPhieu(),
+                                            savedPhieuGiamGia.getTenPhieuGiamGia()
+                                    );
+                                    log.info("Đã gửi email thông báo tới khách hàng {} ({})", khachHang.getTenKhachHang(), khachHang.getEmail());
+                                } else {
+                                    log.warn("Khách hàng ID: {} không có email, bỏ qua gửi email", customerId);
+                                }
+                            } else {
+                                log.warn("Không tìm thấy khách hàng với ID: {}, bỏ qua gửi email", customerId);
+                            }
+                        }
+                        
+                        log.info("Hoàn thành gửi email thông báo");
+                        
+                    } catch (Exception emailException) {
+                        // Không throw exception để không ảnh hưởng đến việc tạo phiếu giảm giá
+                        log.error("Lỗi khi gửi email thông báo, nhưng phiếu giảm giá đã được tạo thành công: {}", emailException.getMessage());
+                    }
+                    
+                } catch (Exception e) {
+                    log.error("Lỗi khi tạo phiếu giảm giá cá nhân, sẽ rollback toàn bộ transaction", e);
+                    throw new RuntimeException("Lỗi khi tạo phiếu giảm giá cá nhân: " + e.getMessage());
+                }
+            }
             
             // Convert to response
             PhieuGiamGiaResponse response = convertToResponse(savedPhieuGiamGia);
             
-            log.info("Tạo phiếu giảm giá thành công: {}", savedPhieuGiamGia.getMaPhieu());
-            return ApiResponse.success("Tạo phiếu giảm giá thành công", response);
+            String successMessage = request.getIsPublic() ? 
+                    "Tạo phiếu giảm giá công khai thành công" : 
+                    "Tạo phiếu giảm giá cá nhân thành công cho " + request.getSelectedCustomerIds().size() + " khách hàng";
+            
+            return ApiResponse.success(successMessage, response);
             
         } catch (Exception e) {
             log.error("Lỗi khi tạo phiếu giảm giá: {}", e.getMessage(), e);
@@ -208,7 +297,7 @@ public class PhieuGiamGiaService {
         }
     }
     
-    // Lấy phiếu giảm giá đang hoạt động
+    // Lấy phiếu giảm giá đang hoạt động (đang diễn ra)
     @Transactional(readOnly = true)
     public ApiResponse<List<PhieuGiamGiaResponse>> getActivePhieuGiamGia() {
         try {
@@ -222,6 +311,44 @@ public class PhieuGiamGiaService {
         } catch (Exception e) {
             log.error("Lỗi khi lấy phiếu giảm giá đang hoạt động: {}", e.getMessage(), e);
             return ApiResponse.error("Lỗi khi lấy phiếu giảm giá đang hoạt động: " + e.getMessage());
+        }
+    }
+    
+    // Lấy phiếu giảm giá theo trạng thái động (sắp diễn ra, đang diễn ra, kết thúc)
+    @Transactional(readOnly = true)
+    public ApiResponse<List<PhieuGiamGiaResponse>> getPhieuGiamGiaByDynamicStatus(String status) {
+        try {
+            LocalDate today = LocalDate.now();
+            List<PhieuGiamGia> vouchers = new ArrayList<>();
+            
+            switch (status.toLowerCase()) {
+                case "sap_dien_ra":
+                    // Phiếu chưa bắt đầu (ngày bắt đầu > hôm nay)
+                    vouchers = phieuGiamGiaRepository.findByNgayBatDauAfter(today);
+                    break;
+                case "dang_dien_ra":
+                    // Phiếu đang diễn ra (ngày bắt đầu <= hôm nay <= ngày kết thúc)
+                    vouchers = phieuGiamGiaRepository.findActiveVouchers(today);
+                    break;
+                case "ket_thuc":
+                    // Phiếu đã kết thúc (ngày kết thúc < hôm nay)
+                    vouchers = phieuGiamGiaRepository.findByNgayKetThucBefore(today);
+                    break;
+                default:
+                    return ApiResponse.error("Trạng thái không hợp lệ. Chỉ chấp nhận: sap_dien_ra, dang_dien_ra, ket_thuc");
+            }
+            
+            List<PhieuGiamGiaResponse> responses = vouchers.stream()
+                    .map(this::convertToResponse)
+                    .collect(Collectors.toList());
+            
+            log.info("Lấy {} phiếu giảm giá với trạng thái: {}", responses.size(), status);
+            
+            return ApiResponse.success(responses);
+            
+        } catch (Exception e) {
+            log.error("Lỗi khi lấy phiếu giảm giá theo trạng thái {}: {}", status, e.getMessage(), e);
+            return ApiResponse.error("Lỗi khi lấy phiếu giảm giá theo trạng thái: " + e.getMessage());
         }
     }
     
@@ -277,25 +404,49 @@ public class PhieuGiamGiaService {
     
     // Chuyển đổi entity sang response DTO
     private PhieuGiamGiaResponse convertToResponse(PhieuGiamGia phieuGiamGia) {
-        return PhieuGiamGiaResponse.builder()
-                .id(phieuGiamGia.getId())
-                .maPhieu(phieuGiamGia.getMaPhieu())
-                .tenPhieuGiamGia(phieuGiamGia.getTenPhieuGiamGia())
-                .loaiPhieuGiamGia(phieuGiamGia.getLoaiPhieuGiamGia())
-                .loaiPhieuGiamGiaText(phieuGiamGia.getLoaiPhieuGiamGiaText())
-                .giaTriGiam(phieuGiamGia.getGiaTriGiam())
-                .giaTriToiThieu(phieuGiamGia.getGiaTriToiThieu())
-                .soTienToiDa(phieuGiamGia.getSoTienToiDa())
-                .hoaDonToiThieu(phieuGiamGia.getHoaDonToiThieu())
-                .soLuongDung(phieuGiamGia.getSoLuongDung())
-                .ngayBatDau(phieuGiamGia.getNgayBatDau())
-                .ngayKetThuc(phieuGiamGia.getNgayKetThuc())
-                .trangThai(phieuGiamGia.getTrangThai())
-                .trangThaiText(phieuGiamGia.getTrangThai() ? "Hoạt động" : "Không hoạt động")
-                .isActive(phieuGiamGia.isActive())
-                .isExpired(phieuGiamGia.isExpired())
-                .isNotStarted(phieuGiamGia.isNotStarted())
-                .build();
+        try {
+            return PhieuGiamGiaResponse.builder()
+                    .id(phieuGiamGia.getId())
+                    .maPhieu(phieuGiamGia.getMaPhieu())
+                    .tenPhieuGiamGia(phieuGiamGia.getTenPhieuGiamGia())
+                    .loaiPhieuGiamGia(phieuGiamGia.getLoaiPhieuGiamGia())
+                    .loaiPhieuGiamGiaText(phieuGiamGia.getLoaiPhieuGiamGiaText())
+                    .giaTriGiam(phieuGiamGia.getGiaTriGiam())
+                    .giaTriToiThieu(phieuGiamGia.getGiaTriToiThieu())
+                    .soTienToiDa(phieuGiamGia.getSoTienToiDa())
+                    .hoaDonToiThieu(phieuGiamGia.getHoaDonToiThieu())
+                    .soLuongDung(phieuGiamGia.getSoLuongDung())
+                    .ngayBatDau(phieuGiamGia.getNgayBatDau())
+                    .ngayKetThuc(phieuGiamGia.getNgayKetThuc())
+                    .trangThai(phieuGiamGia.getTrangThai())
+                    .trangThaiText(phieuGiamGia.getTrangThai() ? "Hoạt động" : "Không hoạt động")
+                    .isActive(phieuGiamGia.isActive())
+                    .isExpired(phieuGiamGia.isExpired())
+                    .isNotStarted(phieuGiamGia.isNotStarted())
+                    .build();
+        } catch (Exception e) {
+            log.error("Lỗi khi convert PhieuGiamGia sang Response: {}", e.getMessage(), e);
+            // Trả về response cơ bản nếu có lỗi
+            return PhieuGiamGiaResponse.builder()
+                    .id(phieuGiamGia.getId())
+                    .maPhieu(phieuGiamGia.getMaPhieu())
+                    .tenPhieuGiamGia(phieuGiamGia.getTenPhieuGiamGia())
+                    .loaiPhieuGiamGia(phieuGiamGia.getLoaiPhieuGiamGia())
+                    .loaiPhieuGiamGiaText(phieuGiamGia.getLoaiPhieuGiamGia() ? "Tiền mặt" : "Phần trăm")
+                    .giaTriGiam(phieuGiamGia.getGiaTriGiam())
+                    .giaTriToiThieu(phieuGiamGia.getGiaTriToiThieu())
+                    .soTienToiDa(phieuGiamGia.getSoTienToiDa())
+                    .hoaDonToiThieu(phieuGiamGia.getHoaDonToiThieu())
+                    .soLuongDung(phieuGiamGia.getSoLuongDung())
+                    .ngayBatDau(phieuGiamGia.getNgayBatDau())
+                    .ngayKetThuc(phieuGiamGia.getNgayKetThuc())
+                    .trangThai(phieuGiamGia.getTrangThai())
+                    .trangThaiText(phieuGiamGia.getTrangThai() ? "Hoạt động" : "Không hoạt động")
+                    .isActive(false)
+                    .isExpired(false)
+                    .isNotStarted(false)
+                    .build();
+        }
     }
     
     // Validate dữ liệu request
@@ -345,5 +496,162 @@ public class PhieuGiamGiaService {
         }
         
         return null; // Không có lỗi
+    }
+    
+    // Lấy danh sách khách hàng cho form phiếu giảm giá
+    public ApiResponse<java.util.List<com.example.backend.dto.KhachHangDTO>> getAllCustomersForVoucher() {
+        try {
+            log.info("Lấy danh sách khách hàng cho form phiếu giảm giá");
+            
+            // Lấy tất cả khách hàng từ database
+            List<com.example.backend.entity.KhachHang> khachHangList = khachHangRepository.findAll();
+            
+            // Chuyển đổi sang DTO
+            List<com.example.backend.dto.KhachHangDTO> khachHangDTOList = khachHangList.stream()
+                    .map(this::convertKhachHangToDTO)
+                    .collect(Collectors.toList());
+            
+            log.info("Lấy được {} khách hàng", khachHangDTOList.size());
+            return ApiResponse.success(khachHangDTOList);
+            
+        } catch (Exception e) {
+            log.error("Lỗi khi lấy danh sách khách hàng: {}", e.getMessage(), e);
+            return ApiResponse.error("Không thể lấy danh sách khách hàng: " + e.getMessage());
+        }
+    }
+    
+    // Chuyển đổi KhachHang entity sang DTO
+    private com.example.backend.dto.KhachHangDTO convertKhachHangToDTO(com.example.backend.entity.KhachHang khachHang) {
+        return com.example.backend.dto.KhachHangDTO.builder()
+                .id(khachHang.getId())
+                .maKhachHang(khachHang.getMaKhachHang())
+                .tenKhachHang(khachHang.getTenKhachHang())
+                .email(khachHang.getEmail())
+                .soDienThoai(khachHang.getSoDienThoai())
+                .ngaySinh(khachHang.getNgaySinh())
+                .gioiTinh(khachHang.getGioiTinh())
+                .diemTichLuy(khachHang.getDiemTichLuy())
+                .ngayTao(khachHang.getNgayTao())
+                .trangThai(khachHang.getTrangThai())
+                .soLanMua(khachHang.getSoLanMua())
+                .lanMuaGanNhat(khachHang.getLanMuaGanNhat())
+                .userId(khachHang.getUser() != null ? khachHang.getUser().getId() : null)
+                .build();
+    }
+
+    /**
+     * Toggle trạng thái của phiếu giảm giá
+     */
+    public ApiResponse<PhieuGiamGiaResponse> togglePhieuGiamGiaStatus(Long id) {
+        try {
+            log.info("Toggle trạng thái phiếu giảm giá ID: {}", id);
+            
+            // Tìm phiếu giảm giá theo ID
+            Optional<PhieuGiamGia> phieuGiamGiaOpt = phieuGiamGiaRepository.findById(id);
+            
+            if (phieuGiamGiaOpt.isEmpty()) {
+                log.warn("Không tìm thấy phiếu giảm giá với ID: {}", id);
+                return ApiResponse.error("Không tìm thấy phiếu giảm giá với ID: " + id);
+            }
+            
+            PhieuGiamGia phieuGiamGia = phieuGiamGiaOpt.get();
+            
+            // Toggle trạng thái
+            phieuGiamGia.setTrangThai(!phieuGiamGia.getTrangThai());
+            
+            // Lưu vào database
+            PhieuGiamGia savedPhieuGiamGia = phieuGiamGiaRepository.save(phieuGiamGia);
+            
+            // Chuyển đổi sang response
+            PhieuGiamGiaResponse response = convertToResponse(savedPhieuGiamGia);
+            
+            log.info("Toggle trạng thái thành công cho phiếu giảm giá ID: {}, trạng thái mới: {}", 
+                    id, savedPhieuGiamGia.getTrangThai());
+            
+            return ApiResponse.success(response);
+            
+        } catch (Exception e) {
+            log.error("Lỗi khi toggle trạng thái phiếu giảm giá ID: {}", id, e);
+            return ApiResponse.error("Lỗi khi cập nhật trạng thái phiếu giảm giá: " + e.getMessage());
+        }
+    }
+    
+    /**
+     * Tính toán trạng thái động của phiếu giảm giá dựa trên thời gian thực tế
+     */
+    public String calculateDynamicStatus(PhieuGiamGia phieuGiamGia) {
+        LocalDate today = LocalDate.now();
+        
+        if (phieuGiamGia.getNgayBatDau().isAfter(today)) {
+            return "sap_dien_ra";
+        } else if (phieuGiamGia.getNgayKetThuc().isBefore(today)) {
+            return "ket_thuc";
+        } else {
+            return "dang_dien_ra";
+        }
+    }
+    
+    /**
+     * Lấy phiếu giảm giá với trạng thái động được tính toán
+     */
+    @Transactional(readOnly = true)
+    public ApiResponse<List<PhieuGiamGiaResponse>> getAllPhieuGiamGiaWithDynamicStatus() {
+        try {
+            List<PhieuGiamGia> allVouchers = phieuGiamGiaRepository.findAll();
+            
+            List<PhieuGiamGiaResponse> responses = allVouchers.stream()
+                    .map(voucher -> {
+                        PhieuGiamGiaResponse response = convertToResponse(voucher);
+                        // Thêm trạng thái động vào response
+                        response.setTrangThaiText(calculateDynamicStatus(voucher));
+                        return response;
+                    })
+                    .collect(Collectors.toList());
+            
+            log.info("Lấy {} phiếu giảm giá với trạng thái động", responses.size());
+            
+            return ApiResponse.success(responses);
+            
+        } catch (Exception e) {
+            log.error("Lỗi khi lấy phiếu giảm giá với trạng thái động: {}", e.getMessage(), e);
+            return ApiResponse.error("Lỗi khi lấy phiếu giảm giá: " + e.getMessage());
+        }
+    }
+    
+    /**
+     * Validate danh sách ID khách hàng có tồn tại trong database không
+     */
+    private List<Long> validateCustomerIds(List<Long> customerIds) {
+        try {
+            log.info("Validate {} khách hàng với ID: {}", customerIds.size(), customerIds);
+            
+            List<Long> invalidIds = new ArrayList<>();
+            
+            for (Long customerId : customerIds) {
+                if (customerId == null || customerId <= 0) {
+                    invalidIds.add(customerId);
+                    log.warn("ID khách hàng không hợp lệ: {}", customerId);
+                    continue;
+                }
+                
+                // Kiểm tra khách hàng có tồn tại không
+                boolean exists = khachHangRepository.existsById(customerId);
+                if (!exists) {
+                    invalidIds.add(customerId);
+                    log.warn("Không tìm thấy khách hàng với ID: {}", customerId);
+                } else {
+                    log.debug("Khách hàng ID: {} tồn tại", customerId);
+                }
+            }
+            
+            log.info("Validate hoàn thành: {} khách hàng hợp lệ, {} khách hàng không hợp lệ", 
+                    customerIds.size() - invalidIds.size(), invalidIds.size());
+            
+            return invalidIds;
+            
+        } catch (Exception e) {
+            log.error("Lỗi khi validate danh sách khách hàng", e);
+            throw new RuntimeException("Lỗi khi validate danh sách khách hàng: " + e.getMessage());
+        }
     }
 }

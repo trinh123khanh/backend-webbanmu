@@ -33,7 +33,11 @@ public interface DotGiamGiaRepository extends JpaRepository<DotGiamGia, Long> {
     // Tìm các đợt giảm giá đang hoạt động (trong thời gian hiệu lực)
     @Query("SELECT d FROM DotGiamGia d WHERE d.trangThai = true AND d.ngayBatDau <= :currentTime AND d.ngayKetThuc >= :currentTime")
     List<DotGiamGia> findActiveDiscounts(@Param("currentTime") LocalDateTime currentTime);
-    
+
+
+
+    //jkmgvhbjknhvkljhvnklhj
+
     // Tìm theo tên đợt giảm giá (tìm kiếm gần đúng)
     @Query("SELECT d FROM DotGiamGia d WHERE LOWER(d.tenDotGiamGia) LIKE LOWER(CONCAT('%', :tenDotGiamGia, '%'))")
     Page<DotGiamGia> findByTenDotGiamGiaContaining(@Param("tenDotGiamGia") String tenDotGiamGia, Pageable pageable);

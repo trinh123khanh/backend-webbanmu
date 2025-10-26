@@ -8,7 +8,9 @@ import org.springframework.data.domain.Pageable;
 import java.util.List;
 
 public interface DotGiamGiaService {
-    
+
+
+
     // Tạo đợt giảm giá mới
     DotGiamGiaResponse createDotGiamGia(DotGiamGiaRequest request);
     

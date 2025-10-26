@@ -14,6 +14,7 @@ import java.util.List;
 @AllArgsConstructor
 public class KhachHangDTO {
     private Long id;
+    private String maKhachHang;
     private String tenKhachHang;
     private String email;
     private String soDienThoai;
@@ -22,6 +23,8 @@ public class KhachHangDTO {
     private Integer diemTichLuy;
     private LocalDate ngayTao;
     private Boolean trangThai;
+    private Integer soLanMua;
+    private LocalDate lanMuaGanNhat;
     private Long userId;
     private String username;
     private String fullName;

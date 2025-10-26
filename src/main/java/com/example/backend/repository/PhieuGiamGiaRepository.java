@@ -65,4 +65,17 @@ public interface PhieuGiamGiaRepository extends JpaRepository<PhieuGiamGia, Long
            "p.ngayBatDau >= :startDate AND p.ngayKetThuc <= :endDate")
     List<PhieuGiamGia> findByDateRange(@Param("startDate") LocalDate startDate, 
                                       @Param("endDate") LocalDate endDate);
+    
+    // Tìm phiếu giảm giá sắp diễn ra (ngày bắt đầu > hôm nay)
+    List<PhieuGiamGia> findByNgayBatDauAfter(LocalDate currentDate);
+    
+    // Tìm phiếu giảm giá đã kết thúc (ngày kết thúc < hôm nay)
+    List<PhieuGiamGia> findByNgayKetThucBefore(LocalDate currentDate);
+    
+    // Tìm phiếu giảm giá theo trạng thái động với phân trang
+    @Query("SELECT p FROM PhieuGiamGia p WHERE " +
+           "(:status = 'sap_dien_ra' AND p.ngayBatDau > :currentDate) OR " +
+           "(:status = 'dang_dien_ra' AND p.trangThai = true AND p.ngayBatDau <= :currentDate AND p.ngayKetThuc >= :currentDate) OR " +
+           "(:status = 'ket_thuc' AND p.ngayKetThuc < :currentDate)")
+    List<PhieuGiamGia> findByDynamicStatus(@Param("status") String status, @Param("currentDate") LocalDate currentDate);
 }
