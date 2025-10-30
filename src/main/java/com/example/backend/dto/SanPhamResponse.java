@@ -28,6 +28,9 @@ public class SanPhamResponse {
     private String anhSanPham;
     private BigDecimal giaBan;
     private Integer soLuongTon;
+    // Tổng số lượng cộng dồn từ các chi tiết sản phẩm
+    private Integer tongSoLuongChiTiet;
+    private String giaTrungBinh;
     private LocalDate ngayTao;
     private Boolean trangThai;
 
@@ -79,6 +82,10 @@ public class SanPhamResponse {
     public void setGiaBan(BigDecimal giaBan) { this.giaBan = giaBan; }
     public Integer getSoLuongTon() { return soLuongTon; }
     public void setSoLuongTon(Integer soLuongTon) { this.soLuongTon = soLuongTon; }
+    public Integer getTongSoLuongChiTiet() { return tongSoLuongChiTiet; }
+    public void setTongSoLuongChiTiet(Integer tongSoLuongChiTiet) { this.tongSoLuongChiTiet = tongSoLuongChiTiet; }
+    public String getGiaTrungBinh() { return giaTrungBinh; }
+    public void setGiaTrungBinh(String giaTrungBinh) { this.giaTrungBinh = giaTrungBinh; }
     public LocalDate getNgayTao() { return ngayTao; }
     public void setNgayTao(LocalDate ngayTao) { this.ngayTao = ngayTao; }
     public Boolean getTrangThai() { return trangThai; }

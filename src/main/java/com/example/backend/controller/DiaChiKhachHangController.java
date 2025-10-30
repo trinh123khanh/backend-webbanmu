@@ -11,7 +11,7 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/dia-chi-khach-hang")
 @RequiredArgsConstructor
-@CrossOrigin(origins = "*")
+@CrossOrigin(originPatterns = {"http://localhost:*", "http://127.0.0.1:*"})
 public class DiaChiKhachHangController {
     
     private final DiaChiKhachHangService diaChiKhachHangService;

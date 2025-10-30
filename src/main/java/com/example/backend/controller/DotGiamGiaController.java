@@ -26,7 +26,7 @@ import java.util.List;
 @RequiredArgsConstructor
 @Slf4j
 @Tag(name = "DotGiamGia", description = "API quản lý đợt giảm giá")
-@CrossOrigin(origins = "*")
+@CrossOrigin(originPatterns = {"http://localhost:*", "http://127.0.0.1:*"})
 public class DotGiamGiaController {
 
     private final DotGiamGiaService dotGiamGiaService;

@@ -14,7 +14,7 @@ import java.util.Map;
 
 @RestController
 @RequestMapping("/api/phieu-giam-gia")
-@CrossOrigin(origins = "*")
+@CrossOrigin(originPatterns = {"http://localhost:*", "http://127.0.0.1:*"})
 public class ExcelExportController {
 
     @Autowired

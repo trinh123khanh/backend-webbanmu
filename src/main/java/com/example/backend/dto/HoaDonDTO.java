@@ -38,7 +38,6 @@ public class HoaDonDTO {
     private String phuongThucThanhToan; // Phương thức thanh toán
     private HoaDon.TrangThaiHoaDon trangThai;
     private Integer soLuongSanPham;
-    private List<SanPhamTrongHoaDon> danhSachSanPham;
 
     // Constructors, getters, and setters
 

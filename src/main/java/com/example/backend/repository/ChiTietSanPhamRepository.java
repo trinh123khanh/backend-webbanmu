@@ -5,10 +5,9 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
-
 import java.util.Optional;
 import java.util.List;
-
+import org.springframework.stereotype.Repository;
 @Repository
 public interface ChiTietSanPhamRepository extends JpaRepository<ChiTietSanPham, Long> {
     @Query("SELECT c FROM ChiTietSanPham c JOIN c.sanPham s WHERE s.tenSanPham = :tenSanPham")
@@ -16,4 +15,10 @@ public interface ChiTietSanPhamRepository extends JpaRepository<ChiTietSanPham, 
 
     // Find all ChiTietSanPham by linked SanPham ID
     List<ChiTietSanPham> findBySanPhamId(Long sanPhamId);
+
+@Repository
+public interface ChiTietSanPhamRepository extends JpaRepository<ChiTietSanPham, Long> {
+    // Lấy danh sách chi tiết theo sản phẩm
+    java.util.List<ChiTietSanPham> findBySanPham_Id(Long sanPhamId);
+
 }

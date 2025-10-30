@@ -54,8 +54,30 @@ public class DiaChiKhachHang {
         ngayCapNhat = LocalDateTime.now();
     }
     
+<<<<<<< Updated upstream
     @PreUpdate
     protected void onUpdate() {
         ngayCapNhat = LocalDateTime.now();
     }
+=======
+    @Column(nullable = false)
+    private String soDienThoai;
+    
+    // Cho phép null để tránh lỗi khi migrate với dữ liệu cũ đang trống
+    @Column(nullable = true)
+    private String diaChi;
+    
+    @Column(nullable = false)
+    private String tinhThanh;
+    
+    @Column(nullable = false)
+    private String quanHuyen;
+    
+    @Column(nullable = false)
+    private String phuongXa;
+    
+    private Boolean macDinh;
+    
+    private Boolean trangThai;
+>>>>>>> Stashed changes
 }

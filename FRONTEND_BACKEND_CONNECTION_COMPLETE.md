@@ -22,9 +22,13 @@ Frontend đã được cấu hình để **luôn gọi API backend** và hiển 
 ## 🚀 Cách chạy hệ thống
 
 ### 1. Khởi động Backend
+Mac/Linux:
 ```bash
-cd /Users/macbook/Downloads/spring-boot-backend-skeleton
 ./gradlew bootRun
+```
+Windows PowerShell:
+```bash
+./gradlew.bat bootRun
 ```
 Backend sẽ chạy trên: **http://localhost:8080**
 
