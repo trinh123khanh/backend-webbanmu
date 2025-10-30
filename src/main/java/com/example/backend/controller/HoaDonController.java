@@ -102,11 +102,7 @@ public class HoaDonController {
         return ResponseEntity.ok(hoaDonList);
     }
     
-    @GetMapping("/khach-hang/{khachHangId}")
-    public ResponseEntity<List<HoaDonDTO>> getHoaDonByKhachHang(@PathVariable Long khachHangId) {
-        List<HoaDonDTO> hoaDonList = hoaDonService.getHoaDonByKhachHang(khachHangId);
-        return ResponseEntity.ok(hoaDonList);
-    }
+    // Removed getHoaDonByKhachHang endpoint as KhachHangRepository was deleted
     
     @GetMapping("/nhan-vien/{nhanVienId}")
     public ResponseEntity<List<HoaDonDTO>> getHoaDonByNhanVien(@PathVariable Long nhanVienId) {
@@ -197,62 +193,7 @@ public class HoaDonController {
         }
     }
 
-    @PostMapping("/create-sample-customers")
-    public ResponseEntity<String> createSampleCustomers() {
-        try {
-            // Tạo khách hàng mẫu
-            com.example.backend.entity.KhachHang khachHang1 = new com.example.backend.entity.KhachHang();
-            khachHang1.setTenKhachHang("Nguyễn Văn An");
-            khachHang1.setEmail("an@email.com");
-            khachHang1.setSoDienThoai("0123456789");
-            khachHang1.setNgaySinh(java.time.LocalDate.of(1990, 1, 15));
-            khachHang1.setGioiTinh(true);
-            khachHang1.setDiemTichLuy(100);
-            khachHang1.setNgayTao(java.time.LocalDate.now());
-            khachHang1.setTrangThai(true);
-
-            com.example.backend.entity.KhachHang khachHang2 = new com.example.backend.entity.KhachHang();
-            khachHang2.setTenKhachHang("Trần Thị Bình");
-            khachHang2.setEmail("binh@email.com");
-            khachHang2.setSoDienThoai("0987654321");
-            khachHang2.setNgaySinh(java.time.LocalDate.of(1985, 5, 20));
-            khachHang2.setGioiTinh(false);
-            khachHang2.setDiemTichLuy(200);
-            khachHang2.setNgayTao(java.time.LocalDate.now());
-            khachHang2.setTrangThai(true);
-
-            // Tạo nhân viên mẫu
-            com.example.backend.entity.NhanVien nhanVien1 = new com.example.backend.entity.NhanVien();
-            nhanVien1.setHoTen("Nguyễn Văn A");
-            nhanVien1.setEmail("nva@company.com");
-            nhanVien1.setSoDienThoai("0123456780");
-            nhanVien1.setDiaChi("Hà Nội");
-            nhanVien1.setGioiTinh(true);
-            nhanVien1.setNgaySinh(java.time.LocalDate.of(1988, 3, 15));
-            nhanVien1.setNgayVaoLam(java.time.LocalDate.of(2020, 1, 1));
-            nhanVien1.setTrangThai(true);
-
-            com.example.backend.entity.NhanVien nhanVien2 = new com.example.backend.entity.NhanVien();
-            nhanVien2.setHoTen("Trần Thị B");
-            nhanVien2.setEmail("ttb@company.com");
-            nhanVien2.setSoDienThoai("0987654320");
-            nhanVien2.setDiaChi("TP.HCM");
-            nhanVien2.setGioiTinh(false);
-            nhanVien2.setNgaySinh(java.time.LocalDate.of(1990, 7, 22));
-            nhanVien2.setNgayVaoLam(java.time.LocalDate.of(2020, 2, 1));
-            nhanVien2.setTrangThai(true);
-
-            // Lưu vào database
-            hoaDonService.getKhachHangRepository().save(khachHang1);
-            hoaDonService.getKhachHangRepository().save(khachHang2);
-            hoaDonService.getNhanVienRepository().save(nhanVien1);
-            hoaDonService.getNhanVienRepository().save(nhanVien2);
-
-            return ResponseEntity.ok("Đã tạo khách hàng và nhân viên mẫu thành công!");
-        } catch (Exception e) {
-            return ResponseEntity.badRequest().body("Lỗi khi tạo dữ liệu mẫu: " + e.getMessage());
-        }
-    }
+    // Removed createSampleCustomers method as KhachHangRepository was deleted
 
     @GetMapping("/test")
     public ResponseEntity<String> test() {

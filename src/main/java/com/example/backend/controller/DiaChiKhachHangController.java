@@ -1,62 +1,96 @@
 package com.example.backend.controller;
 
 import com.example.backend.dto.DiaChiKhachHangDTO;
-import com.example.backend.entity.DiaChiKhachHang;
-import com.example.backend.repository.DiaChiKhachHangRepository;
-import org.springframework.beans.factory.annotation.Autowired;
+import com.example.backend.service.DiaChiKhachHangService;
+import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
-import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/dia-chi-khach-hang")
+@RequiredArgsConstructor
 @CrossOrigin(origins = "*")
 public class DiaChiKhachHangController {
-
-    @Autowired
-    private DiaChiKhachHangRepository diaChiKhachHangRepository;
-
+    
+    private final DiaChiKhachHangService diaChiKhachHangService;
+    
+    // Lấy tất cả địa chỉ của khách hàng
     @GetMapping("/khach-hang/{khachHangId}")
     public ResponseEntity<List<DiaChiKhachHangDTO>> getDiaChiByKhachHangId(@PathVariable Long khachHangId) {
-        List<DiaChiKhachHang> danhSachDiaChi = diaChiKhachHangRepository.findByKhachHangId(khachHangId);
-        List<DiaChiKhachHangDTO> dtoList = danhSachDiaChi.stream()
-                .map(this::convertToDTO)
-                .collect(Collectors.toList());
-        return ResponseEntity.ok(dtoList);
+        try {
+            List<DiaChiKhachHangDTO> diaChiList = diaChiKhachHangService.getDiaChiByKhachHangId(khachHangId);
+            return ResponseEntity.ok(diaChiList);
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().build();
+        }
     }
-
+    
+    // Lấy địa chỉ mặc định của khách hàng
     @GetMapping("/khach-hang/{khachHangId}/mac-dinh")
     public ResponseEntity<DiaChiKhachHangDTO> getDiaChiMacDinhByKhachHangId(@PathVariable Long khachHangId) {
-        List<DiaChiKhachHang> diaChiMacDinhList = diaChiKhachHangRepository.findDiaChiMacDinhByKhachHangId(khachHangId);
-        if (!diaChiMacDinhList.isEmpty()) {
-            return ResponseEntity.ok(convertToDTO(diaChiMacDinhList.get(0)));
+        try {
+            return diaChiKhachHangService.getDiaChiMacDinhByKhachHangId(khachHangId)
+                .map(ResponseEntity::ok)
+                .orElse(ResponseEntity.notFound().build());
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().build();
         }
-        return ResponseEntity.notFound().build();
     }
-
-    @GetMapping("/all")
+    
+    // Thêm địa chỉ mới
+    @PostMapping
+    public ResponseEntity<DiaChiKhachHangDTO> createDiaChi(@RequestBody DiaChiKhachHangDTO diaChiDTO) {
+        try {
+            DiaChiKhachHangDTO savedDiaChi = diaChiKhachHangService.createDiaChi(diaChiDTO);
+            return ResponseEntity.ok(savedDiaChi);
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().build();
+        }
+    }
+    
+    // Cập nhật địa chỉ
+    @PutMapping("/{id}")
+    public ResponseEntity<DiaChiKhachHangDTO> updateDiaChi(@PathVariable Long id, @RequestBody DiaChiKhachHangDTO diaChiDTO) {
+        try {
+            DiaChiKhachHangDTO updatedDiaChi = diaChiKhachHangService.updateDiaChi(id, diaChiDTO);
+            return ResponseEntity.ok(updatedDiaChi);
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().build();
+        }
+    }
+    
+    // Xóa địa chỉ
+    @DeleteMapping("/{id}/khach-hang/{khachHangId}")
+    public ResponseEntity<Void> deleteDiaChi(@PathVariable Long id, @PathVariable Long khachHangId) {
+        try {
+            diaChiKhachHangService.deleteDiaChi(id, khachHangId);
+            return ResponseEntity.ok().build();
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().build();
+        }
+    }
+    
+    // Đặt địa chỉ làm mặc định
+    @PutMapping("/{id}/khach-hang/{khachHangId}/mac-dinh")
+    public ResponseEntity<DiaChiKhachHangDTO> setDiaChiMacDinh(@PathVariable Long id, @PathVariable Long khachHangId) {
+        try {
+            DiaChiKhachHangDTO updatedDiaChi = diaChiKhachHangService.setDiaChiMacDinh(id, khachHangId);
+            return ResponseEntity.ok(updatedDiaChi);
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().build();
+        }
+    }
+    
+    // Lấy tất cả địa chỉ (cho hiển thị bảng)
+    @GetMapping
     public ResponseEntity<List<DiaChiKhachHangDTO>> getAllDiaChi() {
-        List<DiaChiKhachHang> allDiaChi = diaChiKhachHangRepository.findAll();
-        List<DiaChiKhachHangDTO> dtoList = allDiaChi.stream()
-                .map(this::convertToDTO)
-                .collect(Collectors.toList());
-        return ResponseEntity.ok(dtoList);
-    }
-
-    private DiaChiKhachHangDTO convertToDTO(DiaChiKhachHang entity) {
-        return DiaChiKhachHangDTO.builder()
-                .id(entity.getId())
-                .khachHangId(entity.getKhachHang().getId())
-                .tenNguoiNhan(entity.getTenNguoiNhan())
-                .soDienThoai(entity.getSoDienThoai())
-                .diaChi(entity.getDiaChi())
-                .tinhThanh(entity.getTinhThanh())
-                .quanHuyen(entity.getQuanHuyen())
-                .phuongXa(entity.getPhuongXa())
-                .macDinh(entity.getMacDinh())
-                .trangThai(entity.getTrangThai())
-                .build();
+        try {
+            List<DiaChiKhachHangDTO> allDiaChi = diaChiKhachHangService.getAllDiaChi();
+            return ResponseEntity.ok(allDiaChi);
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().build();
+        }
     }
 }
