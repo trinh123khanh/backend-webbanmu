@@ -10,6 +10,8 @@ import com.example.backend.repository.MauSacRepository;
 import com.example.backend.repository.NhaSanXuatRepository;
 import com.example.backend.repository.KieuDangMuRepository;
 import com.example.backend.repository.SanPhamRepository;
+import com.example.backend.repository.ChiTietSanPhamRepository;
+import com.example.backend.dto.ChiTietSanPhamRequest;
 import com.example.backend.repository.TrongLuongRepository;
 import com.example.backend.repository.XuatXuRepository;
 import com.example.backend.service.SanPhamService;
@@ -22,6 +24,8 @@ import org.springframework.util.StringUtils;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.time.LocalDate;
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 
 @Service
 @Transactional
@@ -36,6 +40,7 @@ public class SanPhamServiceImpl implements SanPhamService {
     private final KieuDangMuRepository kieuDangMuRepository;
     private final CongNgheAnToanRepository congNgheAnToanRepository;
     private final MauSacRepository mauSacRepository;
+    private final ChiTietSanPhamRepository chiTietSanPhamRepository;
 
     public SanPhamServiceImpl(SanPhamRepository sanPhamRepository,
                               LoaiMuBaoHiemRepository loaiMuBaoHiemRepository,
@@ -45,7 +50,8 @@ public class SanPhamServiceImpl implements SanPhamService {
                               XuatXuRepository xuatXuRepository,
                               KieuDangMuRepository kieuDangMuRepository,
                               CongNgheAnToanRepository congNgheAnToanRepository,
-                              MauSacRepository mauSacRepository) {
+                              MauSacRepository mauSacRepository,
+                              ChiTietSanPhamRepository chiTietSanPhamRepository) {
         this.sanPhamRepository = sanPhamRepository;
         this.loaiMuBaoHiemRepository = loaiMuBaoHiemRepository;
         this.nhaSanXuatRepository = nhaSanXuatRepository;
@@ -55,6 +61,7 @@ public class SanPhamServiceImpl implements SanPhamService {
         this.kieuDangMuRepository = kieuDangMuRepository;
         this.congNgheAnToanRepository = congNgheAnToanRepository;
         this.mauSacRepository = mauSacRepository;
+        this.chiTietSanPhamRepository = chiTietSanPhamRepository;
     }
 
     @Override
@@ -111,10 +118,8 @@ public class SanPhamServiceImpl implements SanPhamService {
         if (!StringUtils.hasText(request.getMaSanPham()) || !StringUtils.hasText(request.getTenSanPham())) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Mã và Tên sản phẩm là bắt buộc");
         }
-        if (request.getGiaBan() == null) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Giá bán là bắt buộc");
-        }
-        if (request.getSoLuongTon() == null || request.getSoLuongTon() < 0) {
+        // Bỏ bắt buộc giá bán/ số lượng theo yêu cầu; nếu có thì phải hợp lệ
+        if (request.getSoLuongTon() != null && request.getSoLuongTon() < 0) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Số lượng tồn phải lớn hơn hoặc bằng 0");
         }
     }
@@ -129,20 +134,28 @@ public class SanPhamServiceImpl implements SanPhamService {
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Nhà sản xuất không hợp lệ")));
         e.setChatLieuVo(chatLieuVoRepository.findById(r.getChatLieuVoId())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Chất liệu vỏ không hợp lệ")));
-        e.setTrongLuong(trongLuongRepository.findById(r.getTrongLuongId())
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Trọng lượng không hợp lệ")));
+        if (r.getTrongLuongId() != null) {
+            e.setTrongLuong(trongLuongRepository.findById(r.getTrongLuongId())
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Trọng lượng không hợp lệ")));
+        } else {
+            e.setTrongLuong(null);
+        }
         e.setXuatXu(xuatXuRepository.findById(r.getXuatXuId())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Xuất xứ không hợp lệ")));
         e.setKieuDangMu(kieuDangMuRepository.findById(r.getKieuDangMuId())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Kiểu dáng mũ không hợp lệ")));
         e.setCongNgheAnToan(congNgheAnToanRepository.findById(r.getCongNgheAnToanId())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Công nghệ an toàn không hợp lệ")));
-        e.setMauSac(mauSacRepository.findById(r.getMauSacId())
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Màu sắc không hợp lệ")));
+        if (r.getMauSacId() != null) {
+            e.setMauSac(mauSacRepository.findById(r.getMauSacId())
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Màu sắc không hợp lệ")));
+        } else {
+            e.setMauSac(null);
+        }
         e.setAnhSanPham(r.getAnhSanPham());
-        e.setGiaBan(r.getGiaBan());
-        e.setSoLuongTon(r.getSoLuongTon());
-        e.setTrangThai(Boolean.TRUE.equals(r.getTrangThai()));
+        if (r.getGiaBan() != null) { e.setGiaBan(r.getGiaBan()); }
+        if (r.getSoLuongTon() != null) { e.setSoLuongTon(r.getSoLuongTon()); }
+        if (r.getTrangThai() != null) { e.setTrangThai(Boolean.TRUE.equals(r.getTrangThai())); }
     }
 
     private SanPhamResponse map(SanPham e) {
@@ -168,6 +181,34 @@ public class SanPhamServiceImpl implements SanPhamService {
         r.setSoLuongTon(e.getSoLuongTon());
         r.setNgayTao(e.getNgayTao());
         r.setTrangThai(e.getTrangThai());
+        // Tính tổng số lượng và giá trung bình từ bảng chi tiết
+        try {
+            var list = chiTietSanPhamRepository.findBySanPham_Id(e.getId());
+            int total = list.stream()
+                .map(ct -> ChiTietSanPhamRequest.parseIntegerSafe(ct.getSoLuongTon()))
+                .filter(v -> v != null)
+                .mapToInt(Integer::intValue)
+                .sum();
+            r.setTongSoLuongChiTiet(total);
+
+            BigDecimal sumPrice = list.stream()
+                .map(ct -> com.example.backend.dto.ChiTietSanPhamRequest.parseBigDecimalSafe(ct.getGiaBan()))
+                .filter(v -> v != null)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+            long countPrice = list.stream()
+                .map(ct -> com.example.backend.dto.ChiTietSanPhamRequest.parseBigDecimalSafe(ct.getGiaBan()))
+                .filter(v -> v != null)
+                .count();
+            if (countPrice > 0) {
+                BigDecimal avg = sumPrice.divide(new BigDecimal(countPrice), 0, RoundingMode.HALF_UP);
+                r.setGiaTrungBinh(avg.toPlainString());
+            } else {
+                r.setGiaTrungBinh(null);
+            }
+        } catch (Exception ex) {
+            r.setTongSoLuongChiTiet(null);
+            r.setGiaTrungBinh(null);
+        }
         return r;
     }
 }
