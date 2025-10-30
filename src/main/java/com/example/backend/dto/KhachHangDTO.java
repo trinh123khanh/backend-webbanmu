@@ -24,6 +24,8 @@ public class KhachHangDTO {
     private Boolean trangThai;
 
     private Integer soLanMua;
+    private Integer diemTichLuy;
+    private LocalDate lanMuaGanNhat;
 
     private Long userId;
     private String username;

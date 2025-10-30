@@ -13,24 +13,7 @@ import java.util.Optional;
 
 @RestController
 @RequestMapping("/api/khach-hang")
-@CrossOrigin(origins = "*")
-package com.example.backend.controller;
-
-import com.example.backend.dto.KhachHangDTO;
-import com.example.backend.service.KhachHangService;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.data.domain.Page;
-import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.*;
-
-import java.util.List;
-import java.util.Optional;
-
-
-@RestController
-@RequestMapping("/api/khach-hang")
-@CrossOrigin(origins = "*")
+@CrossOrigin(originPatterns = {"http://localhost:*", "http://127.0.0.1:*"})
 public class KhachHangController {
 
     @Autowired
@@ -87,8 +70,8 @@ public class KhachHangController {
     public ResponseEntity<KhachHangDTO> getKhachHangByMa(@PathVariable String maKhachHang) {
         try {
             Optional<KhachHangDTO> khachHang = khachHangService.getKhachHangByMa(maKhachHang);
-return khachHang.map(ResponseEntity::ok)
-.orElse(ResponseEntity.notFound().build());
+            return khachHang.map(ResponseEntity::ok)
+                           .orElse(ResponseEntity.notFound().build());
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
         }
@@ -151,9 +134,9 @@ return khachHang.map(ResponseEntity::ok)
             khachHangService.deleteKhachHangPermanently(id);
             return ResponseEntity.ok("Đã xóa vĩnh viễn khách hàng thành công");
         } catch (RuntimeException e) {
-return ResponseEntity.status(HttpStatus.NOT_FOUND).body(e.getMessage());
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(e.getMessage());
         } catch (Exception e) {
-return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Lỗi server: " + e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Lỗi server: " + e.getMessage());
         }
     }
 
@@ -220,9 +203,9 @@ return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Lỗi serve
     @GetMapping("/stats")
     public ResponseEntity<?> getStats() {
         try {
-long total = khachHangService.getTotalKhachHang();
+            long total = khachHangService.getTotalKhachHang();
             long active = khachHangService.getActiveKhachHang();
-long inactive = khachHangService.getInactiveKhachHang();
+            long inactive = khachHangService.getInactiveKhachHang();
             
             return ResponseEntity.ok(new StatsResponse(total, active, inactive));
         } catch (Exception e) {
@@ -308,101 +291,5 @@ public StatsResponse(long total, long active, long inactive) {
         public long getTotal() { return total; }
         public long getActive() { return active; }
         public long getInactive() { return inactive; }
-    }
-}
-package com.example.backend.controller;
-
-import com.example.backend.dto.DiaChiKhachHangDTO;
-import com.example.backend.service.DiaChiKhachHangService;
-import lombok.RequiredArgsConstructor;
-import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.*;
-
-import java.util.List;
-
-@RestController
-@RequestMapping("/api/dia-chi-khach-hang")
-@RequiredArgsConstructor
-@CrossOrigin(origins = "*")
-public class DiaChiKhachHangController {
-    
-    private final DiaChiKhachHangService diaChiKhachHangService;
-    
-    // Lấy tất cả địa chỉ của khách hàng
-    @GetMapping("/khach-hang/{khachHangId}")
-    public ResponseEntity<List<DiaChiKhachHangDTO>> getDiaChiByKhachHangId(@PathVariable Long khachHangId) {
-        try {
-            List<DiaChiKhachHangDTO> diaChiList = diaChiKhachHangService.getDiaChiByKhachHangId(khachHangId);
-            return ResponseEntity.ok(diaChiList);
-        } catch (Exception e) {
-            return ResponseEntity.badRequest().build();
-        }
-    }
-    
-    // Lấy địa chỉ mặc định của khách hàng
-    @GetMapping("/khach-hang/{khachHangId}/mac-dinh")
-    public ResponseEntity<DiaChiKhachHangDTO> getDiaChiMacDinhByKhachHangId(@PathVariable Long khachHangId) {
-        try {
-            return diaChiKhachHangService.getDiaChiMacDinhByKhachHangId(khachHangId)
-                .map(ResponseEntity::ok)
-                .orElse(ResponseEntity.notFound().build());
-        } catch (Exception e) {
-            return ResponseEntity.badRequest().build();
-        }
-    }
-    
-    // Thêm địa chỉ mới
-    @PostMapping
-    public ResponseEntity<DiaChiKhachHangDTO> createDiaChi(@RequestBody DiaChiKhachHangDTO diaChiDTO) {
-        try {
-            DiaChiKhachHangDTO savedDiaChi = diaChiKhachHangService.createDiaChi(diaChiDTO);
-            return ResponseEntity.ok(savedDiaChi);
-        } catch (Exception e) {
-            return ResponseEntity.badRequest().build();
-        }
-    }
-    
-    // Cập nhật địa chỉ
-    @PutMapping("/{id}")
-    public ResponseEntity<DiaChiKhachHangDTO> updateDiaChi(@PathVariable Long id, @RequestBody DiaChiKhachHangDTO diaChiDTO) {
-        try {
-            DiaChiKhachHangDTO updatedDiaChi = diaChiKhachHangService.updateDiaChi(id, diaChiDTO);
-            return ResponseEntity.ok(updatedDiaChi);
-        } catch (Exception e) {
-            return ResponseEntity.badRequest().build();
-        }
-    }
-    
-    // Xóa địa chỉ
-    @DeleteMapping("/{id}/khach-hang/{khachHangId}")
-    public ResponseEntity<Void> deleteDiaChi(@PathVariable Long id, @PathVariable Long khachHangId) {
-try {
-            diaChiKhachHangService.deleteDiaChi(id, khachHangId);
-            return ResponseEntity.ok().build();
-        } catch (Exception e) {
-            return ResponseEntity.badRequest().build();
-        }
-    }
-    
-    // Đặt địa chỉ làm mặc định
-    @PutMapping("/{id}/khach-hang/{khachHangId}/mac-dinh")
-public ResponseEntity<DiaChiKhachHangDTO> setDiaChiMacDinh(@PathVariable Long id, @PathVariable Long khachHangId) {
-        try {
-            DiaChiKhachHangDTO updatedDiaChi = diaChiKhachHangService.setDiaChiMacDinh(id, khachHangId);
-            return ResponseEntity.ok(updatedDiaChi);
-        } catch (Exception e) {
-            return ResponseEntity.badRequest().build();
-        }
-    }
-    
-    // Lấy tất cả địa chỉ (cho hiển thị bảng)
-    @GetMapping
-    public ResponseEntity<List<DiaChiKhachHangDTO>> getAllDiaChi() {
-        try {
-            List<DiaChiKhachHangDTO> allDiaChi = diaChiKhachHangService.getAllDiaChi();
-            return ResponseEntity.ok(allDiaChi);
-        } catch (Exception e) {
-            return ResponseEntity.badRequest().build();
-        }
     }
 }
