@@ -204,6 +204,7 @@ public class NhanVienService {
                 .maNhanVien(nhanVien.getMaNhanVien())
                 .email(nhanVien.getEmail())
                 .soDienThoai(nhanVien.getSoDienThoai())
+                .soCanCuocCongDan(nhanVien.getSoCanCuocCongDan())
                 .diaChi(nhanVien.getDiaChi())
                 .gioiTinh(nhanVien.getGioiTinh())
                 .ngaySinh(nhanVien.getNgaySinh())
@@ -222,6 +223,7 @@ public class NhanVienService {
         nhanVien.setMaNhanVien(nhanVienDTO.getMaNhanVien());
         nhanVien.setEmail(nhanVienDTO.getEmail());
         nhanVien.setSoDienThoai(nhanVienDTO.getSoDienThoai());
+        nhanVien.setSoCanCuocCongDan(nhanVienDTO.getSoCanCuocCongDan());
         nhanVien.setDiaChi(nhanVienDTO.getDiaChi());
         nhanVien.setGioiTinh(nhanVienDTO.getGioiTinh());
         nhanVien.setNgaySinh(nhanVienDTO.getNgaySinh());
@@ -243,6 +245,9 @@ public class NhanVienService {
         }
         if (nhanVienDTO.getSoDienThoai() != null) {
             nhanVien.setSoDienThoai(nhanVienDTO.getSoDienThoai());
+        }
+        if (nhanVienDTO.getSoCanCuocCongDan() != null) {
+            nhanVien.setSoCanCuocCongDan(nhanVienDTO.getSoCanCuocCongDan());
         }
         if (nhanVienDTO.getDiaChi() != null) {
             nhanVien.setDiaChi(nhanVienDTO.getDiaChi());

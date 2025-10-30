@@ -21,6 +21,8 @@ public class NhanVien {
     private String email;
     
     private String soDienThoai;
+    @Column(unique = true)
+    private String soCanCuocCongDan; // CCCD
     private String diaChi;
     private Boolean gioiTinh;
     private LocalDate ngaySinh;

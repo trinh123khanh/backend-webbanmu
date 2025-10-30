@@ -4,6 +4,7 @@ import jakarta.persistence.*;
 import lombok.Data;
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.List;
 
 @Data
 @Entity
@@ -66,4 +67,6 @@ public class SanPham {
     private LocalDate ngayTao;
     
     private Boolean trangThai;
+    
+
 }

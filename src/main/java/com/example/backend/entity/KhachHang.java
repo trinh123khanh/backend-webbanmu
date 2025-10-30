@@ -13,12 +13,15 @@ public class KhachHang {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
-
-    // Bổ sung mã khách hàng cho khớp với cột "ma_khach_hang"
+   // Bổ sung mã khách hàng cho khớp với cột "ma_khach_hang"
     @Column(name = "ma_khach_hang")
     private String maKhachHang;
 
     @Column(name = "ten_khach_hang")
+    
+    @Column(unique = true, nullable = false)
+    private String maKhachHang;
+ 
     private String tenKhachHang;
 
     @Column(unique = true)
@@ -28,6 +31,9 @@ public class KhachHang {
     private String soDienThoai;
 
     @Column(name = "ngay_sinh")
+
+    private String diaChi;
+
     private LocalDate ngaySinh;
 
     @Column(name = "gioi_tinh")
@@ -37,6 +43,7 @@ public class KhachHang {
     private Integer diemTichLuy;
 
     @Column(name = "ngay_tao")
+
     private LocalDate ngayTao;
 
     @Column(name = "trang_thai")
