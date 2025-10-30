@@ -12,8 +12,13 @@ import java.util.Optional;
 @Repository
 public interface DiaChiKhachHangRepository extends JpaRepository<DiaChiKhachHang, Long> {
     
+
+    @Query("SELECT d FROM DiaChiKhachHang d WHERE d.khachHang.id = :khachHangId")
+    List<DiaChiKhachHang> findByKhachHangId(@Param("khachHangId") Long khachHangId);
+
     // Lấy tất cả địa chỉ của một khách hàng
     List<DiaChiKhachHang> findByKhachHangIdAndTrangThaiTrueOrderByMacDinhDescNgayTaoDesc(Long khachHangId);
+
     
     // Lấy địa chỉ mặc định của khách hàng
     Optional<DiaChiKhachHang> findByKhachHangIdAndMacDinhTrueAndTrangThaiTrue(Long khachHangId);

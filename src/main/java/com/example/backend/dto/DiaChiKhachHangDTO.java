@@ -21,7 +21,9 @@ public class DiaChiKhachHangDTO {
     private String phuongXa;
     private Boolean macDinh;
     private Boolean trangThai;
+
     private LocalDateTime ngayTao;
     private LocalDateTime ngayCapNhat;
     private Long khachHangId;
+
 }

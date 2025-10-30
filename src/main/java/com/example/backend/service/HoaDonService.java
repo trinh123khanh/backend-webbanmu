@@ -1,225 +1,181 @@
 package com.example.backend.service;
 
 import com.example.backend.dto.HoaDonDTO;
-import com.example.backend.entity.HoaDon;
-// Removed KhachHang import as KhachHangRepository was deleted
-import com.example.backend.entity.NhanVien;
-import com.example.backend.repository.HoaDonRepository;
-import com.example.backend.repository.NhanVienRepository;
+import com.example.backend.dto.SanPhamTrongHoaDon;
+import com.example.backend.entity.*;
+import com.example.backend.repository.*;
+import jakarta.persistence.EntityNotFoundException;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
-import java.util.List;
-// Removed unused import
+import java.util.*;
 import java.util.stream.Collectors;
+import jakarta.persistence.criteria.Predicate;
 
 @Service
 @Transactional(readOnly = true)
 public class HoaDonService {
 
     private final HoaDonRepository hoaDonRepository;
+    private final HoaDonChiTietRepository hoaDonChiTietRepository;
+    private final ChiTietSanPhamRepository chiTietSanPhamRepository;
+    private final SanPhamRepository sanPhamRepository;
+    private final ThongTinDonHangRepository thongTinDonHangRepository;
+    private final KhachHangRepository khachHangRepository;
     private final NhanVienRepository nhanVienRepository;
+    private final DiaChiKhachHangRepository diaChiKhachHangRepository;
+    private final PhuongThucThanhToanRepository phuongThucThanhToanRepository;
+    private final HinhThucThanhToanRepository hinhThucThanhToanRepository;
 
-    public HoaDonService(HoaDonRepository hoaDonRepository, 
-                        NhanVienRepository nhanVienRepository) {
+    public HoaDonService(HoaDonRepository hoaDonRepository,
+                         HoaDonChiTietRepository hoaDonChiTietRepository,
+                         ChiTietSanPhamRepository chiTietSanPhamRepository,
+                         SanPhamRepository sanPhamRepository,
+                         ThongTinDonHangRepository thongTinDonHangRepository,
+                         KhachHangRepository khachHangRepository,
+                         NhanVienRepository nhanVienRepository,
+                         DiaChiKhachHangRepository diaChiKhachHangRepository,
+                         PhuongThucThanhToanRepository phuongThucThanhToanRepository,
+                         HinhThucThanhToanRepository hinhThucThanhToanRepository) {
         this.hoaDonRepository = hoaDonRepository;
+        this.hoaDonChiTietRepository = hoaDonChiTietRepository;
+        this.chiTietSanPhamRepository = chiTietSanPhamRepository;
+        this.sanPhamRepository = sanPhamRepository;
+        this.thongTinDonHangRepository = thongTinDonHangRepository;
+        this.khachHangRepository = khachHangRepository;
         this.nhanVienRepository = nhanVienRepository;
-    }
-
-    // Expose repositories for controller access
-    public NhanVienRepository getNhanVienRepository() {
-        return nhanVienRepository;
-    }
-
-    public List<HoaDonDTO> getAllHoaDon() {
-        return hoaDonRepository.findAll()
-                .stream()
-                .map(this::convertToDTO)
-                .collect(Collectors.toList());
-    }
-    
-    public HoaDonDTO getHoaDonById(Long id) {
-        HoaDon hoaDon = hoaDonRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Không tìm thấy hóa đơn với ID: " + id));
-        return convertToDTO(hoaDon);
-    }
-    
-    public HoaDonDTO getHoaDonByMa(String maHoaDon) {
-        HoaDon hoaDon = hoaDonRepository.findByMaHoaDon(maHoaDon)
-                .orElseThrow(() -> new RuntimeException("Không tìm thấy hóa đơn với mã: " + maHoaDon));
-        return convertToDTO(hoaDon);
-    }
-    
-    public List<HoaDonDTO> getHoaDonByTrangThai(HoaDon.TrangThaiHoaDon trangThai) {
-        return hoaDonRepository.findByTrangThai(trangThai)
-                .stream()
-                .map(this::convertToDTO)
-                .collect(Collectors.toList());
-    }
-    
-    // Removed getHoaDonByKhachHang method as KhachHangRepository was deleted
-    
-    public List<HoaDonDTO> getHoaDonByNhanVien(Long nhanVienId) {
-        return hoaDonRepository.findByNhanVienId(nhanVienId)
-                .stream()
-                .map(this::convertToDTO)
-                .collect(Collectors.toList());
-    }
-    
-    public List<HoaDonDTO> getHoaDonByDateRange(LocalDateTime startDate, LocalDateTime endDate) {
-        return hoaDonRepository.findByNgayTaoBetween(startDate, endDate)
-                .stream()
-                .map(this::convertToDTO)
-                .collect(Collectors.toList());
+        this.diaChiKhachHangRepository = diaChiKhachHangRepository;
+        this.phuongThucThanhToanRepository = phuongThucThanhToanRepository;
+        this.hinhThucThanhToanRepository = hinhThucThanhToanRepository;
     }
 
     @Transactional
-    public HoaDonDTO createHoaDon(HoaDonDTO hoaDonDTO) {
-        HoaDon hoaDon = convertToEntity(hoaDonDTO);
-        hoaDon.setNgayTao(LocalDateTime.now());
-        
-        // Generate mã hóa đơn nếu chưa có
-        if (hoaDon.getMaHoaDon() == null || hoaDon.getMaHoaDon().isEmpty()) {
-            hoaDon.setMaHoaDon(generateMaHoaDon());
-        }
-        
-        HoaDon savedHoaDon = hoaDonRepository.save(hoaDon);
-        return convertToDTO(savedHoaDon);
-    }
-
-    @Transactional
-    public HoaDonDTO updateHoaDon(Long id, HoaDonDTO hoaDonDTO) {
-        HoaDon existingHoaDon = hoaDonRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Không tìm thấy hóa đơn với ID: " + id));
-        
-        // Update fields
-        existingHoaDon.setMaHoaDon(hoaDonDTO.getMaHoaDon());
-        existingHoaDon.setNgayThanhToan(hoaDonDTO.getNgayThanhToan());
-        existingHoaDon.setTongTien(hoaDonDTO.getTongTien());
-        existingHoaDon.setTienGiamGia(hoaDonDTO.getTienGiamGia());
-        existingHoaDon.setThanhTien(hoaDonDTO.getThanhTien());
-        existingHoaDon.setGhiChu(hoaDonDTO.getGhiChu());
-        existingHoaDon.setTrangThai(hoaDonDTO.getTrangThai());
-        
-        // Removed customer relationship handling as KhachHangRepository was deleted
-        
-        // Update relationships - xử lý nhân viên
-        if (hoaDonDTO.getNhanVienId() != null) {
-            NhanVien nhanVien = nhanVienRepository.findById(hoaDonDTO.getNhanVienId())
-                    .orElseThrow(() -> new RuntimeException("Không tìm thấy nhân viên với ID: " + hoaDonDTO.getNhanVienId()));
-            existingHoaDon.setNhanVien(nhanVien);
-        } else if (hoaDonDTO.getTenNhanVien() != null && !hoaDonDTO.getTenNhanVien().isEmpty()) {
-            // Nếu không có ID nhưng có tên nhân viên, tạo hoặc tìm nhân viên mới
-            NhanVien nhanVien = createOrFindNhanVien(hoaDonDTO);
-            existingHoaDon.setNhanVien(nhanVien);
-        }
-        
-        HoaDon updatedHoaDon = hoaDonRepository.save(existingHoaDon);
-        return convertToDTO(updatedHoaDon);
-    }
-
-    @Transactional
-    public void deleteHoaDon(Long id) {
-        HoaDon hoaDon = hoaDonRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Không tìm thấy hóa đơn với ID: " + id));
-        hoaDonRepository.delete(hoaDon);
-    }
-
-    @Transactional
-    public HoaDonDTO updateTrangThaiHoaDon(Long id, HoaDon.TrangThaiHoaDon trangThai) {
-        HoaDon hoaDon = hoaDonRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Không tìm thấy hóa đơn với ID: " + id));
-        
-        hoaDon.setTrangThai(trangThai);
-        
-        // Nếu trạng thái là DA_GIAO_HANG thì cập nhật ngày thanh toán
-        if (trangThai == HoaDon.TrangThaiHoaDon.DA_GIAO_HANG && hoaDon.getNgayThanhToan() == null) {
-            hoaDon.setNgayThanhToan(LocalDateTime.now());
-        }
-        
-        HoaDon updatedHoaDon = hoaDonRepository.save(hoaDon);
-        return convertToDTO(updatedHoaDon);
-    }
-
-    private String generateMaHoaDon() {
-        LocalDateTime now = LocalDateTime.now();
-        String year = String.valueOf(now.getYear());
-        String month = String.format("%02d", now.getMonthValue());
-        String day = String.format("%02d", now.getDayOfMonth());
-        String time = String.format("%02d%02d%02d", now.getHour(), now.getMinute(), now.getSecond());
-        return "HD" + year + month + day + time;
-    }
-
-    private HoaDon convertToEntity(HoaDonDTO dto) {
+    public HoaDon createHoaDon(HoaDonDTO dto) {
         HoaDon hoaDon = new HoaDon();
-        hoaDon.setId(dto.getId());
-        hoaDon.setMaHoaDon(dto.getMaHoaDon());
-        hoaDon.setNgayTao(dto.getNgayTao());
-        hoaDon.setNgayThanhToan(dto.getNgayThanhToan());
-        hoaDon.setTongTien(dto.getTongTien());
-        hoaDon.setTienGiamGia(dto.getTienGiamGia());
-        hoaDon.setThanhTien(dto.getThanhTien());
-        hoaDon.setGhiChu(dto.getGhiChu());
+        hoaDon.setMa(dto.getMa());
+        hoaDon.setNgayTao(LocalDateTime.now());
         hoaDon.setTrangThai(dto.getTrangThai());
-        
-        // Removed customer handling as KhachHangRepository was deleted
-        
-        // Xử lý nhân viên
+
+        // Khách hàng
+        if (dto.getKhachHangId() != null) {
+            KhachHang khachHang = khachHangRepository.findById(dto.getKhachHangId())
+                    .orElseThrow(() -> new EntityNotFoundException("Không tìm thấy khách hàng"));
+            hoaDon.setKhachHang(khachHang);
+        }
+
+        // Nhân viên
         if (dto.getNhanVienId() != null) {
-            NhanVien nhanVien = nhanVienRepository.findById(dto.getNhanVienId()).orElse(null);
-            hoaDon.setNhanVien(nhanVien);
-        } else if (dto.getTenNhanVien() != null && !dto.getTenNhanVien().isEmpty()) {
-            // Nếu không có ID nhưng có tên nhân viên, tạo nhân viên mới
-            NhanVien nhanVien = createOrFindNhanVien(dto);
+            NhanVien nhanVien = nhanVienRepository.findById(dto.getNhanVienId())
+                    .orElseThrow(() -> new EntityNotFoundException("Không tìm thấy nhân viên"));
             hoaDon.setNhanVien(nhanVien);
         }
-        
+
+        // Lưu hóa đơn trước
+        hoaDonRepository.save(hoaDon);
+
+        // Địa chỉ khách hàng
+        if (dto.getDiaChiId() != null) {
+            DiaChiKhachHang diaChi = diaChiKhachHangRepository.findById(dto.getDiaChiId())
+                    .orElseThrow(() -> new EntityNotFoundException("Không tìm thấy địa chỉ khách hàng"));
+            ThongTinDonHang thongTin = new ThongTinDonHang();
+            thongTin.setHoaDon(hoaDon);
+            thongTin.setDiaChiKhachHang(diaChi);
+            thongTinDonHangRepository.save(thongTin);
+        }
+
+        // Phương thức thanh toán
+        if (dto.getPhuongThucThanhToanId() != null) {
+            PhuongThucThanhToan pttt = phuongThucThanhToanRepository.findById(dto.getPhuongThucThanhToanId())
+                    .orElseThrow(() -> new EntityNotFoundException("Không tìm thấy phương thức thanh toán"));
+            pttt.setHoaDon(hoaDon);
+            phuongThucThanhToanRepository.save(pttt);
+        }
+
+        // Thêm chi tiết sản phẩm
+        if (dto.getSanPhamList() != null && !dto.getSanPhamList().isEmpty()) {
+            for (SanPhamTrongHoaDon sp : dto.getSanPhamList()) {
+                ChiTietSanPham chiTiet = chiTietSanPhamRepository.findById(sp.getChiTietSanPhamId())
+                        .orElseThrow(() -> new EntityNotFoundException("Không tìm thấy chi tiết sản phẩm"));
+                HoaDonChiTiet hoaDonChiTiet = new HoaDonChiTiet();
+                hoaDonChiTiet.setHoaDon(hoaDon);
+                hoaDonChiTiet.setChiTietSanPham(chiTiet);
+                hoaDonChiTiet.setSoLuong(sp.getSoLuong());
+                hoaDonChiTiet.setDonGia(sp.getDonGia());
+                hoaDonChiTietRepository.save(hoaDonChiTiet);
+            }
+        }
+
         return hoaDon;
     }
 
-    private HoaDonDTO convertToDTO(HoaDon hoaDon) {
-        return HoaDonDTO.builder()
-                .id(hoaDon.getId())
-                .maHoaDon(hoaDon.getMaHoaDon())
-                .khachHangId(null) // Removed customer data as KhachHangRepository was deleted
-                .tenKhachHang(null)
-                .emailKhachHang(null)
-                .soDienThoaiKhachHang(null)
-                .diaChiKhachHang(null)
-                .nhanVienId(hoaDon.getNhanVien() != null ? hoaDon.getNhanVien().getId() : null)
-                .tenNhanVien(hoaDon.getNhanVien() != null ? hoaDon.getNhanVien().getHoTen() : null)
-                .ngayTao(hoaDon.getNgayTao())
-                .ngayThanhToan(hoaDon.getNgayThanhToan())
-                .tongTien(hoaDon.getTongTien())
-                .tienGiamGia(hoaDon.getTienGiamGia())
-                .thanhTien(hoaDon.getThanhTien())
-                .ghiChu(hoaDon.getGhiChu())
-                .trangThai(hoaDon.getTrangThai())
-                .soLuongSanPham(hoaDon.getDanhSachChiTiet() != null ? hoaDon.getDanhSachChiTiet().size() : 0)
-                .build();
+    @Transactional
+    public HoaDon updateHoaDon(UUID id, HoaDonDTO dto) {
+        HoaDon hoaDon = hoaDonRepository.findById(id)
+                .orElseThrow(() -> new EntityNotFoundException("Không tìm thấy hóa đơn"));
+
+        hoaDon.setTrangThai(dto.getTrangThai());
+        hoaDon.setNgayCapNhat(LocalDateTime.now());
+
+        // Cập nhật khách hàng
+        if (dto.getKhachHangId() != null) {
+            KhachHang khachHang = khachHangRepository.findById(dto.getKhachHangId())
+                    .orElseThrow(() -> new EntityNotFoundException("Không tìm thấy khách hàng"));
+            hoaDon.setKhachHang(khachHang);
+        }
+
+        // Cập nhật phương thức thanh toán
+        if (dto.getPhuongThucThanhToanId() != null) {
+            PhuongThucThanhToan pttt = phuongThucThanhToanRepository.findById(dto.getPhuongThucThanhToanId())
+                    .orElseThrow(() -> new EntityNotFoundException("Không tìm thấy phương thức thanh toán"));
+            pttt.setHoaDon(hoaDon);
+            phuongThucThanhToanRepository.save(pttt);
+        }
+
+        // Cập nhật chi tiết hóa đơn
+        if (dto.getSanPhamList() != null) {
+            hoaDonChiTietRepository.deleteByHoaDonId(hoaDon.getId());
+            for (SanPhamTrongHoaDon sp : dto.getSanPhamList()) {
+                ChiTietSanPham chiTiet = chiTietSanPhamRepository.findById(sp.getChiTietSanPhamId())
+                        .orElseThrow(() -> new EntityNotFoundException("Không tìm thấy chi tiết sản phẩm"));
+                HoaDonChiTiet hdct = new HoaDonChiTiet();
+                hdct.setHoaDon(hoaDon);
+                hdct.setChiTietSanPham(chiTiet);
+                hdct.setSoLuong(sp.getSoLuong());
+                hdct.setDonGia(sp.getDonGia());
+                hoaDonChiTietRepository.save(hdct);
+            }
+        }
+
+        return hoaDonRepository.save(hoaDon);
     }
 
-    // Removed all DiaChiKhachHang and KhachHang related methods as repositories were deleted
+    @Transactional
+    public void deleteHoaDon(UUID id) {
+        HoaDon hoaDon = hoaDonRepository.findById(id)
+                .orElseThrow(() -> new EntityNotFoundException("Không tìm thấy hóa đơn"));
+        thongTinDonHangRepository.deleteByHoaDonId(hoaDon.getId());
+        hoaDonChiTietRepository.deleteByHoaDonId(hoaDon.getId());
+        phuongThucThanhToanRepository.deleteByHoaDonId(hoaDon.getId());
+        hoaDonRepository.delete(hoaDon);
+    }
 
-    private NhanVien createOrFindNhanVien(HoaDonDTO dto) {
-        // Tìm nhân viên theo tên
-        List<NhanVien> existingNhanVien = nhanVienRepository.findByHoTen(dto.getTenNhanVien());
-        if (!existingNhanVien.isEmpty()) {
-            return existingNhanVien.get(0);
-        }
-        
-        // Tạo nhân viên mới
-        NhanVien nhanVien = new NhanVien();
-        nhanVien.setHoTen(dto.getTenNhanVien());
-        nhanVien.setEmail("nv_" + System.currentTimeMillis() + "@company.com");
-        nhanVien.setSoDienThoai("0123456789"); // Default phone
-        nhanVien.setDiaChi("Hà Nội"); // Default address
-        nhanVien.setGioiTinh(true); // Default gender
-        nhanVien.setNgaySinh(java.time.LocalDate.of(1990, 1, 1)); // Default date
-        nhanVien.setNgayVaoLam(java.time.LocalDate.now());
-        nhanVien.setTrangThai(true);
-        
-        return nhanVienRepository.save(nhanVien);
+    public Page<HoaDon> getAllHoaDon(String keyword, Pageable pageable) {
+        Specification<HoaDon> spec = (root, query, cb) -> {
+            List<Predicate> predicates = new ArrayList<>();
+            if (keyword != null && !keyword.isEmpty()) {
+                predicates.add(cb.like(root.get("ma"), "%" + keyword + "%"));
+            }
+            return cb.and(predicates.toArray(new Predicate[0]));
+        };
+        return hoaDonRepository.findAll(spec, pageable);
+    }
+
+    public Optional<HoaDon> getHoaDonById(UUID id) {
+        return hoaDonRepository.findById(id);
     }
 }

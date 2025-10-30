@@ -3,12 +3,19 @@ package com.example.backend.controller;
 import com.example.backend.dto.HoaDonDTO;
 import com.example.backend.entity.HoaDon;
 import com.example.backend.service.HoaDonService;
+import jakarta.persistence.EntityNotFoundException;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
+import java.util.HashMap;
 
 @RestController
 @RequestMapping("/api/hoa-don")
@@ -27,9 +34,58 @@ public class HoaDonController {
         return ResponseEntity.ok(hoaDonList);
     }
     
+    @GetMapping("/page")
+    public ResponseEntity<Map<String, Object>> getAllHoaDonPaginated(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "5") int size,
+            @RequestParam(required = false) String maHoaDon,
+            @RequestParam(required = false) String keyword,
+            @RequestParam(required = false) String trangThai,
+            @RequestParam(required = false) String trangThaiThanhToan,
+            @RequestParam(required = false) String phuongThucThanhToan,
+            @RequestParam(required = false) String sortBy,
+            @RequestParam(defaultValue = "asc") String sortDirection) {
+        
+        try {
+            // Create Pageable object
+            Sort sort = Sort.by(Sort.Direction.fromString(sortDirection), 
+                               sortBy != null ? sortBy : "ngayTao");
+            Pageable pageable = PageRequest.of(page, size, sort);
+            
+            // Call service method with pagination
+            Page<HoaDonDTO> hoaDonPage = hoaDonService.getAllHoaDonPaginated(
+                pageable, maHoaDon, keyword, trangThai, trangThaiThanhToan, phuongThucThanhToan);
+            
+            // Create response map
+            Map<String, Object> response = new HashMap<>();
+            response.put("content", hoaDonPage.getContent());
+            response.put("totalElements", hoaDonPage.getTotalElements());
+            response.put("totalPages", hoaDonPage.getTotalPages());
+            response.put("currentPage", hoaDonPage.getNumber());
+            response.put("size", hoaDonPage.getSize());
+            response.put("first", hoaDonPage.isFirst());
+            response.put("last", hoaDonPage.isLast());
+            response.put("numberOfElements", hoaDonPage.getNumberOfElements());
+            
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            Map<String, Object> errorResponse = new HashMap<>();
+            errorResponse.put("error", "Lỗi khi lấy dữ liệu: " + e.getMessage());
+            errorResponse.put("content", List.of());
+            errorResponse.put("totalElements", 0);
+            return ResponseEntity.badRequest().body(errorResponse);
+        }
+    }
+    
     @GetMapping("/{id}")
     public ResponseEntity<HoaDonDTO> getHoaDonById(@PathVariable Long id) {
         HoaDonDTO hoaDon = hoaDonService.getHoaDonById(id);
+        return ResponseEntity.ok(hoaDon);
+    }
+    
+    @GetMapping("/{id}/detail")
+    public ResponseEntity<HoaDonDTO> getHoaDonDetail(@PathVariable Long id) {
+        HoaDonDTO hoaDon = hoaDonService.getHoaDonDetail(id);
         return ResponseEntity.ok(hoaDon);
     }
     
@@ -76,11 +132,18 @@ public class HoaDonController {
 
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> deleteHoaDon(@PathVariable Long id) {
-        hoaDonService.deleteHoaDon(id);
-        return ResponseEntity.noContent().build();
+        try {
+            hoaDonService.deleteHoaDon(id);
+            return ResponseEntity.noContent().build();
+        } catch (EntityNotFoundException e) {
+            return ResponseEntity.notFound().build();
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError().build();
+        }
     }
 
     @PutMapping("/{id}/trang-thai")
+    @PatchMapping("/{id}/trang-thai")
     public ResponseEntity<HoaDonDTO> updateTrangThaiHoaDon(
             @PathVariable Long id, 
             @RequestParam HoaDon.TrangThaiHoaDon trangThai) {
