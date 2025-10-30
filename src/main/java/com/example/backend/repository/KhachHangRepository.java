@@ -23,19 +23,12 @@ public interface KhachHangRepository extends JpaRepository<KhachHang, Long> {
     // Tìm kiếm theo số điện thoại
     Optional<KhachHang> findBySoDienThoai(String soDienThoai);
     
-
-    // Tìm khách hàng theo mã khách hàng
-    Optional<KhachHang> findByMaKhachHang(String maKhachHang);
-    
     // Kiểm tra mã khách hàng đã tồn tại chưa
     boolean existsByMaKhachHang(String maKhachHang);
     
     // Tìm khách hàng theo tên (tìm kiếm gần đúng)
     @Query("SELECT k FROM KhachHang k WHERE LOWER(k.tenKhachHang) LIKE LOWER(CONCAT('%', :tenKhachHang, '%'))")
     List<KhachHang> findByTenKhachHangContainingIgnoreCase(@Param("tenKhachHang") String tenKhachHang);
-
-    // Tìm kiếm theo tên khách hàng
-    List<KhachHang> findByTenKhachHangContainingIgnoreCase(String tenKhachHang);
 
     
     // Tìm kiếm theo trạng thái
@@ -56,29 +49,31 @@ public interface KhachHangRepository extends JpaRepository<KhachHang, Long> {
     @Query("SELECT COUNT(k) > 0 FROM KhachHang k WHERE k.maKhachHang = :maKhachHang AND k.id != :id")
     boolean existsByMaKhachHangAndIdNot(@Param("maKhachHang") String maKhachHang, @Param("id") Long id);
     
-    // Tìm kiếm tổng hợp với phân trang
+    // Tìm kiếm tổng hợp với phân trang (lọc theo nhiều trường)
     @Query("SELECT k FROM KhachHang k WHERE " +
-
            "(:maKhachHang IS NULL OR LOWER(k.maKhachHang) LIKE LOWER(CONCAT('%', :maKhachHang, '%'))) AND " +
            "(:tenKhachHang IS NULL OR LOWER(k.tenKhachHang) LIKE LOWER(CONCAT('%', :tenKhachHang, '%'))) AND " +
            "(:email IS NULL OR LOWER(k.email) LIKE LOWER(CONCAT('%', :email, '%'))) AND " +
            "(:soDienThoai IS NULL OR k.soDienThoai LIKE CONCAT('%', :soDienThoai, '%')) AND " +
            "(:trangThai IS NULL OR k.trangThai = :trangThai)")
     Page<KhachHang> findWithFilters(@Param("maKhachHang") String maKhachHang,
-                                   @Param("tenKhachHang") String tenKhachHang,
-                                   @Param("email") String email,
-                                   @Param("soDienThoai") String soDienThoai,
-                                   @Param("trangThai") Boolean trangThai,
+                                    @Param("tenKhachHang") String tenKhachHang,
+                                    @Param("email") String email,
+                                    @Param("soDienThoai") String soDienThoai,
+                                    @Param("trangThai") Boolean trangThai,
+                                    Pageable pageable);
 
+    // Tìm kiếm theo keyword tổng hợp (tên, email, mã, số điện thoại) kèm trạng thái
+    @Query("SELECT k FROM KhachHang k WHERE " +
            "(:keyword IS NULL OR :keyword = '' OR " +
            "LOWER(k.tenKhachHang) LIKE LOWER(CONCAT('%', :keyword, '%')) OR " +
            "LOWER(k.email) LIKE LOWER(CONCAT('%', :keyword, '%')) OR " +
            "LOWER(k.maKhachHang) LIKE LOWER(CONCAT('%', :keyword, '%')) OR " +
            "LOWER(k.soDienThoai) LIKE LOWER(CONCAT('%', :keyword, '%'))) AND " +
            "(:trangThai IS NULL OR k.trangThai = :trangThai)")
-    Page<KhachHang> findWithFilters(@Param("keyword") String keyword, 
-                                   @Param("trangThai") Boolean trangThai, 
-                                   Pageable pageable);
+    Page<KhachHang> searchByKeyword(@Param("keyword") String keyword,
+                                    @Param("trangThai") Boolean trangThai,
+                                    Pageable pageable);
     
     // Lấy tất cả khách hàng với địa chỉ mặc định
     @Query("SELECT DISTINCT k FROM KhachHang k " +

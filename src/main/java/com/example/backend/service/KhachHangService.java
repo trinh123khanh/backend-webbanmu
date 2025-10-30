@@ -15,6 +15,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 @Service
 @Transactional
@@ -69,6 +70,7 @@ public class KhachHangService {
             maKhachHang, tenKhachHang, email, soDienThoai, trangThai, pageable);
         
         return khachHangPage.map(this::convertToDTO);
+    }
 
     // Lấy khách hàng theo mã
     public Optional<KhachHangDTO> getKhachHangByMa(String maKhachHang) {
@@ -197,7 +199,6 @@ public class KhachHangService {
     }
 
     // Kiểm tra mã khách hàng đã tồn tại
-
     public boolean existsByMaKhachHang(String maKhachHang) {
         return khachHangRepository.existsByMaKhachHang(maKhachHang);
     }
@@ -208,14 +209,8 @@ public class KhachHangService {
                 .map(this::convertToDTO);
     }
 
-    // Lấy khách hàng theo email
-    public Optional<KhachHangDTO> getKhachHangByEmail(String email) {
-        return khachHangRepository.findByEmail(email)
-                .map(this::convertToDTO);
-
     public boolean checkMaKhachHangExists(String maKhachHang) {
         return khachHangRepository.findByMaKhachHang(maKhachHang).isPresent();
-
     }
 
     // Lấy thống kê
@@ -253,6 +248,7 @@ public class KhachHangService {
                 .ngayTao(khachHang.getNgayTao())
                 .trangThai(khachHang.getTrangThai())
                 .soLanMua(khachHang.getSoLanMua())
+                .diemTichLuy(khachHang.getDiemTichLuy())
                 .lanMuaGanNhat(khachHang.getLanMuaGanNhat())
                 .userId(khachHang.getUser() != null ? khachHang.getUser().getId() : null)
                 .username(khachHang.getUser() != null ? khachHang.getUser().getUsername() : null)
@@ -315,7 +311,6 @@ public class KhachHangService {
         khachHang.setTrangThai(khachHangDTO.getTrangThai());
 
         khachHang.setSoLanMua(khachHangDTO.getSoLanMua());
-        khachHang.setLanMuaGanNhat(khachHangDTO.getLanMuaGanNhat());
         return khachHang;
     }
 
@@ -339,17 +334,11 @@ public class KhachHangService {
         if (khachHangDTO.getGioiTinh() != null) {
             khachHang.setGioiTinh(khachHangDTO.getGioiTinh());
         }
-        if (khachHangDTO.getDiemTichLuy() != null) {
-            khachHang.setDiemTichLuy(khachHangDTO.getDiemTichLuy());
-        }
         if (khachHangDTO.getTrangThai() != null) {
             khachHang.setTrangThai(khachHangDTO.getTrangThai());
         }
         if (khachHangDTO.getSoLanMua() != null) {
             khachHang.setSoLanMua(khachHangDTO.getSoLanMua());
-        }
-        if (khachHangDTO.getLanMuaGanNhat() != null) {
-            khachHang.setLanMuaGanNhat(khachHangDTO.getLanMuaGanNhat());
         }
     }
     
@@ -359,15 +348,10 @@ public class KhachHangService {
         return khachHangList.stream()
                 .map(this::convertToDTO)
                 .collect(Collectors.toList());
-
-        
-        // Note: User relationship sẽ được xử lý riêng nếu cần
-        return khachHang;
     }
     
     // Đếm tổng số khách hàng
     public long getTotalCustomerCount() {
         return khachHangRepository.count();
-
     }
 }
