@@ -17,6 +17,7 @@ import org.springframework.web.bind.annotation.*;
 @CrossOrigin(origins = {"http://localhost:4200", "http://localhost:3000", "http://localhost:61143"})
 public class SanPhamController {
 
+
     private final SanPhamService service;
 
     public SanPhamController(SanPhamService service) {
