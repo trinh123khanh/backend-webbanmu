@@ -59,22 +59,22 @@ public class KhachHangController {
 
     // Tạo khách hàng mới
     @PostMapping
-    public ResponseEntity<KhachHangDTO> createKhachHang(@RequestBody KhachHangDTO khachHangDTO) {
+    public ResponseEntity<?> createKhachHang(@RequestBody KhachHangDTO khachHangDTO) {
         try {
             // Kiểm tra email đã tồn tại
             if (khachHangDTO.getEmail() != null && khachHangService.existsByEmail(khachHangDTO.getEmail())) {
-                return ResponseEntity.badRequest().build();
+                return ResponseEntity.badRequest().body("Email đã tồn tại: " + khachHangDTO.getEmail());
             }
             
             // Kiểm tra số điện thoại đã tồn tại
             if (khachHangDTO.getSoDienThoai() != null && khachHangService.existsBySoDienThoai(khachHangDTO.getSoDienThoai())) {
-                return ResponseEntity.badRequest().build();
+                return ResponseEntity.badRequest().body("Số điện thoại đã tồn tại: " + khachHangDTO.getSoDienThoai());
             }
             
             KhachHangDTO createdKhachHang = khachHangService.createKhachHang(khachHangDTO);
             return ResponseEntity.status(HttpStatus.CREATED).body(createdKhachHang);
         } catch (Exception e) {
-            return ResponseEntity.badRequest().build();
+            return ResponseEntity.badRequest().body("Lỗi khi tạo khách hàng: " + e.getMessage());
         }
     }
 

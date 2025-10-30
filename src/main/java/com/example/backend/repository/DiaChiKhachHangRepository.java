@@ -11,7 +11,8 @@ import java.util.List;
 @Repository
 public interface DiaChiKhachHangRepository extends JpaRepository<DiaChiKhachHang, Long> {
     
-    List<DiaChiKhachHang> findByKhachHangId(Long khachHangId);
+    @Query("SELECT d FROM DiaChiKhachHang d WHERE d.khachHang.id = :khachHangId")
+    List<DiaChiKhachHang> findByKhachHangId(@Param("khachHangId") Long khachHangId);
     
     @Query("SELECT d FROM DiaChiKhachHang d WHERE d.khachHang.id = :khachHangId AND d.macDinh = true ORDER BY d.id ASC")
     List<DiaChiKhachHang> findDiaChiMacDinhByKhachHangId(@Param("khachHangId") Long khachHangId);

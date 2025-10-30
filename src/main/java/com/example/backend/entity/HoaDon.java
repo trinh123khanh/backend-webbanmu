@@ -39,6 +39,9 @@ public class HoaDon {
     
     private BigDecimal tienGiamGia;
     
+    @Column
+    private BigDecimal giamGiaPhanTram; // Phần trăm giảm giá
+    
     @Column(nullable = false)
     private BigDecimal thanhTien;
     
@@ -48,6 +51,9 @@ public class HoaDon {
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private TrangThaiHoaDon trangThai;
+    
+    @Column(nullable = false)
+    private Integer soLuongSanPham = 0;
     
     @OneToMany(mappedBy = "hoaDon", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<HoaDonChiTiet> danhSachChiTiet;
@@ -61,7 +67,6 @@ public class HoaDon {
         DANG_GIAO_HANG,
         DA_GIAO_HANG,
         DA_HUY,
-        TRA_HANG,
-        HOAN_TIEN
+        
     }
 }

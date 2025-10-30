@@ -20,5 +20,4 @@ public class DiaChiKhachHangDTO {
     private String phuongXa;
     private Boolean macDinh;
     private Boolean trangThai;
-    
 }
