@@ -17,6 +17,7 @@ public class NhanVienDTO {
     private String maNhanVien;
     private String email;
     private String soDienThoai;
+    private String soCanCuocCongDan;
     private String diaChi;
     private Boolean gioiTinh;
     private LocalDate ngaySinh;
