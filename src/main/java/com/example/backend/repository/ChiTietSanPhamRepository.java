@@ -15,10 +15,4 @@ public interface ChiTietSanPhamRepository extends JpaRepository<ChiTietSanPham, 
 
     // Find all ChiTietSanPham by linked SanPham ID
     List<ChiTietSanPham> findBySanPhamId(Long sanPhamId);
-
-@Repository
-public interface ChiTietSanPhamRepository extends JpaRepository<ChiTietSanPham, Long> {
-    // Lấy danh sách chi tiết theo sản phẩm
-    java.util.List<ChiTietSanPham> findBySanPham_Id(Long sanPhamId);
-
 }
