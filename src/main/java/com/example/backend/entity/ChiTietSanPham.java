@@ -2,7 +2,6 @@ package com.example.backend.entity;
 
 import jakarta.persistence.*;
 import lombok.Data;
-import java.math.BigDecimal;
 
 @Data
 @Entity
@@ -24,11 +23,15 @@ public class ChiTietSanPham {
     @JoinColumn(name = "kich_thuoc_id")
     private KichThuoc kichThuoc;
     
-    @Column(nullable = false)
-    private Integer soLuongTon;
+    @ManyToOne
+    @JoinColumn(name = "trong_luong_id", nullable = false)
+    private TrongLuong trongLuong;
     
     @Column(nullable = false)
-    private BigDecimal giaBan;
+    private String soLuongTon;
+    
+    @Column(nullable = false)
+    private String giaBan;
     
     private Boolean trangThai;
 }

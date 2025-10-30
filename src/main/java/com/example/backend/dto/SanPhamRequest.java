@@ -23,7 +23,6 @@ public class SanPhamRequest {
     @NotNull
     private Long chatLieuVoId;
 
-    @NotNull
     private Long trongLuongId;
 
     @NotNull
@@ -35,15 +34,12 @@ public class SanPhamRequest {
     @NotNull
     private Long congNgheAnToanId;
 
-    @NotNull
     private Long mauSacId;
 
     private String anhSanPham;
 
-    @NotNull
     private BigDecimal giaBan;
 
-    @NotNull
     private Integer soLuongTon;
 
     private Boolean trangThai;

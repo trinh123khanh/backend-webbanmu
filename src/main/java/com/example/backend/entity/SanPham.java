@@ -58,11 +58,11 @@ public class SanPham {
     @Column(columnDefinition = "TEXT")
     private String anhSanPham; // URL hoặc đường dẫn ảnh sản phẩm
     
-    @Column(nullable = false)
+    @Column
     private BigDecimal giaBan;
     
-    @Column(nullable = false)
-    private Integer soLuongTon = 0;
+    @Column
+    private Integer soLuongTon;
     
     private LocalDate ngayTao;
     
