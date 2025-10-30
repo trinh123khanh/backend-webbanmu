@@ -46,23 +46,9 @@ public class HoaDonController {
                                sortBy != null ? sortBy : "ngayTao");
             Pageable pageable = PageRequest.of(page, size, sort);
             
-            // Gọi service trả về Page<HoaDon> và tự map sang DTO
+            // Gọi service trả về Page<HoaDon> và map sang DTO với đầy đủ thông tin
             Page<com.example.backend.entity.HoaDon> hoaDonPageEntity = hoaDonService.getAllHoaDon(keyword, pageable);
-            Page<HoaDonDTO> hoaDonPage = hoaDonPageEntity.map(h -> HoaDonDTO.builder()
-                    .id(h.getId())
-                    .maHoaDon(h.getMaHoaDon())
-                    .khachHangId(h.getKhachHang() != null ? h.getKhachHang().getId() : null)
-                    .nhanVienId(h.getNhanVien() != null ? h.getNhanVien().getId() : null)
-                    .ngayTao(h.getNgayTao())
-                    .ngayThanhToan(h.getNgayThanhToan())
-                    .tongTien(h.getTongTien())
-                    .tienGiamGia(h.getTienGiamGia())
-                    .giamGiaPhanTram(h.getGiamGiaPhanTram())
-                    .thanhTien(h.getThanhTien())
-                    .ghiChu(h.getGhiChu())
-                    .trangThai(h.getTrangThai())
-                    .soLuongSanPham(h.getSoLuongSanPham())
-                    .build());
+            Page<HoaDonDTO> hoaDonPage = hoaDonPageEntity.map(hoaDonService::toDTO);
             
             // Create response map
             Map<String, Object> response = new HashMap<>();
@@ -88,21 +74,8 @@ public class HoaDonController {
     @GetMapping("/{id}")
     public ResponseEntity<HoaDonDTO> getHoaDonById(@PathVariable Long id) {
         return hoaDonService.getHoaDonById(id)
-                .map(h -> ResponseEntity.ok(HoaDonDTO.builder()
-                        .id(h.getId())
-                        .maHoaDon(h.getMaHoaDon())
-                        .khachHangId(h.getKhachHang() != null ? h.getKhachHang().getId() : null)
-                        .nhanVienId(h.getNhanVien() != null ? h.getNhanVien().getId() : null)
-                        .ngayTao(h.getNgayTao())
-                        .ngayThanhToan(h.getNgayThanhToan())
-                        .tongTien(h.getTongTien())
-                        .tienGiamGia(h.getTienGiamGia())
-                        .giamGiaPhanTram(h.getGiamGiaPhanTram())
-                        .thanhTien(h.getThanhTien())
-                        .ghiChu(h.getGhiChu())
-                        .trangThai(h.getTrangThai())
-                        .soLuongSanPham(h.getSoLuongSanPham())
-                        .build()))
+                .map(hoaDonService::toDTO)
+                .map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
     }
 

@@ -183,7 +183,7 @@ public class SanPhamServiceImpl implements SanPhamService {
         r.setTrangThai(e.getTrangThai());
         // Tính tổng số lượng và giá trung bình từ bảng chi tiết
         try {
-            var list = chiTietSanPhamRepository.findBySanPham_Id(e.getId());
+            var list = chiTietSanPhamRepository.findBySanPhamId(e.getId());
             int total = list.stream()
                 .map(ct -> ChiTietSanPhamRequest.parseIntegerSafe(ct.getSoLuongTon()))
                 .filter(v -> v != null)

@@ -15,16 +15,9 @@ public class CorsConfig implements WebMvcConfigurer {
 
     @Override
     public void addCorsMappings(CorsRegistry registry) {
-<<<<<<< Updated upstream
-        registry.addMapping("/api/**")
+        registry.addMapping("/**")
                 .allowedOriginPatterns("http://localhost:*", "http://127.0.0.1:*")
                 .allowedMethods("GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH")
-=======
-        // Áp dụng CORS cho toàn bộ API (bao gồm cả các endpoint không có prefix /api)
-        registry.addMapping("/**")
-                .allowedOrigins("http://localhost:4200", "http://127.0.0.1:4200")
-                .allowedMethods("GET", "POST", "PUT", "DELETE", "OPTIONS")
->>>>>>> Stashed changes
                 .allowedHeaders("*")
                 .exposedHeaders("*")
                 .allowCredentials(true)
