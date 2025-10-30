@@ -9,7 +9,7 @@ spring:
 
   # Database Configuration
   datasource:
-    url: ${DB_URL:jdbc:postgresql://localhost:5432/DBchot}
+    url: jdbc:postgresql://localhost:5432/DB11
     username: ${DB_USERNAME:postgres}
     password: ${DB_PASSWORD:1234}
     driver-class-name: org.postgresql.Driver
@@ -43,6 +43,29 @@ spring:
     jwt:
       secret: ${JWT_SECRET:your-256-bit-secret}
       expiration-ms: 86400000 # 24 hours
+
+  # Email Configuration
+  mail:
+    host: smtp.gmail.com
+    port: 587
+    # ⚠️ QUAN TRỌNG: THAY ĐỔI 2 DÒNG SAU ĐÂY ĐỂ GỬI EMAIL THẬT:
+    # Bước 1: Tạo App Password tại https://myaccount.google.com/apppasswords
+    # Bước 2: Thay your-email@gmail.com bằng email Gmail của bạn
+    # Bước 3: Thay your-16-char-app-password bằng App Password vừa tạo
+    username: ${MAIL_USERNAME:tranthailinh16672004@gmail.com}        # ← Email Gmail
+    password: ${MAIL_PASSWORD:lbvzhfdoxnccjtqw}   # ← App Password (16 ký tự, KHÔNG có dấu cách)
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
+          connectiontimeout: 5000
+          timeout: 5000
+          writetimeout: 5000
+    # Để test mà không cần cấu hình email thật:
+    # Set environment variable: MAIL_USERNAME và MAIL_PASSWORD
+    # Hoặc thay trực tiếp username và password ở trên (không nên commit lên Git)
 
 # Server Configuration
 server:
@@ -101,3 +124,5 @@ app:
     allowed-methods: "GET,POST,PUT,DELETE,OPTIONS"
     allowed-headers: "*"
     max-age: 3600
+  mail:
+    enabled: true # Set false để tắt gửi email (chỉ dùng trong development)

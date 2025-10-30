@@ -27,6 +27,7 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 import java.util.Optional;
 
+
 @RestController
 @RequestMapping("/api/khach-hang")
 @CrossOrigin(origins = "*")
@@ -87,7 +88,7 @@ public class KhachHangController {
         try {
             Optional<KhachHangDTO> khachHang = khachHangService.getKhachHangByMa(maKhachHang);
 return khachHang.map(ResponseEntity::ok)
-                           .orElse(ResponseEntity.notFound().build());
+.orElse(ResponseEntity.notFound().build());
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
         }
@@ -152,7 +153,7 @@ return khachHang.map(ResponseEntity::ok)
         } catch (RuntimeException e) {
 return ResponseEntity.status(HttpStatus.NOT_FOUND).body(e.getMessage());
         } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Lỗi server: " + e.getMessage());
+return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Lỗi server: " + e.getMessage());
         }
     }
 
@@ -221,7 +222,7 @@ return ResponseEntity.status(HttpStatus.NOT_FOUND).body(e.getMessage());
         try {
 long total = khachHangService.getTotalKhachHang();
             long active = khachHangService.getActiveKhachHang();
-            long inactive = khachHangService.getInactiveKhachHang();
+long inactive = khachHangService.getInactiveKhachHang();
             
             return ResponseEntity.ok(new StatsResponse(total, active, inactive));
         } catch (Exception e) {
@@ -297,8 +298,7 @@ public static class StatsResponse {
         private long total;
         private long active;
         private long inactive;
-
-        public StatsResponse(long total, long active, long inactive) {
+public StatsResponse(long total, long active, long inactive) {
             this.total = total;
             this.active = active;
             this.inactive = inactive;
@@ -376,7 +376,7 @@ public class DiaChiKhachHangController {
     // Xóa địa chỉ
     @DeleteMapping("/{id}/khach-hang/{khachHangId}")
     public ResponseEntity<Void> deleteDiaChi(@PathVariable Long id, @PathVariable Long khachHangId) {
-        try {
+try {
             diaChiKhachHangService.deleteDiaChi(id, khachHangId);
             return ResponseEntity.ok().build();
         } catch (Exception e) {

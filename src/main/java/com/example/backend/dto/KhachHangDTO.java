@@ -22,8 +22,9 @@ public class KhachHangDTO {
     private Boolean gioiTinh;
     private LocalDate ngayTao;
     private Boolean trangThai;
-    
-    // Thông tin user (nếu có)
+
+    private Integer soLanMua;
+
     private Long userId;
     private String username;
     

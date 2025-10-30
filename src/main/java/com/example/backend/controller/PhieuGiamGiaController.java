@@ -14,7 +14,7 @@ import jakarta.validation.Valid;
 @RequestMapping("/api/phieu-giam-gia")
 @RequiredArgsConstructor
 @Slf4j
-@CrossOrigin(origins = "*")
+@CrossOrigin(origins = {"http://localhost:4200", "http://localhost:3000"})
 public class PhieuGiamGiaController {
     
     private final PhieuGiamGiaService phieuGiamGiaService;
@@ -50,12 +50,60 @@ public class PhieuGiamGiaController {
         }
     }
     
+    // Toggle trạng thái phiếu giảm giá
+    @PutMapping("/{id}/toggle")
+    public ResponseEntity<ApiResponse<PhieuGiamGiaResponse>> togglePhieuGiamGiaStatus(@PathVariable Long id) {
+        log.info("Toggle trạng thái phiếu giảm giá ID: {}", id);
+        
+        ApiResponse<PhieuGiamGiaResponse> response = phieuGiamGiaService.togglePhieuGiamGiaStatus(id);
+        
+        if (response.isSuccess()) {
+            return ResponseEntity.ok(response);
+        } else {
+            return ResponseEntity.badRequest().body(response);
+        }
+    }
+    
     // Xóa phiếu giảm giá
     @DeleteMapping("/{id}")
     public ResponseEntity<ApiResponse<String>> deletePhieuGiamGia(@PathVariable Long id) {
         log.info("Xóa phiếu giảm giá ID: {}", id);
         
         ApiResponse<String> response = phieuGiamGiaService.deletePhieuGiamGia(id);
+        
+        if (response.isSuccess()) {
+            return ResponseEntity.ok(response);
+        } else {
+            return ResponseEntity.badRequest().body(response);
+        }
+    }
+    
+    // Lấy danh sách khách hàng cho form phiếu giảm giá
+    @GetMapping("/customers")
+    public ResponseEntity<ApiResponse<java.util.List<com.example.backend.dto.KhachHangDTO>>> getAllCustomersForVoucher() {
+        log.info("Lấy danh sách khách hàng cho form phiếu giảm giá");
+        
+        ApiResponse<java.util.List<com.example.backend.dto.KhachHangDTO>> response = phieuGiamGiaService.getAllCustomersForVoucher();
+        
+        return ResponseEntity.ok(response);
+    }
+    
+    // Lấy tất cả phiếu giảm giá với trạng thái động được tính toán
+    @GetMapping("/dynamic-status")
+    public ResponseEntity<ApiResponse<java.util.List<PhieuGiamGiaResponse>>> getAllPhieuGiamGiaWithDynamicStatus() {
+        log.info("Lấy tất cả phiếu giảm giá với trạng thái động");
+        
+        ApiResponse<java.util.List<PhieuGiamGiaResponse>> response = phieuGiamGiaService.getAllPhieuGiamGiaWithDynamicStatus();
+        
+        return ResponseEntity.ok(response);
+    }
+    
+    // Lấy phiếu giảm giá theo trạng thái động (sắp diễn ra, đang diễn ra, kết thúc)
+    @GetMapping("/status/{status}")
+    public ResponseEntity<ApiResponse<java.util.List<PhieuGiamGiaResponse>>> getPhieuGiamGiaByDynamicStatus(@PathVariable String status) {
+        log.info("Lấy phiếu giảm giá theo trạng thái động: {}", status);
+        
+        ApiResponse<java.util.List<PhieuGiamGiaResponse>> response = phieuGiamGiaService.getPhieuGiamGiaByDynamicStatus(status);
         
         if (response.isSuccess()) {
             return ResponseEntity.ok(response);
