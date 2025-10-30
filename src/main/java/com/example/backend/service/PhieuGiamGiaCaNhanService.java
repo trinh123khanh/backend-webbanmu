@@ -441,6 +441,54 @@ public class PhieuGiamGiaCaNhanService {
     }
     
     /**
+     * Cập nhật toàn bộ khách hàng cho một phiếu giảm giá
+     * Xóa tất cả customer cũ và thêm customer mới
+     */
+    @Transactional
+    public ApiResponse<List<PhieuGiamGiaCaNhanResponse>> updateCustomersForPhieu(Long phieuGiamGiaId, List<Long> khachHangIds) {
+        try {
+            log.info("🔄 Cập nhật khách hàng cho phiếu giảm giá ID: {} với {} khách hàng mới", 
+                    phieuGiamGiaId, khachHangIds != null ? khachHangIds.size() : 0);
+            
+            // Validate input
+            if (phieuGiamGiaId == null || phieuGiamGiaId <= 0) {
+                return ApiResponse.error("ID phiếu giảm giá không hợp lệ");
+            }
+            
+            // Bước 1: Xóa tất cả khách hàng cũ
+            log.info("🗑️ Xóa tất cả khách hàng cũ cho phiếu ID: {}", phieuGiamGiaId);
+            deletePhieuGiamGiaCaNhanByPhieuGiamGiaId(phieuGiamGiaId);
+            log.info("✅ Đã xóa tất cả khách hàng cũ");
+            
+            // Bước 2: Thêm khách hàng mới (nếu có)
+            List<PhieuGiamGiaCaNhanResponse> responses = new ArrayList<>();
+            
+            if (khachHangIds != null && !khachHangIds.isEmpty()) {
+                log.info("➕ Thêm {} khách hàng mới", khachHangIds.size());
+                List<PhieuGiamGiaCaNhan> createdEntities = createPhieuGiamGiaCaNhanForMultipleCustomers(phieuGiamGiaId, khachHangIds);
+                
+                responses = createdEntities.stream()
+                        .map(this::convertToResponse)
+                        .collect(Collectors.toList());
+                
+                log.info("✅ Đã thêm {} khách hàng mới thành công", responses.size());
+            } else {
+                log.info("ℹ️ Không có khách hàng mới để thêm");
+            }
+            
+            log.info("🎉 Hoàn thành cập nhật khách hàng cho phiếu ID: {}", phieuGiamGiaId);
+            
+            return ApiResponse.success(
+                    String.format("Cập nhật thành công %d khách hàng cho phiếu giảm giá", responses.size()), 
+                    responses);
+            
+        } catch (Exception e) {
+            log.error("❌ Lỗi khi cập nhật khách hàng cho phiếu ID: {}", phieuGiamGiaId, e);
+            return ApiResponse.error("Lỗi khi cập nhật khách hàng: " + e.getMessage());
+        }
+    }
+    
+    /**
      * Chuyển đổi Entity sang Response DTO
      */
     private PhieuGiamGiaCaNhanResponse convertToResponse(PhieuGiamGiaCaNhan entity) {

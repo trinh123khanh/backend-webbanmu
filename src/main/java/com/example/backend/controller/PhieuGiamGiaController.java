@@ -14,7 +14,7 @@ import jakarta.validation.Valid;
 @RequestMapping("/api/phieu-giam-gia")
 @RequiredArgsConstructor
 @Slf4j
-@CrossOrigin(origins = "*")
+@CrossOrigin(origins = {"http://localhost:4200", "http://localhost:3000"})
 public class PhieuGiamGiaController {
     
     private final PhieuGiamGiaService phieuGiamGiaService;

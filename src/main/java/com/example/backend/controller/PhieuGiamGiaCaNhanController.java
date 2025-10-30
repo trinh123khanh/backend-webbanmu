@@ -9,6 +9,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.RequestMethod;
 
 import java.util.List;
 
@@ -16,7 +17,7 @@ import java.util.List;
 @RequestMapping("/api/phieu-giam-gia-ca-nhan")
 @RequiredArgsConstructor
 @Slf4j
-@CrossOrigin(origins = "*")
+@CrossOrigin(origins = {"http://localhost:4200", "http://localhost:3000"}, allowedHeaders = "*", methods = {RequestMethod.GET, RequestMethod.POST, RequestMethod.PUT, RequestMethod.DELETE, RequestMethod.OPTIONS})
 public class PhieuGiamGiaCaNhanController {
     
     private final PhieuGiamGiaCaNhanService phieuGiamGiaCaNhanService;
@@ -179,6 +180,72 @@ public class PhieuGiamGiaCaNhanController {
             return ResponseEntity.ok(response);
         } else {
             return ResponseEntity.badRequest().body(response);
+        }
+    }
+    
+    /**
+     * Cập nhật toàn bộ khách hàng cho một phiếu giảm giá
+     * Xóa tất cả customer cũ và thêm customer mới
+     */
+    @PutMapping("/phieu/{phieuGiamGiaId}")
+    public ResponseEntity<ApiResponse<List<PhieuGiamGiaCaNhanResponse>>> updateCustomersForPhieu(
+            @PathVariable Long phieuGiamGiaId,
+            @RequestBody java.util.Map<String, Object> requestBody) {
+        log.info("API: Cập nhật khách hàng cho phiếu giảm giá ID: {}", phieuGiamGiaId);
+        log.info("Request body: {}", requestBody);
+        
+        try {
+            // Extract and convert khachHangIds from request body
+            Object khachHangIdsObj = requestBody.get("khachHangIds");
+            List<Long> khachHangIds = new java.util.ArrayList<>();
+            
+            if (khachHangIdsObj != null) {
+                if (khachHangIdsObj instanceof List) {
+                    @SuppressWarnings("unchecked")
+                    List<Object> idList = (List<Object>) khachHangIdsObj;
+                    
+                    for (Object id : idList) {
+                        if (id instanceof Number) {
+                            khachHangIds.add(((Number) id).longValue());
+                        } else if (id instanceof String) {
+                            khachHangIds.add(Long.parseLong((String) id));
+                        }
+                    }
+                }
+            }
+            
+            log.info("Converted khachHangIds: {}", khachHangIds);
+            
+            ApiResponse<List<PhieuGiamGiaCaNhanResponse>> response = 
+                    phieuGiamGiaCaNhanService.updateCustomersForPhieu(phieuGiamGiaId, khachHangIds);
+            
+            if (response.isSuccess()) {
+                return ResponseEntity.ok(response);
+            } else {
+                return ResponseEntity.badRequest().body(response);
+            }
+            
+        } catch (Exception e) {
+            log.error("Lỗi khi parse request body", e);
+            return ResponseEntity.badRequest().body(
+                ApiResponse.error("Lỗi khi xử lý dữ liệu: " + e.getMessage())
+            );
+        }
+    }
+    
+    /**
+     * Xóa tất cả khách hàng cho một phiếu giảm giá
+     */
+    @DeleteMapping("/phieu/{phieuGiamGiaId}")
+    public ResponseEntity<ApiResponse<Void>> deleteCustomersByPhieuId(@PathVariable Long phieuGiamGiaId) {
+        log.info("API: Xóa tất cả khách hàng cho phiếu giảm giá ID: {}", phieuGiamGiaId);
+        
+        try {
+            phieuGiamGiaCaNhanService.deletePhieuGiamGiaCaNhanByPhieuGiamGiaId(phieuGiamGiaId);
+            return ResponseEntity.ok(ApiResponse.success("Xóa khách hàng thành công", null));
+        } catch (Exception e) {
+            log.error("Lỗi khi xóa khách hàng cho phiếu ID: {}", phieuGiamGiaId, e);
+            return ResponseEntity.badRequest().body(ApiResponse.error("Lỗi khi xóa khách hàng: " + e.getMessage()));
         }
     }
 }
