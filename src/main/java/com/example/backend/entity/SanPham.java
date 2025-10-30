@@ -68,7 +68,5 @@ public class SanPham {
     
     private Boolean trangThai;
     
-    // One-to-many relationship with IMEI
-    @OneToMany(mappedBy = "sanPham", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
-    private List<Imei> imeis;
+
 }
