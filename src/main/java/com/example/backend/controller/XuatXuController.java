@@ -16,7 +16,7 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/xuat-xu")
-@CrossOrigin(origins = {"http://localhost:4200", "http://localhost:3000"})
+@CrossOrigin(origins = {"http://localhost:4200", "http://localhost:3000", "http://localhost:61143"})
 public class XuatXuController {
 
     private final XuatXuService service;
