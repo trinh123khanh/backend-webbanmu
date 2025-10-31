@@ -3,8 +3,6 @@ package com.example.backend.controller;
 import com.example.backend.dto.HoaDonDTO;
 import com.example.backend.entity.HoaDon;
 import com.example.backend.service.HoaDonService;
-import jakarta.persistence.EntityNotFoundException;
-import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.data.domain.Page;
@@ -12,7 +10,6 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 
-import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.HashMap;
@@ -47,7 +44,7 @@ public class HoaDonController {
             Pageable pageable = PageRequest.of(page, size, sort);
             
             // Gọi service trả về Page<HoaDon> và map sang DTO với đầy đủ thông tin
-            Page<com.example.backend.entity.HoaDon> hoaDonPageEntity = hoaDonService.getAllHoaDon(keyword, pageable);
+            Page<com.example.backend.entity.HoaDon> hoaDonPageEntity = hoaDonService.getAllHoaDon(keyword, phuongThucThanhToan, pageable);
             Page<HoaDonDTO> hoaDonPage = hoaDonPageEntity.map(hoaDonService::toDTO);
             
             // Create response map
@@ -77,6 +74,58 @@ public class HoaDonController {
                 .map(hoaDonService::toDTO)
                 .map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
+    }
+
+    // Tạo hóa đơn mới
+    @PostMapping
+    public ResponseEntity<?> createHoaDon(@RequestBody HoaDonDTO hoaDonDTO) {
+        try {
+            // Validate dữ liệu đầu vào
+            if (hoaDonDTO.getMaHoaDon() == null || hoaDonDTO.getMaHoaDon().trim().isEmpty()) {
+                return ResponseEntity.badRequest().body("Mã hóa đơn không được để trống");
+            }
+            if (hoaDonDTO.getKhachHangId() == null) {
+                return ResponseEntity.badRequest().body("Khách hàng ID không được để trống");
+            }
+            if (hoaDonDTO.getTongTien() == null || hoaDonDTO.getTongTien().compareTo(java.math.BigDecimal.ZERO) <= 0) {
+                return ResponseEntity.badRequest().body("Tổng tiền phải lớn hơn 0");
+            }
+            
+            HoaDonDTO createdHoaDon = hoaDonService.createHoaDon(hoaDonDTO);
+            return ResponseEntity.status(org.springframework.http.HttpStatus.CREATED).body(createdHoaDon);
+        } catch (RuntimeException e) {
+            return ResponseEntity.status(org.springframework.http.HttpStatus.BAD_REQUEST).body(e.getMessage());
+        } catch (Exception e) {
+            return ResponseEntity.status(org.springframework.http.HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body("Lỗi server: " + e.getMessage());
+        }
+    }
+
+    // Cập nhật hóa đơn
+    @PutMapping("/{id}")
+    public ResponseEntity<?> updateHoaDon(@PathVariable Long id, @RequestBody HoaDonDTO hoaDonDTO) {
+        try {
+            // Validate dữ liệu đầu vào
+            if (hoaDonDTO.getMaHoaDon() == null || hoaDonDTO.getMaHoaDon().trim().isEmpty()) {
+                return ResponseEntity.badRequest().body("Mã hóa đơn không được để trống");
+            }
+            if (hoaDonDTO.getKhachHangId() == null) {
+                return ResponseEntity.badRequest().body("Khách hàng ID không được để trống");
+            }
+            if (hoaDonDTO.getTongTien() == null || hoaDonDTO.getTongTien().compareTo(java.math.BigDecimal.ZERO) <= 0) {
+                return ResponseEntity.badRequest().body("Tổng tiền phải lớn hơn 0");
+            }
+            
+            HoaDonDTO updatedHoaDon = hoaDonService.updateHoaDon(id, hoaDonDTO);
+            return ResponseEntity.ok(updatedHoaDon);
+        } catch (jakarta.persistence.EntityNotFoundException e) {
+            return ResponseEntity.status(org.springframework.http.HttpStatus.NOT_FOUND).body(e.getMessage());
+        } catch (RuntimeException e) {
+            return ResponseEntity.status(org.springframework.http.HttpStatus.BAD_REQUEST).body(e.getMessage());
+        } catch (Exception e) {
+            return ResponseEntity.status(org.springframework.http.HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body("Lỗi server: " + e.getMessage());
+        }
     }
 
     // Tạm thời ẩn các endpoint tạo/sửa/xóa để đảm bảo build ổn định

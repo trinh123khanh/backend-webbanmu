@@ -2,6 +2,7 @@ package com.example.backend.repository;
 
 import com.example.backend.entity.DiaChiKhachHang;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
@@ -33,6 +34,7 @@ public interface DiaChiKhachHangRepository extends JpaRepository<DiaChiKhachHang
     Optional<DiaChiKhachHang> findByIdAndKhachHangId(Long id, Long khachHangId);
     
     // Cập nhật tất cả địa chỉ của khách hàng thành không mặc định
+    @Modifying(clearAutomatically = true)
     @Query("UPDATE DiaChiKhachHang d SET d.macDinh = false WHERE d.khachHang.id = :khachHangId")
     void updateAllAddressesToNonDefault(@Param("khachHangId") Long khachHangId);
     
