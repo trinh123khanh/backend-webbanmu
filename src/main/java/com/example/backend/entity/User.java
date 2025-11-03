@@ -29,7 +29,9 @@ public class User {
     private Set<UserRole> roles = new HashSet<>();
     
     public enum UserRole {
-        USER, ADMIN
+        ADMIN,      // Quản trị viên - toàn quyền
+        STAFF,      // Nhân viên - chỉ xử lý hóa đơn tại quầy
+        CUSTOMER    // Khách hàng - chỉ xem và mua hàng
     }
     
     // Helper method to get roles as a Set of SimpleGrantedAuthority
