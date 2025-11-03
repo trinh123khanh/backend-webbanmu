@@ -15,6 +15,8 @@ public class PeriodStatisticsDTO {
     private BigDecimal doanhThu;        // Tổng thanhTien
     private Integer sanPhamDaBan;        // Tổng soLuongSanPham
     private Integer donHang;             // Số lượng đơn hàng
-    private String period;               // Loại khoảng thời gian: "day", "week", "month", "year"
+    private String period;    
+    
+    // Loại khoảng thời gian: "day", "week", "month", "year"
 }
 

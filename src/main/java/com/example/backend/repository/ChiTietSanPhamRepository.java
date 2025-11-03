@@ -13,6 +13,8 @@ public interface ChiTietSanPhamRepository extends JpaRepository<ChiTietSanPham, 
     @Query("SELECT c FROM ChiTietSanPham c JOIN c.sanPham s WHERE s.tenSanPham = :tenSanPham")
     Optional<ChiTietSanPham> findByTenSanPham(@Param("tenSanPham") String tenSanPham);
 
+
+    
     // Find all ChiTietSanPham by linked SanPham ID
     List<ChiTietSanPham> findBySanPhamId(Long sanPhamId);
 }

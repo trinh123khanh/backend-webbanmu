@@ -304,6 +304,8 @@ public class StatisticsService {
         Integer sanPhamDaBan = 0;
         Integer donHang = hoaDonList.size();
         
+
+
         for (HoaDon hoaDon : hoaDonList) {
             // Tính tổng thanhTien
             if (hoaDon.getThanhTien() != null) {
@@ -314,6 +316,9 @@ public class StatisticsService {
             } else {
                 System.out.println("   ⚠️ Invoice #" + hoaDon.getId() + " has null thanhTien");
             }
+
+
+            
             
             // Tính tổng soLuongSanPham
             if (hoaDon.getSoLuongSanPham() != null) {
