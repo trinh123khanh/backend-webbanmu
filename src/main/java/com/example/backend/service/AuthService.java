@@ -9,8 +9,10 @@ import com.example.backend.dto.ResetPasswordRequest;
 import com.example.backend.dto.VerifyOtpRequest;
 import com.example.backend.entity.OtpToken;
 import com.example.backend.entity.User;
+import com.example.backend.entity.KhachHang;
 import com.example.backend.repository.OtpTokenRepository;
 import com.example.backend.repository.UserRepository;
+import com.example.backend.repository.KhachHangRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -32,6 +34,7 @@ public class AuthService {
 
     private final UserRepository userRepository;
     private final OtpTokenRepository otpTokenRepository;
+    private final KhachHangRepository khachHangRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtUtil jwtUtil;
     private final AuthenticationManager authenticationManager;
@@ -93,6 +96,28 @@ public class AuthService {
 
         user = userRepository.save(user);
 
+        // Tạo bản ghi KhachHang liên kết với user vừa tạo
+        try {
+            KhachHang kh = new KhachHang();
+            kh.setTenKhachHang(request.getFullName() != null && !request.getFullName().isBlank()
+                    ? request.getFullName() : request.getUsername());
+            kh.setEmail(request.getEmail());
+            kh.setSoDienThoai(null);
+            kh.setTrangThai(true);
+            kh.setNgayTao(java.time.LocalDate.now());
+            kh.setUser(user); // liên kết user_id
+            // Tạo mã khách hàng đơn giản, duy nhất
+            String mkh = "KH" + System.currentTimeMillis();
+            try { kh.setMaKhachHang(mkh); } catch (Exception ignored) {}
+            // Giá trị mặc định khác (nếu tồn tại các trường tương ứng)
+            try { kh.setSoLanMua(0); } catch (Exception ignored) {}
+            try { kh.setDiemTichLuy(0); } catch (Exception ignored) {}
+            try { kh.setLanMuaGanNhat(null); } catch (Exception ignored) {}
+            khachHangRepository.save(kh);
+        } catch (Exception ex) {
+            log.warn("Không thể tạo bản ghi KhachHang cho user {}: {}", user.getUsername(), ex.getMessage());
+        }
+
         // Tạo JWT token
         UserDetails userDetails = userDetailsService.loadUserByUsername(user.getUsername());
         Set<String> roles = user.getRoles().stream()
@@ -114,14 +139,14 @@ public class AuthService {
 
     @Transactional
     public void forgotPassword(ForgotPasswordRequest request) {
-        User user = userRepository.findByEmail(request.getEmail())
-            .orElseThrow(() -> new RuntimeException("Email không tồn tại trong hệ thống"));
+        java.util.Optional<User> userOpt = userRepository.findByEmail(request.getEmail());
 
         // Xóa các OTP cũ của email này
         otpTokenRepository.deleteByEmail(request.getEmail());
 
-        // Tạo OTP mới
-        String otp = UUID.randomUUID().toString().substring(0, 8).toUpperCase();
+        // Tạo OTP ngẫu nhiên (8 ký tự chữ số/hex, in hoa) để đảm bảo uniqueness
+        String otp = java.util.UUID.randomUUID().toString().replace("-", "").substring(0, 8).toUpperCase();
+
         OtpToken otpToken = new OtpToken();
         otpToken.setToken(otp);
         otpToken.setEmail(request.getEmail());
@@ -131,13 +156,22 @@ public class AuthService {
         otpTokenRepository.save(otpToken);
 
         // Gửi email OTP
-        emailService.sendPasswordResetOtp(
-            request.getEmail(),
-            user.getFullName() != null ? user.getFullName() : user.getUsername(),
-            otp
-        );
+        if (userOpt.isPresent()) {
+            User user = userOpt.get();
+            try {
+                emailService.sendPasswordResetOtp(
+                    request.getEmail(),
+                    user.getFullName() != null ? user.getFullName() : user.getUsername(),
+                    otp
+                );
+            } catch (Exception ex) {
+                log.warn("Failed to send OTP email: {}", ex.getMessage());
+            }
+        } else {
+            log.warn("Forgot password requested for non-existing email: {}. Returning OK without sending mail.", request.getEmail());
+        }
 
-        log.info("OTP sent to email: {}", request.getEmail());
+        log.info("OTP generated and stored for email: {}", request.getEmail());
     }
 
     @Transactional
@@ -159,13 +193,6 @@ public class AuthService {
             throw new RuntimeException("Mã OTP đã hết hạn");
         }
 
-        // Đánh dấu OTP đã được sử dụng (nhưng chưa xóa để tránh lỗi nếu reset password thất bại)
-        // otpToken.setUsed(true);
-        // otpTokenRepository.save(otpToken);
-
-        log.info("OTP verified for email: {}", request.getEmail());
-        
-        // Trả về response xác nhận OTP hợp lệ (không cần token ở đây)
         return AuthResponse.builder()
             .message("Mã OTP hợp lệ. Vui lòng nhập mật khẩu mới.")
             .build();
@@ -203,30 +230,12 @@ public class AuthService {
         user.setPassword(passwordEncoder.encode(request.getNewPassword()));
         userRepository.save(user);
 
-        // Đánh dấu OTP đã được sử dụng
+        // Đánh dấu OTP đã được sử dụng và xóa các OTP khác chưa dùng
         otpToken.setUsed(true);
         otpTokenRepository.save(otpToken);
-
-        // Xóa các OTP khác của email này (nếu có)
         otpTokenRepository.deleteByEmailAndUsedFalse(request.getEmail());
 
-        log.info("Password reset successfully for email: {}", request.getEmail());
-
-        // Tạo JWT token và trả về để user có thể đăng nhập ngay
-        UserDetails userDetails = userDetailsService.loadUserByUsername(user.getUsername());
-        Set<String> roles = user.getRoles().stream()
-            .map(role -> role.name())
-            .collect(Collectors.toSet());
-        String token = jwtUtil.generateToken(userDetails, roles);
-
         return AuthResponse.builder()
-            .token(token)
-            .type("Bearer")
-            .id(user.getId())
-            .username(user.getUsername())
-            .email(user.getEmail())
-            .fullName(user.getFullName())
-            .roles(roles)
             .message("Đặt lại mật khẩu thành công")
             .build();
     }

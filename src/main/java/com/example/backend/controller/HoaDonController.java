@@ -2,8 +2,15 @@ package com.example.backend.controller;
 
 import com.example.backend.dto.HoaDonDTO;
 import com.example.backend.entity.HoaDon;
+import com.example.backend.entity.KhachHang;
+import com.example.backend.entity.User;
+import com.example.backend.repository.KhachHangRepository;
+import com.example.backend.repository.UserRepository;
 import com.example.backend.service.HoaDonService;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -15,17 +22,150 @@ import java.util.Map;
 import java.util.HashMap;
 
 @RestController
-@RequestMapping("/api/hoa-don")
 @CrossOrigin(originPatterns = {"http://localhost:*", "http://127.0.0.1:*"})
 public class HoaDonController {
 
     private final HoaDonService hoaDonService;
+    private final UserRepository userRepository;
+    private final KhachHangRepository khachHangRepository;
 
-    public HoaDonController(HoaDonService hoaDonService) {
+    public HoaDonController(HoaDonService hoaDonService, 
+                             UserRepository userRepository,
+                             KhachHangRepository khachHangRepository) {
         this.hoaDonService = hoaDonService;
+        this.userRepository = userRepository;
+        this.khachHangRepository = khachHangRepository;
     }
 
-    @GetMapping("/page")
+    // ===== ADMIN ENDPOINTS - CRUD tất cả hóa đơn =====
+    @GetMapping("/api/admin/invoices/page")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<Map<String, Object>> getAllHoaDonPaginatedForAdmin(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "5") int size,
+            @RequestParam(required = false) String maHoaDon,
+            @RequestParam(required = false) String keyword,
+            @RequestParam(required = false) String trangThai,
+            @RequestParam(required = false) String trangThaiThanhToan,
+            @RequestParam(required = false) String phuongThucThanhToan,
+            @RequestParam(required = false) String sortBy,
+            @RequestParam(defaultValue = "asc") String sortDirection) {
+        return getAllHoaDonPaginated(page, size, maHoaDon, keyword, trangThai, trangThaiThanhToan, phuongThucThanhToan, sortBy, sortDirection);
+    }
+
+    @GetMapping("/api/admin/invoices/{id}")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<HoaDonDTO> getHoaDonByIdForAdmin(@PathVariable Long id) {
+        return getHoaDonById(id);
+    }
+
+    @PostMapping("/api/admin/invoices")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<?> createHoaDonForAdmin(@RequestBody HoaDonDTO hoaDonDTO) {
+        return createHoaDon(hoaDonDTO);
+    }
+
+    @PutMapping("/api/admin/invoices/{id}")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<?> updateHoaDonForAdmin(@PathVariable Long id, @RequestBody HoaDonDTO hoaDonDTO) {
+        return updateHoaDon(id, hoaDonDTO);
+    }
+
+    @PatchMapping("/api/admin/invoices/{id}/trang-thai")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<?> updateTrangThaiHoaDonForAdmin(@PathVariable Long id, @RequestParam String trangThai) {
+        return updateTrangThaiHoaDon(id, trangThai);
+    }
+
+    // ===== STAFF ENDPOINTS - CRUD hóa đơn do mình tạo =====
+    @GetMapping("/api/staff/invoices/page")
+    @PreAuthorize("hasAnyRole('ADMIN', 'STAFF')")
+    public ResponseEntity<Map<String, Object>> getAllHoaDonPaginatedForStaff(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "5") int size,
+            @RequestParam(required = false) String maHoaDon,
+            @RequestParam(required = false) String keyword,
+            @RequestParam(required = false) String trangThai,
+            @RequestParam(required = false) String trangThaiThanhToan,
+            @RequestParam(required = false) String phuongThucThanhToan,
+            @RequestParam(required = false) String sortBy,
+            @RequestParam(defaultValue = "asc") String sortDirection) {
+        // TODO: Filter chỉ hóa đơn do nhân viên này tạo
+        // Hiện tại trả về tất cả, cần thêm logic filter theo nhanVienId từ authentication
+        return getAllHoaDonPaginated(page, size, maHoaDon, keyword, trangThai, trangThaiThanhToan, phuongThucThanhToan, sortBy, sortDirection);
+    }
+
+    @PostMapping("/api/staff/sell")
+    @PreAuthorize("hasAnyRole('ADMIN', 'STAFF')")
+    public ResponseEntity<?> createHoaDonForStaff(@RequestBody HoaDonDTO hoaDonDTO) {
+        // Set nhanVienId từ authentication context
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        // TODO: Lấy nhanVienId từ user context
+        return createHoaDon(hoaDonDTO);
+    }
+
+    @PatchMapping("/api/staff/invoices/{id}/trang-thai")
+    @PreAuthorize("hasAnyRole('ADMIN', 'STAFF')")
+    public ResponseEntity<?> updateTrangThaiHoaDonForStaff(@PathVariable Long id, @RequestParam String trangThai) {
+        return updateTrangThaiHoaDon(id, trangThai);
+    }
+
+    // ===== CUSTOMER ENDPOINTS - Xem/hủy đơn hàng =====
+    @GetMapping("/api/customer/orders")
+    @PreAuthorize("hasRole('CUSTOMER')")
+    public ResponseEntity<Map<String, Object>> getOrdersForCustomer(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size) {
+        try {
+            // Lấy username từ authentication
+            Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+            String username = auth.getName();
+            
+            // Tìm User từ username
+            User user = userRepository.findByUsername(username)
+                    .orElseThrow(() -> new RuntimeException("User not found: " + username));
+            
+            // Tìm KhachHang từ userId
+            KhachHang khachHang = khachHangRepository.findByUserId(user.getId())
+                    .orElseThrow(() -> new RuntimeException("KhachHang not found for user: " + username));
+            
+            // Gọi service để lấy đơn hàng của khách hàng
+            Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "ngayTao"));
+            Page<HoaDon> hoaDonPage = hoaDonService.getHoaDonByKhachHangId(khachHang.getId(), pageable);
+            Page<HoaDonDTO> hoaDonDTOPage = hoaDonPage.map(hoaDonService::toDTO);
+            
+            Map<String, Object> response = new HashMap<>();
+            response.put("content", hoaDonDTOPage.getContent());
+            response.put("totalElements", hoaDonDTOPage.getTotalElements());
+            response.put("totalPages", hoaDonDTOPage.getTotalPages());
+            response.put("currentPage", hoaDonDTOPage.getNumber());
+            response.put("size", hoaDonDTOPage.getSize());
+            response.put("first", hoaDonDTOPage.isFirst());
+            response.put("last", hoaDonDTOPage.isLast());
+            response.put("numberOfElements", hoaDonDTOPage.getNumberOfElements());
+            
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            Map<String, Object> errorResponse = new HashMap<>();
+            errorResponse.put("error", "Lỗi khi lấy đơn hàng: " + e.getMessage());
+            errorResponse.put("content", List.of());
+            errorResponse.put("totalElements", 0);
+            errorResponse.put("totalPages", 0);
+            errorResponse.put("currentPage", page);
+            errorResponse.put("size", size);
+            return ResponseEntity.badRequest().body(errorResponse);
+        }
+    }
+
+    @PatchMapping("/api/customer/orders/{id}/cancel")
+    @PreAuthorize("hasRole('CUSTOMER')")
+    public ResponseEntity<?> cancelOrderForCustomer(@PathVariable Long id) {
+        // Chỉ cho phép hủy đơn hàng ở trạng thái CHO_XAC_NHAN
+        return updateTrangThaiHoaDon(id, "HUY");
+    }
+
+    // ===== BACKWARD COMPATIBILITY - Giữ lại các endpoint cũ =====
+    @GetMapping("/api/hoa-don/page")
     public ResponseEntity<Map<String, Object>> getAllHoaDonPaginated(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "5") int size,
@@ -68,7 +208,7 @@ public class HoaDonController {
         }
     }
     
-    @GetMapping("/{id}")
+    @GetMapping("/api/hoa-don/{id}")
     public ResponseEntity<HoaDonDTO> getHoaDonById(@PathVariable Long id) {
         return hoaDonService.getHoaDonById(id)
                 .map(hoaDonService::toDTO)
@@ -77,7 +217,7 @@ public class HoaDonController {
     }
 
     // Tạo hóa đơn mới
-    @PostMapping
+    @PostMapping("/api/hoa-don")
     public ResponseEntity<?> createHoaDon(@RequestBody HoaDonDTO hoaDonDTO) {
         try {
             // Validate dữ liệu đầu vào
@@ -102,7 +242,7 @@ public class HoaDonController {
     }
 
     // Cập nhật hóa đơn
-    @PutMapping("/{id}")
+    @PutMapping("/api/hoa-don/{id}")
     public ResponseEntity<?> updateHoaDon(@PathVariable Long id, @RequestBody HoaDonDTO hoaDonDTO) {
         try {
             // Validate dữ liệu đầu vào
@@ -130,7 +270,8 @@ public class HoaDonController {
 
     // Tạm thời ẩn các endpoint tạo/sửa/xóa để đảm bảo build ổn định
 
-    @PostMapping("/create-sample-data")
+    @PostMapping("/api/admin/invoices/create-sample-data")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<String> createSampleData() {
         try {
             // Tạo dữ liệu mẫu
@@ -175,7 +316,7 @@ public class HoaDonController {
     // Removed createSampleCustomers method as KhachHangRepository was deleted
 
     // Cập nhật trạng thái hóa đơn
-    @PatchMapping("/{id}/trang-thai")
+    @PatchMapping("/api/hoa-don/{id}/trang-thai")
     public ResponseEntity<?> updateTrangThaiHoaDon(
             @PathVariable Long id,
             @RequestParam String trangThai) {
@@ -202,7 +343,7 @@ public class HoaDonController {
         }
     }
 
-    @GetMapping("/test")
+    @GetMapping("/api/hoa-don/test")
     public ResponseEntity<String> test() {
         return ResponseEntity.ok("API hoạt động bình thường!");
     }

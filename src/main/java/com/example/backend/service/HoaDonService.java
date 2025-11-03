@@ -522,4 +522,40 @@ public class HoaDonService {
             return Optional.empty();
         }
     }
+
+    public Page<HoaDon> getHoaDonByKhachHangId(Long khachHangId, Pageable pageable) {
+        // Đếm tổng số bản ghi
+        jakarta.persistence.TypedQuery<Long> countQuery = entityManager.createQuery(
+            "SELECT COUNT(DISTINCT h) FROM HoaDon h " +
+            "WHERE h.khachHang.id = :khachHangId",
+            Long.class
+        );
+        countQuery.setParameter("khachHangId", khachHangId);
+        long totalElements = countQuery.getSingleResult();
+        
+        // Query với join fetch để load các relationships
+        jakarta.persistence.TypedQuery<HoaDon> query = entityManager.createQuery(
+            "SELECT DISTINCT h FROM HoaDon h " +
+            "LEFT JOIN FETCH h.khachHang " +
+            "LEFT JOIN FETCH h.nhanVien " +
+            "LEFT JOIN FETCH h.danhSachChiTiet c " +
+            "LEFT JOIN FETCH c.chiTietSanPham ct " +
+            "LEFT JOIN FETCH ct.sanPham s " +
+            "LEFT JOIN FETCH s.nhaSanXuat " +
+            "LEFT JOIN FETCH ct.mauSac " +
+            "LEFT JOIN FETCH ct.kichThuoc " +
+            "WHERE h.khachHang.id = :khachHangId " +
+            "ORDER BY h.ngayTao DESC",
+            HoaDon.class
+        );
+        query.setParameter("khachHangId", khachHangId);
+        
+        // Apply pagination
+        query.setFirstResult((int) pageable.getOffset());
+        query.setMaxResults(pageable.getPageSize());
+        List<HoaDon> results = query.getResultList();
+        
+        // Create a Page manually
+        return new org.springframework.data.domain.PageImpl<>(results, pageable, totalElements);
+    }
 }
