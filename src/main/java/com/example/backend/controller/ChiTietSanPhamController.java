@@ -33,6 +33,11 @@ public class ChiTietSanPhamController {
         return ResponseEntity.noContent().build();
     }
 
+    @GetMapping
+    public ResponseEntity<List<ChiTietSanPhamResponse>> getAll() {
+        return ResponseEntity.ok(service.getAll());
+    }
+
     @GetMapping("/{id}")
     public ResponseEntity<ChiTietSanPhamResponse> getById(@PathVariable Long id) {
         return ResponseEntity.ok(service.getById(id));
