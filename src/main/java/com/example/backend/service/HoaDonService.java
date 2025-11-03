@@ -383,6 +383,34 @@ public class HoaDonService {
         hoaDonRepository.delete(h);
     }
 
+    /**
+     * Cập nhật trạng thái hóa đơn
+     */
+    @Transactional
+    public HoaDonDTO updateTrangThaiHoaDon(Long id, String trangThai) {
+        // Load hóa đơn
+        HoaDon h = getHoaDonById(id)
+                .orElseThrow(() -> new EntityNotFoundException("Không tìm thấy hóa đơn với ID: " + id));
+        
+        // Validate và set trạng thái
+        try {
+            HoaDon.TrangThaiHoaDon newTrangThai = HoaDon.TrangThaiHoaDon.valueOf(trangThai);
+            h.setTrangThai(newTrangThai);
+            
+            // Lưu vào database
+            HoaDon saved = hoaDonRepository.save(h);
+            
+            // Reload để đảm bảo có dữ liệu đầy đủ
+            Optional<HoaDon> reloaded = getHoaDonById(saved.getId());
+            if (reloaded.isPresent()) {
+                return toDTO(reloaded.get());
+            }
+            return toDTO(saved);
+        } catch (IllegalArgumentException e) {
+            throw new RuntimeException("Trạng thái không hợp lệ: " + trangThai);
+        }
+    }
+
     public Page<HoaDon> getAllHoaDon(String keyword, String phuongThucThanhToan, Pageable pageable) {
         // Map từ frontend format sang backend format
         String tenHinhThuc = null;

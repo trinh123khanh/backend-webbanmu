@@ -54,10 +54,19 @@ public class ChiTietSanPhamServiceImpl implements ChiTietSanPhamService {
     }
 
     @Override
+    @Transactional(readOnly = true)
     public ChiTietSanPhamResponse getById(Long id) {
         return repository.findById(id)
             .map(this::map)
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Không tìm thấy phiên bản mũ"));
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<ChiTietSanPhamResponse> getAll() {
+        return repository.findAll().stream()
+            .map(this::map)
+            .collect(Collectors.toList());
     }
 
     @Override

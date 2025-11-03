@@ -174,6 +174,34 @@ public class HoaDonController {
 
     // Removed createSampleCustomers method as KhachHangRepository was deleted
 
+    // Cập nhật trạng thái hóa đơn
+    @PatchMapping("/{id}/trang-thai")
+    public ResponseEntity<?> updateTrangThaiHoaDon(
+            @PathVariable Long id,
+            @RequestParam String trangThai) {
+        try {
+            // Validate trạng thái
+            try {
+                HoaDon.TrangThaiHoaDon.valueOf(trangThai);
+            } catch (IllegalArgumentException e) {
+                return ResponseEntity.badRequest()
+                    .body("Trạng thái không hợp lệ: " + trangThai);
+            }
+            
+            HoaDonDTO updatedHoaDon = hoaDonService.updateTrangThaiHoaDon(id, trangThai);
+            return ResponseEntity.ok(updatedHoaDon);
+        } catch (jakarta.persistence.EntityNotFoundException e) {
+            return ResponseEntity.status(org.springframework.http.HttpStatus.NOT_FOUND)
+                .body(e.getMessage());
+        } catch (RuntimeException e) {
+            return ResponseEntity.status(org.springframework.http.HttpStatus.BAD_REQUEST)
+                .body(e.getMessage());
+        } catch (Exception e) {
+            return ResponseEntity.status(org.springframework.http.HttpStatus.INTERNAL_SERVER_ERROR)
+                .body("Lỗi server: " + e.getMessage());
+        }
+    }
+
     @GetMapping("/test")
     public ResponseEntity<String> test() {
         return ResponseEntity.ok("API hoạt động bình thường!");
