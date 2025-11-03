@@ -102,4 +102,40 @@ public class EmailService {
 
         log.info("Hoàn thành gửi email: {} thành công, {} thất bại", successCount, failCount);
     }
+
+    /**
+     * Gửi email OTP cho đặt lại mật khẩu
+     */
+    @Async
+    public void sendPasswordResetOtp(String email, String name, String otp) {
+        if (!emailEnabled) {
+            log.info("Email service is disabled. Skipping password reset email.");
+            return;
+        }
+
+        try {
+            String emailContent = String.format(
+                "Xin chào %s,\n\n" +
+                "Bạn đã yêu cầu đặt lại mật khẩu cho tài khoản của bạn.\n\n" +
+                "Mã OTP của bạn là: %s\n\n" +
+                "Mã OTP này sẽ hết hạn sau 1 giờ.\n\n" +
+                "Nếu bạn không yêu cầu đặt lại mật khẩu, vui lòng bỏ qua email này.\n\n" +
+                "Trân trọng,\n" +
+                "TDK Store - Bán mũ bảo hiểm",
+                name != null ? name : "Khách hàng",
+                otp
+            );
+
+            SimpleMailMessage message = new SimpleMailMessage();
+            message.setFrom(fromEmail);
+            message.setTo(email);
+            message.setSubject("🔐 Đặt lại mật khẩu - TDK Store");
+            message.setText(emailContent);
+            mailSender.send(message);
+
+            log.info("✅ Password reset OTP sent successfully to: {}", email);
+        } catch (Exception e) {
+            log.error("❌ Lỗi khi gửi email OTP đặt lại mật khẩu tới {}: {}", email, e.getMessage(), e);
+        }
+    }
 }
