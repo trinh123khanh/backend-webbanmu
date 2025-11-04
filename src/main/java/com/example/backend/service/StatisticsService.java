@@ -3,10 +3,16 @@ package com.example.backend.service;
 import com.example.backend.dto.BestSellingProductDTO;
 import com.example.backend.dto.PeriodStatisticsDTO;
 import com.example.backend.dto.WeeklyRevenueDTO;
+import com.example.backend.dto.OrderStatusStatisticsDTO;
+import com.example.backend.dto.ChannelStatisticsDTO;
+import com.example.backend.dto.BrandStatisticsDTO;
+import com.example.backend.dto.LowStockProductDTO;
 import com.example.backend.entity.HoaDon;
 import com.example.backend.entity.HoaDonChiTiet;
+import com.example.backend.entity.SanPham;
 import com.example.backend.repository.HoaDonChiTietRepository;
 import com.example.backend.repository.HoaDonRepository;
+import com.example.backend.repository.SanPhamRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -24,11 +30,14 @@ public class StatisticsService {
     
     private final HoaDonChiTietRepository hoaDonChiTietRepository;
     private final HoaDonRepository hoaDonRepository;
+    private final SanPhamRepository sanPhamRepository;
     
     public StatisticsService(HoaDonChiTietRepository hoaDonChiTietRepository,
-                           HoaDonRepository hoaDonRepository) {
+                           HoaDonRepository hoaDonRepository,
+                           SanPhamRepository sanPhamRepository) {
         this.hoaDonChiTietRepository = hoaDonChiTietRepository;
         this.hoaDonRepository = hoaDonRepository;
+        this.sanPhamRepository = sanPhamRepository;
     }
     
     /**
@@ -456,6 +465,284 @@ public class StatisticsService {
         System.out.println("========================================");
         
         return weeklyRevenues;
+    }
+
+    /**
+     * Lấy thống kê trạng thái đơn hàng theo khoảng thời gian
+     * @param period Loại khoảng thời gian: "day", "week", "month", "year"
+     * @return Danh sách OrderStatusStatisticsDTO chứa thống kê theo trạng thái
+     */
+    public List<OrderStatusStatisticsDTO> getOrderStatusStatistics(String period) {
+        System.out.println("========================================");
+        System.out.println("📊 [StatisticsService] Getting order status statistics for: " + period);
+        System.out.println("========================================");
+        
+        // Xác định khoảng thời gian
+        LocalDateTime startDate = getStartDateForPeriod(period);
+        LocalDateTime endDate = getEndDateForPeriod(period);
+        
+        System.out.println("📅 [StatisticsService] Date range: " + startDate + " to " + endDate);
+        
+        // Lấy tất cả hóa đơn trong khoảng thời gian (kể cả đã hủy để hiển thị đầy đủ)
+        List<HoaDon> hoaDonList = hoaDonRepository.findByNgayTaoBetween(startDate, endDate);
+        
+        System.out.println("📦 [StatisticsService] Found " + hoaDonList.size() + " invoices in period");
+        
+        // Map màu sắc cho các trạng thái
+        Map<HoaDon.TrangThaiHoaDon, String> colorMap = new HashMap<>();
+        colorMap.put(HoaDon.TrangThaiHoaDon.CHO_XAC_NHAN, "#f472b6");  // Pink
+        colorMap.put(HoaDon.TrangThaiHoaDon.DA_XAC_NHAN, "#fbbf24");   // Yellow
+        colorMap.put(HoaDon.TrangThaiHoaDon.DANG_GIAO_HANG, "#14b8a6"); // Green
+        colorMap.put(HoaDon.TrangThaiHoaDon.DA_GIAO_HANG, "#a855f7");  // Purple
+        colorMap.put(HoaDon.TrangThaiHoaDon.DA_HUY, "#ef4444");        // Red
+        
+        // Map tên hiển thị cho các trạng thái
+        Map<HoaDon.TrangThaiHoaDon, String> labelMap = new HashMap<>();
+        labelMap.put(HoaDon.TrangThaiHoaDon.CHO_XAC_NHAN, "Chờ xác nhận");
+        labelMap.put(HoaDon.TrangThaiHoaDon.DA_XAC_NHAN, "Chờ giao hàng");
+        labelMap.put(HoaDon.TrangThaiHoaDon.DANG_GIAO_HANG, "Đang giao");
+        labelMap.put(HoaDon.TrangThaiHoaDon.DA_GIAO_HANG, "Hoàn thành");
+        labelMap.put(HoaDon.TrangThaiHoaDon.DA_HUY, "Đã hủy");
+        
+        // Đếm số lượng theo từng trạng thái
+        Map<HoaDon.TrangThaiHoaDon, Integer> statusCountMap = new HashMap<>();
+        
+        for (HoaDon hoaDon : hoaDonList) {
+            HoaDon.TrangThaiHoaDon status = hoaDon.getTrangThai();
+            statusCountMap.put(status, statusCountMap.getOrDefault(status, 0) + 1);
+        }
+        
+        // Tạo danh sách DTO kết quả - LUÔN hiển thị tất cả trạng thái, kể cả khi count = 0
+        List<OrderStatusStatisticsDTO> result = new ArrayList<>();
+        
+        // Thứ tự hiển thị theo frontend
+        HoaDon.TrangThaiHoaDon[] displayOrder = {
+            HoaDon.TrangThaiHoaDon.CHO_XAC_NHAN,
+            HoaDon.TrangThaiHoaDon.DA_XAC_NHAN,
+            HoaDon.TrangThaiHoaDon.DANG_GIAO_HANG,
+            HoaDon.TrangThaiHoaDon.DA_GIAO_HANG,
+            HoaDon.TrangThaiHoaDon.DA_HUY
+        };
+        
+        for (HoaDon.TrangThaiHoaDon status : displayOrder) {
+            int count = statusCountMap.getOrDefault(status, 0);
+            result.add(OrderStatusStatisticsDTO.builder()
+                    .label(labelMap.get(status))
+                    .count(count)
+                    .color(colorMap.get(status))
+                    .statusCode(status.name())
+                    .build());
+            
+            System.out.println("   📊 " + labelMap.get(status) + ": " + count);
+        }
+        
+        System.out.println("✅ [StatisticsService] Order status statistics calculated");
+        System.out.println("========================================");
+        
+        return result;
+    }
+
+    /**
+     * Lấy thống kê kênh bán hàng (Online vs Tại quầy)
+     * Logic: Nếu nhanVienId != null thì là "Tại quầy", null thì là "Online"
+     * @return Danh sách ChannelStatisticsDTO
+     */
+    public List<ChannelStatisticsDTO> getChannelStatistics() {
+        System.out.println("========================================");
+        System.out.println("📊 [StatisticsService] Getting channel statistics");
+        System.out.println("========================================");
+        
+        // Lấy tất cả hóa đơn (trừ đơn đã hủy)
+        List<HoaDon> hoaDonList = hoaDonRepository.findAll().stream()
+                .filter(h -> h.getTrangThai() != HoaDon.TrangThaiHoaDon.DA_HUY)
+                .collect(Collectors.toList());
+        
+        System.out.println("📦 [StatisticsService] Found " + hoaDonList.size() + " invoices (excluding cancelled)");
+        
+        int onlineCount = 0;
+        int inStoreCount = 0;
+        
+        // Phân loại theo nhanVienId
+        for (HoaDon hoaDon : hoaDonList) {
+            if (hoaDon.getNhanVien() != null) {
+                inStoreCount++;
+            } else {
+                onlineCount++;
+            }
+        }
+        
+        System.out.println("   📊 Online: " + onlineCount);
+        System.out.println("   📊 Tại quầy: " + inStoreCount);
+        
+        // Tạo danh sách kết quả - LUÔN hiển thị cả 2 kênh, kể cả khi count = 0
+        List<ChannelStatisticsDTO> result = new ArrayList<>();
+        result.add(ChannelStatisticsDTO.builder()
+                .channel("Online")
+                .count(onlineCount)
+                .color("#f472b6")
+                .build());
+        result.add(ChannelStatisticsDTO.builder()
+                .channel("Tại quầy")
+                .count(inStoreCount)
+                .color("#3b82f6")
+                .build());
+        
+        System.out.println("✅ [StatisticsService] Channel statistics calculated");
+        System.out.println("========================================");
+        
+        return result;
+    }
+
+    /**
+     * Helper method: Lấy start date cho period
+     */
+    private LocalDateTime getStartDateForPeriod(String period) {
+        LocalDate today = LocalDate.now();
+        switch (period.toLowerCase()) {
+            case "day":
+            case "today":
+                return today.atStartOfDay();
+            case "week":
+                return today.minusDays(today.getDayOfWeek().getValue() - 1).atStartOfDay();
+            case "month":
+                return LocalDate.of(2025, 11, 1).atStartOfDay();
+            case "year":
+                return LocalDate.of(2025, 1, 1).atStartOfDay();
+            default:
+                return LocalDate.of(2025, 11, 1).atStartOfDay();
+        }
+    }
+
+    /**
+     * Helper method: Lấy end date cho period
+     */
+    private LocalDateTime getEndDateForPeriod(String period) {
+        switch (period.toLowerCase()) {
+            case "day":
+            case "today":
+                return LocalDateTime.now();
+            case "week":
+                return LocalDateTime.now();
+            case "month":
+                return LocalDate.of(2025, 12, 1).atStartOfDay();
+            case "year":
+                return LocalDate.of(2026, 1, 1).atStartOfDay();
+            default:
+                return LocalDate.of(2025, 12, 1).atStartOfDay();
+        }
+    }
+
+    /**
+     * Lấy thống kê top hãng bán chạy dựa trên số lượng sản phẩm đã bán
+     * @param limit Số lượng hãng top cần lấy
+     * @return Danh sách BrandStatisticsDTO
+     */
+    public List<BrandStatisticsDTO> getTopBrands(int limit) {
+        System.out.println("========================================");
+        System.out.println("📊 [StatisticsService] Getting top brands with limit: " + limit);
+        System.out.println("========================================");
+        
+        // Lấy tất cả hóa đơn chi tiết (trừ đơn đã hủy) - đã có JOIN FETCH nhaSanXuat
+        List<HoaDonChiTiet> chiTietList = hoaDonChiTietRepository.findAllWithProductDetailsExcludingCancelled();
+        
+        System.out.println("📦 [StatisticsService] Found " + chiTietList.size() + " invoice details (excluding cancelled)");
+        
+        // Nhóm theo nhà sản xuất và tính tổng số lượng
+        Map<Long, BrandStatisticsDTO> brandMap = new HashMap<>();
+        int skippedCount = 0;
+        
+        for (HoaDonChiTiet hdct : chiTietList) {
+            // Kiểm tra null
+            if (hdct == null || hdct.getChiTietSanPham() == null 
+                || hdct.getChiTietSanPham().getSanPham() == null) {
+                skippedCount++;
+                continue;
+            }
+            
+            var sanPham = hdct.getChiTietSanPham().getSanPham();
+            
+            // Lazy load nhaSanXuat
+            var nhaSanXuat = sanPham.getNhaSanXuat();
+            if (nhaSanXuat == null) {
+                skippedCount++;
+                continue;
+            }
+            
+            Long nhaSanXuatId = nhaSanXuat.getId();
+            
+            if (!brandMap.containsKey(nhaSanXuatId)) {
+                // Tạo mới DTO nếu chưa có
+                BrandStatisticsDTO dto = BrandStatisticsDTO.builder()
+                    .nhaSanXuatId(nhaSanXuatId)
+                    .tenNhaSanXuat(nhaSanXuat.getTenNhaSanXuat())
+                    .tongSoLuongMua(0) // Sẽ được cộng dồn sau
+                    .build();
+                
+                brandMap.put(nhaSanXuatId, dto);
+            }
+            
+            // Cộng dồn số lượng từ hoa_don_chi_tiet.so_luong
+            BrandStatisticsDTO dto = brandMap.get(nhaSanXuatId);
+            dto.setTongSoLuongMua(dto.getTongSoLuongMua() + hdct.getSoLuong());
+        }
+        
+        System.out.println("📊 [StatisticsService] Found " + brandMap.size() + " unique brands (skipped " + skippedCount + " records)");
+        
+        // Sắp xếp theo số lượng mua giảm dần và lấy top
+        List<BrandStatisticsDTO> result = brandMap.values().stream()
+            .sorted((a, b) -> Integer.compare(b.getTongSoLuongMua(), a.getTongSoLuongMua()))
+            .limit(limit)
+            .collect(Collectors.toList());
+        
+        System.out.println("✅ [StatisticsService] Returning " + result.size() + " top brands:");
+        for (int i = 0; i < result.size(); i++) {
+            BrandStatisticsDTO dto = result.get(i);
+            System.out.println("   " + (i + 1) + ". " + dto.getTenNhaSanXuat() + " | SL: " + dto.getTongSoLuongMua());
+        }
+        
+        return result;
+    }
+
+    /**
+     * Lấy danh sách sản phẩm sắp hết hàng (số lượng <= threshold)
+     * @param threshold Ngưỡng số lượng (ví dụ: 5)
+     * @param limit Số lượng sản phẩm cần lấy
+     * @return Danh sách LowStockProductDTO
+     */
+    public List<LowStockProductDTO> getLowStockProducts(int threshold, int limit) {
+        System.out.println("========================================");
+        System.out.println("📊 [StatisticsService] Getting low stock products with threshold: " + threshold + ", limit: " + limit);
+        System.out.println("========================================");
+        
+        // Lấy tất cả sản phẩm từ database
+        List<SanPham> allProducts = sanPhamRepository.findAll();
+        
+        System.out.println("📦 [StatisticsService] Found " + allProducts.size() + " total products");
+        
+        // Lọc sản phẩm có số lượng <= threshold và sort theo số lượng
+        List<LowStockProductDTO> lowStockProducts = allProducts.stream()
+            .filter(sp -> sp != null 
+                && sp.getSoLuongTon() != null 
+                && sp.getSoLuongTon() <= threshold
+                && sp.getTrangThai() != null 
+                && sp.getTrangThai()) // Chỉ lấy sản phẩm đang hoạt động
+            .sorted(Comparator.comparing(SanPham::getSoLuongTon))
+            .limit(limit)
+            .map(sp -> LowStockProductDTO.builder()
+                .sanPhamId(sp.getId())
+                .tenSanPham(sp.getTenSanPham())
+                .soLuongTon(sp.getSoLuongTon())
+                .build())
+            .collect(Collectors.toList());
+        
+        System.out.println("✅ [StatisticsService] Returning " + lowStockProducts.size() + " low stock products:");
+        for (int i = 0; i < lowStockProducts.size(); i++) {
+            LowStockProductDTO dto = lowStockProducts.get(i);
+            System.out.println("   " + (i + 1) + ". " + dto.getTenSanPham() + " | SL: " + dto.getSoLuongTon());
+        }
+        System.out.println("========================================");
+        
+        return lowStockProducts;
     }
 }
 

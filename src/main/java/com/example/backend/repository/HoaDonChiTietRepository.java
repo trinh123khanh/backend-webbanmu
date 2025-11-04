@@ -19,6 +19,7 @@ public interface HoaDonChiTietRepository extends JpaRepository<HoaDonChiTiet, Lo
            "LEFT JOIN FETCH ctsp.mauSac ms " +
            "LEFT JOIN FETCH sp.kieuDangMu kdm " +
            "LEFT JOIN FETCH ctsp.kichThuoc kt " +
+           "LEFT JOIN FETCH sp.nhaSanXuat nsx " +
            "WHERE hd.ngayTao BETWEEN :startDate AND :endDate " +
            "AND hd.trangThai != 'DA_HUY'")
     List<HoaDonChiTiet> findWithProductDetailsByDateRange(
@@ -34,6 +35,7 @@ public interface HoaDonChiTietRepository extends JpaRepository<HoaDonChiTiet, Lo
            "LEFT JOIN FETCH ctsp.sanPham sp " +
            "LEFT JOIN FETCH ctsp.mauSac ms " +
            "LEFT JOIN FETCH sp.kieuDangMu kdm " +
+           "LEFT JOIN FETCH sp.nhaSanXuat nsx " +
            "WHERE hd.trangThai != com.example.backend.entity.HoaDon$TrangThaiHoaDon.DA_HUY " +
            "ORDER BY hd.ngayTao DESC")
     List<HoaDonChiTiet> findAllWithProductDetailsExcludingCancelled();
@@ -45,6 +47,7 @@ public interface HoaDonChiTietRepository extends JpaRepository<HoaDonChiTiet, Lo
            "LEFT JOIN FETCH ctsp.sanPham sp " +
            "LEFT JOIN FETCH ctsp.mauSac ms " +
            "LEFT JOIN FETCH sp.kieuDangMu kdm " +
+           "LEFT JOIN FETCH sp.nhaSanXuat nsx " +
            "WHERE hd.trangThai IN (com.example.backend.entity.HoaDon$TrangThaiHoaDon.CHO_XAC_NHAN, " +
            "                        com.example.backend.entity.HoaDon$TrangThaiHoaDon.DA_XAC_NHAN, " +
            "                        com.example.backend.entity.HoaDon$TrangThaiHoaDon.DANG_GIAO_HANG, " +
@@ -66,7 +69,8 @@ public interface HoaDonChiTietRepository extends JpaRepository<HoaDonChiTiet, Lo
            "JOIN FETCH hdct.chiTietSanPham ctsp " +
            "LEFT JOIN FETCH ctsp.sanPham sp " +
            "LEFT JOIN FETCH ctsp.mauSac ms " +
-           "LEFT JOIN FETCH sp.kieuDangMu kdm")
+           "LEFT JOIN FETCH sp.kieuDangMu kdm " +
+           "LEFT JOIN FETCH sp.nhaSanXuat nsx")
     List<HoaDonChiTiet> findAllWithAllDetails();
 }
 

@@ -57,6 +57,7 @@ public class SecurityConfig {
                 // Public endpoints - không cần authentication
                 .requestMatchers("/api/auth/**").permitAll()
                 .requestMatchers("/api/customer/products/**").permitAll() // Sản phẩm công khai cho khách hàng
+                .requestMatchers("/api/statistics/**").hasAnyRole("ADMIN", "STAFF") // Statistics endpoints cho ADMIN và STAFF
                 .requestMatchers("/swagger-ui/**", "/v3/api-docs/**").permitAll()
                 .requestMatchers("/actuator/health").permitAll()
                 
