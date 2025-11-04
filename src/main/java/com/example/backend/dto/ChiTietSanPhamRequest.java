@@ -8,6 +8,7 @@ public class ChiTietSanPhamRequest {
     private Long kichThuocId;
     private Long mauSacId;
     private Long trongLuongId;
+    private String trongLuongTen; // Giá trị nhập tay khi trongLuongId null
     // Nhận từ FE dưới dạng chuỗi để linh hoạt nhập liệu
     private String giaBan;
     private String soLuongTon;
@@ -32,6 +33,11 @@ public class ChiTietSanPhamRequest {
     public void setTrongLuongId(Long trongLuongId) { this.trongLuongId = trongLuongId; }
     @JsonSetter("trongLuongId")
     public void setTrongLuongIdFromAny(Object v) { this.trongLuongId = toLong(v); }
+
+    public String getTrongLuongTen() { return trongLuongTen; }
+    public void setTrongLuongTen(String trongLuongTen) { this.trongLuongTen = trongLuongTen; }
+    @JsonSetter("trongLuongTen")
+    public void setTrongLuongTenFromAny(Object v) { this.trongLuongTen = v != null ? v.toString().trim() : null; }
 
     public String getGiaBan() { return giaBan; }
     public void setGiaBan(String giaBan) { this.giaBan = giaBan; }

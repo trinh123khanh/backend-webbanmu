@@ -23,9 +23,8 @@ public class ChiTietSanPham {
     @JoinColumn(name = "kich_thuoc_id")
     private KichThuoc kichThuoc;
     
-    @ManyToOne
-    @JoinColumn(name = "trong_luong_id", nullable = false)
-    private TrongLuong trongLuong;
+    @Column(name = "trong_luong_ten")
+    private String trongLuongTen; // Lưu giá trị nhập tay khi trongLuongId null
     
     @Column(nullable = false)
     private String soLuongTon;
