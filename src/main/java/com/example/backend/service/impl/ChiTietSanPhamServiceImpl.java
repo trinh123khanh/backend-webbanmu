@@ -19,18 +19,15 @@ public class ChiTietSanPhamServiceImpl implements ChiTietSanPhamService {
     private final SanPhamRepository sanPhamRepository;
     private final KichThuocRepository kichThuocRepository;
     private final MauSacRepository mauSacRepository;
-    private final TrongLuongRepository trongLuongRepository;
 
     public ChiTietSanPhamServiceImpl(ChiTietSanPhamRepository repository,
                                     SanPhamRepository sanPhamRepository,
                                     KichThuocRepository kichThuocRepository,
-                                    MauSacRepository mauSacRepository,
-                                    TrongLuongRepository trongLuongRepository) {
+                                    MauSacRepository mauSacRepository) {
         this.repository = repository;
         this.sanPhamRepository = sanPhamRepository;
         this.kichThuocRepository = kichThuocRepository;
         this.mauSacRepository = mauSacRepository;
-        this.trongLuongRepository = trongLuongRepository;
     }
 
     @Override
@@ -81,7 +78,12 @@ public class ChiTietSanPhamServiceImpl implements ChiTietSanPhamService {
         entity.setSanPham(sanPhamRepository.findById(req.getSanPhamId()).orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Sản phẩm không hợp lệ")));
         entity.setKichThuoc(kichThuocRepository.findById(req.getKichThuocId()).orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Kích thước không hợp lệ")));
         entity.setMauSac(mauSacRepository.findById(req.getMauSacId()).orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Màu sắc không hợp lệ")));
-        entity.setTrongLuong(trongLuongRepository.findById(req.getTrongLuongId()).orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Trọng lượng không hợp lệ")));
+        // Trọng lượng: chỉ dùng giá trị nhập tay
+        if (req.getTrongLuongTen() != null && !req.getTrongLuongTen().trim().isEmpty()) {
+            entity.setTrongLuongTen(req.getTrongLuongTen().trim());
+        } else {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Trọng lượng là bắt buộc");
+        }
         // Lưu nguyên chuỗi theo yêu cầu
         entity.setGiaBan(req.getGiaBan());
         entity.setSoLuongTon(req.getSoLuongTon());
@@ -104,10 +106,8 @@ public class ChiTietSanPhamServiceImpl implements ChiTietSanPhamService {
             r.setMauSacTen(e.getMauSac().getTenMau());
             r.setMauSacMa(e.getMauSac().getMaMau());
         }
-        if (e.getTrongLuong() != null) {
-            r.setTrongLuongId(e.getTrongLuong().getId());
-            r.setTrongLuongTen(e.getTrongLuong().getGiaTriTrongLuong() + " " + e.getTrongLuong().getDonVi());
-        }
+        r.setTrongLuongId(null);
+        r.setTrongLuongTen(e.getTrongLuongTen());
         r.setGiaBan(e.getGiaBan());
         r.setSoLuongTon(e.getSoLuongTon());
         r.setTrangThai(e.getTrangThai());
