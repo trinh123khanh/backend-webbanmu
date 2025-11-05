@@ -310,6 +310,7 @@ public class StatisticsService {
         
         // Tính toán thống kê
         BigDecimal doanhThu = BigDecimal.ZERO;
+        BigDecimal actualRevenue = BigDecimal.ZERO; // Doanh thu thực tế (đã thanh toán)
         Integer sanPhamDaBan = 0;
         Integer donHang = hoaDonList.size();
         
@@ -325,9 +326,15 @@ public class StatisticsService {
             } else {
                 System.out.println("   ⚠️ Invoice #" + hoaDon.getId() + " has null thanhTien");
             }
-
-
             
+            // Kiểm tra xem hóa đơn đã thanh toán chưa (trạng thái DA_GIAO_HANG = Đã thanh toán)
+            boolean isPaid = hoaDon.getTrangThai() == HoaDon.TrangThaiHoaDon.DA_GIAO_HANG;
+            
+            // Nếu đã thanh toán, cộng vào actualRevenue
+            if (isPaid && hoaDon.getThanhTien() != null) {
+                actualRevenue = actualRevenue.add(hoaDon.getThanhTien());
+                System.out.println("   ✅ Invoice #" + hoaDon.getId() + " is paid (DA_GIAO_HANG), adding to actualRevenue");
+            }
             
             // Tính tổng soLuongSanPham
             if (hoaDon.getSoLuongSanPham() != null) {
@@ -340,8 +347,13 @@ public class StatisticsService {
             }
         }
         
+        // Tính công nợ = doanh thu - thực tế
+        BigDecimal debtRevenue = doanhThu.subtract(actualRevenue);
+        
         System.out.println("📊 [StatisticsService] Statistics calculated:");
         System.out.println("   - Doanh thu: " + doanhThu);
+        System.out.println("   - Thực tế (đã thanh toán): " + actualRevenue);
+        System.out.println("   - Công nợ: " + debtRevenue);
         System.out.println("   - Sản phẩm đã bán: " + sanPhamDaBan);
         System.out.println("   - Đơn hàng: " + donHang);
         System.out.println("========================================");
@@ -351,6 +363,77 @@ public class StatisticsService {
                 .sanPhamDaBan(sanPhamDaBan)
                 .donHang(donHang)
                 .period(period)
+                .actualRevenue(actualRevenue)
+                .debtRevenue(debtRevenue)
+                .build();
+    }
+    
+    /**
+     * Lấy thống kê theo khoảng thời gian tùy chỉnh (từ ngày đến ngày)
+     * @param startDate Ngày bắt đầu
+     * @param endDate Ngày kết thúc
+     * @return PeriodStatisticsDTO chứa doanh thu, số sản phẩm đã bán, số đơn hàng
+     */
+    public PeriodStatisticsDTO getPeriodStatisticsByDateRange(LocalDate startDate, LocalDate endDate) {
+        System.out.println("========================================");
+        System.out.println("📊 [StatisticsService] Getting statistics by date range: " + startDate + " to " + endDate);
+        System.out.println("========================================");
+        
+        // Chuyển đổi LocalDate sang LocalDateTime (bắt đầu từ 00:00:00 và kết thúc ở 23:59:59)
+        LocalDateTime startDateTime = startDate.atStartOfDay();
+        LocalDateTime endDateTime = endDate.atTime(23, 59, 59);
+        
+        System.out.println("📅 [StatisticsService] DateTime range: " + startDateTime + " to " + endDateTime);
+        
+        // Lấy tất cả hóa đơn trong khoảng thời gian (trừ đơn đã hủy)
+        List<HoaDon> hoaDonList = hoaDonRepository.findByNgayTaoBetweenExcludingCancelled(startDateTime, endDateTime);
+        
+        System.out.println("📦 [StatisticsService] Found " + hoaDonList.size() + " invoices in date range (excluding cancelled)");
+        
+        // Tính toán thống kê
+        BigDecimal doanhThu = BigDecimal.ZERO;
+        BigDecimal actualRevenue = BigDecimal.ZERO; // Doanh thu thực tế (đã thanh toán)
+        Integer sanPhamDaBan = 0;
+        Integer donHang = hoaDonList.size();
+        
+        for (HoaDon hoaDon : hoaDonList) {
+            // Tính tổng thanhTien
+            if (hoaDon.getThanhTien() != null) {
+                doanhThu = doanhThu.add(hoaDon.getThanhTien());
+            }
+            
+            // Kiểm tra xem hóa đơn đã thanh toán chưa (trạng thái DA_GIAO_HANG = Đã thanh toán)
+            boolean isPaid = hoaDon.getTrangThai() == HoaDon.TrangThaiHoaDon.DA_GIAO_HANG;
+            
+            // Nếu đã thanh toán, cộng vào actualRevenue
+            if (isPaid && hoaDon.getThanhTien() != null) {
+                actualRevenue = actualRevenue.add(hoaDon.getThanhTien());
+            }
+            
+            // Tính tổng soLuongSanPham
+            if (hoaDon.getSoLuongSanPham() != null) {
+                sanPhamDaBan += hoaDon.getSoLuongSanPham();
+            }
+        }
+        
+        // Tính công nợ = doanh thu - thực tế
+        BigDecimal debtRevenue = doanhThu.subtract(actualRevenue);
+        
+        System.out.println("📊 [StatisticsService] Statistics calculated:");
+        System.out.println("   - Doanh thu: " + doanhThu);
+        System.out.println("   - Thực tế (đã thanh toán): " + actualRevenue);
+        System.out.println("   - Công nợ: " + debtRevenue);
+        System.out.println("   - Sản phẩm đã bán: " + sanPhamDaBan);
+        System.out.println("   - Đơn hàng: " + donHang);
+        System.out.println("========================================");
+        
+        return PeriodStatisticsDTO.builder()
+                .doanhThu(doanhThu)
+                .sanPhamDaBan(sanPhamDaBan)
+                .donHang(donHang)
+                .period("custom") // Đánh dấu là custom date range
+                .actualRevenue(actualRevenue)
+                .debtRevenue(debtRevenue)
                 .build();
     }
     

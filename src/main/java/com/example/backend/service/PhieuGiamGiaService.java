@@ -120,7 +120,12 @@ public class PhieuGiamGiaService {
                                             khachHang.getEmail(),
                                             khachHang.getTenKhachHang(),
                                             savedPhieuGiamGia.getMaPhieu(),
-                                            savedPhieuGiamGia.getTenPhieuGiamGia()
+                                            savedPhieuGiamGia.getTenPhieuGiamGia(),
+                                            savedPhieuGiamGia.getNgayBatDau(),
+                                            savedPhieuGiamGia.getNgayKetThuc(),
+                                            savedPhieuGiamGia.getGiaTriGiam(),
+                                            savedPhieuGiamGia.getLoaiPhieuGiamGia(),
+                                            savedPhieuGiamGia.getHoaDonToiThieu()
                                     );
                                     log.info("Đã gửi email thông báo tới khách hàng {} ({})", khachHang.getTenKhachHang(), khachHang.getEmail());
                                 } else {

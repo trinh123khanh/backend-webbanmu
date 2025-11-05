@@ -26,25 +26,50 @@ public class EmailService {
      * Gửi email thông báo nhận phiếu giảm giá cho khách hàng
      */
     @Async
-    public void sendPhieuGiamGiaNotification(String customerEmail, String customerName, String phieuCode, String phieuName) {
+    public void sendPhieuGiamGiaNotification(String customerEmail, String customerName, String phieuCode, String phieuName,
+                                               java.time.LocalDate ngayBatDau, java.time.LocalDate ngayKetThuc,
+                                               java.math.BigDecimal giaTriGiam, Boolean loaiPhieuGiamGia,
+                                               java.math.BigDecimal hoaDonToiThieu) {
         if (!emailEnabled) {
             log.info("Email service is disabled. Skipping email notification.");
             return;
         }
 
         try {
+            // Format giá trị giảm
+            String giaTriGiamText;
+            if (loaiPhieuGiamGia != null && loaiPhieuGiamGia) {
+                // Tiền mặt
+                giaTriGiamText = String.format("%,.0f VNĐ", giaTriGiam != null ? giaTriGiam.doubleValue() : 0);
+            } else {
+                // Phần trăm
+                giaTriGiamText = String.format("%s%%", giaTriGiam != null ? giaTriGiam.toString() : "0");
+            }
+            
+            // Format hóa đơn tối thiểu
+            String hoaDonToiThieuText = String.format("%,.0f VNĐ", hoaDonToiThieu != null ? hoaDonToiThieu.doubleValue() : 0);
+            
+            // Format ngày tháng
+            java.time.format.DateTimeFormatter dateFormatter = java.time.format.DateTimeFormatter.ofPattern("dd/MM/yyyy");
+            String ngayBatDauText = ngayBatDau != null ? ngayBatDau.format(dateFormatter) : "N/A";
+            String ngayKetThucText = ngayKetThuc != null ? ngayKetThuc.format(dateFormatter) : "N/A";
+            
             // Tạo nội dung email
             String emailContent = String.format(
                 "Xin chào %s,\n\n" +
                 "Chúc mừng! Bạn đã nhận được một phiếu giảm giá đặc biệt từ TDK Store.\n\n" +
                 "📌 Thông tin phiếu giảm giá:\n" +
                 "- Mã phiếu: %s\n" +
-                "- Tên phiếu: %s\n\n" +
+                "- Tên phiếu: %s\n" +
+                "- Giá trị giảm: %s\n" +
+                "- Hóa đơn tối thiểu: %s\n" +
+                "- Ngày bắt đầu: %s\n" +
+                "- Ngày kết thúc: %s\n\n" +
                 "Hãy sử dụng phiếu giảm giá này trong lần mua sắm tiếp theo của bạn!\n\n" +
                 "Cảm ơn bạn đã tin tưởng và sử dụng dịch vụ của chúng tôi.\n\n" +
                 "Trân trọng,\n" +
                 "TDK Store - Bán mũ bảo hiểm",
-                customerName, phieuCode, phieuName
+                customerName, phieuCode, phieuName, giaTriGiamText, hoaDonToiThieuText, ngayBatDauText, ngayKetThucText
             );
 
             // Gửi email thật
@@ -71,7 +96,12 @@ public class EmailService {
             java.util.List<String> customerEmails,
             java.util.List<String> customerNames,
             String phieuCode,
-            String phieuName) {
+            String phieuName,
+            java.time.LocalDate ngayBatDau,
+            java.time.LocalDate ngayKetThuc,
+            java.math.BigDecimal giaTriGiam,
+            Boolean loaiPhieuGiamGia,
+            java.math.BigDecimal hoaDonToiThieu) {
 
         if (!emailEnabled) {
             log.info("Email service is disabled. Skipping bulk email notification.");
@@ -91,7 +121,8 @@ public class EmailService {
                 String email = customerEmails.get(i);
                 String name = i < customerNames.size() ? customerNames.get(i) : "Khách hàng";
 
-                sendPhieuGiamGiaNotification(email, name, phieuCode, phieuName);
+                sendPhieuGiamGiaNotification(email, name, phieuCode, phieuName, 
+                                            ngayBatDau, ngayKetThuc, giaTriGiam, loaiPhieuGiamGia, hoaDonToiThieu);
                 successCount++;
 
             } catch (Exception e) {
