@@ -22,6 +22,7 @@ import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -474,7 +475,19 @@ public class HoaDonService {
             queryStr.append(" AND (htt.tenHinhThuc = :tenHinhThuc OR htt.tenHinhThuc IS NULL)");
         }
         
-        queryStr.append(" ORDER BY h.ngayTao DESC");
+        // Luôn có ORDER BY để đảm bảo thứ tự: mặc định ORDER BY id ASC (hóa đơn cũ nhất lên đầu, mới nhất xuống cuối)
+        // Chỉ thay đổi ORDER BY nếu user click vào cột để sort
+        Sort sort = pageable.getSort();
+        if (sort != null && sort.isSorted()) {
+            // User đã click sort - sử dụng sort của user
+            Sort.Order order = sort.iterator().next();
+            String sortField = order.getProperty();
+            String sortDir = order.getDirection().name();
+            queryStr.append(" ORDER BY h.").append(sortField).append(" ").append(sortDir);
+        } else {
+            // Mặc định: ORDER BY id ASC - hóa đơn mới nhất (ID lớn nhất) ở cuối
+            queryStr.append(" ORDER BY h.id ASC");
+        }
         
         jakarta.persistence.TypedQuery<HoaDon> query = entityManager.createQuery(
             queryStr.toString(),

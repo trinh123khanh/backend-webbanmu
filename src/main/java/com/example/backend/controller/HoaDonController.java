@@ -179,9 +179,15 @@ public class HoaDonController {
         
         try {
             // Create Pageable object
-            Sort sort = Sort.by(Sort.Direction.fromString(sortDirection), 
-                               sortBy != null ? sortBy : "ngayTao");
-            Pageable pageable = PageRequest.of(page, size, sort);
+            // Chỉ sort nếu có sortBy được chỉ định, nếu không thì không sort (để data hiển thị theo thứ tự tự nhiên)
+            Pageable pageable;
+            if (sortBy != null && !sortBy.trim().isEmpty()) {
+                Sort sort = Sort.by(Sort.Direction.fromString(sortDirection), sortBy);
+                pageable = PageRequest.of(page, size, sort);
+            } else {
+                // Không sort - để data hiển thị theo thứ tự tự nhiên (mới nhất ở cuối)
+                pageable = PageRequest.of(page, size);
+            }
             
             // Gọi service trả về Page<HoaDon> và map sang DTO với đầy đủ thông tin
             Page<com.example.backend.entity.HoaDon> hoaDonPageEntity = hoaDonService.getAllHoaDon(keyword, phuongThucThanhToan, pageable);
