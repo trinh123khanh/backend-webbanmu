@@ -29,4 +29,5 @@ public interface HoaDonRepository extends JpaRepository<HoaDon, Long>, JpaSpecif
     
     @Query("SELECT h FROM HoaDon h ORDER BY h.ngayTao DESC")
     List<HoaDon> findAllOrderByNgayTaoDesc();
+    
 }
