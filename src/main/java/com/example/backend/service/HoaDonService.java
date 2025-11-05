@@ -291,7 +291,7 @@ public class HoaDonService {
 
     @Transactional
     public HoaDonDTO updateHoaDon(Long id, HoaDonDTO dto) {
-        // Load hóa đơn với relationships bằng cách sử dụng getHoaDonById để đảm bảo load đầy đủ
+        // Load hóa đơn với relationships bằng cách sử dụng getHoaDonById để đảm bảo load đầy đ
         HoaDon h = getHoaDonById(id)
                 .orElseThrow(() -> new EntityNotFoundException("Không tìm thấy hóa đơn"));
         
