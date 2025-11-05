@@ -12,6 +12,7 @@ import java.util.List;
 @Repository
 public interface HoaDonChiTietRepository extends JpaRepository<HoaDonChiTiet, Long> {
     
+       
     @Query("SELECT DISTINCT hdct FROM HoaDonChiTiet hdct " +
            "JOIN FETCH hdct.hoaDon hd " +
            "JOIN FETCH hdct.chiTietSanPham ctsp " +

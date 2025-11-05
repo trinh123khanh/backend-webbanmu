@@ -303,6 +303,7 @@ public class HoaDonService {
             h.getDanhSachChiTiet().clear();
         }
         
+        
         // Thêm các chi tiết mới
         if (dto.getDanhSachChiTiet() != null && !dto.getDanhSachChiTiet().isEmpty()) {
             List<HoaDonChiTiet> chiTietList = new ArrayList<>();
