@@ -40,6 +40,7 @@ public class HoaDonDTO {
     private Integer soLuongSanPham;
     private List<HoaDonChiTietDTO> danhSachChiTiet; // Danh sách chi tiết sản phẩm trong hóa đơn
 
+    
     // Constructors, getters, and setters
 
 

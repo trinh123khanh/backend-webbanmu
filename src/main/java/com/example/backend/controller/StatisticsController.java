@@ -181,6 +181,63 @@ public class StatisticsController {
     }
     
     /**
+     * Lấy thống kê theo khoảng thời gian tùy chỉnh (từ ngày đến ngày)
+     * @param startDate Ngày bắt đầu (format: yyyy-MM-dd)
+     * @param endDate Ngày kết thúc (format: yyyy-MM-dd)
+     * @return PeriodStatisticsDTO chứa doanh thu, số sản phẩm đã bán, số đơn hàng
+     */
+    @GetMapping("/period/date-range")
+    public ResponseEntity<?> getPeriodStatisticsByDateRange(
+            @RequestParam String startDate,
+            @RequestParam String endDate) {
+        try {
+            System.out.println("========================================");
+            System.out.println("📥 [StatisticsController] Received GET request: /api/statistics/period/date-range?startDate=" + startDate + "&endDate=" + endDate);
+            System.out.println("========================================");
+            
+            // Parse dates
+            java.time.LocalDate start = java.time.LocalDate.parse(startDate);
+            java.time.LocalDate end = java.time.LocalDate.parse(endDate);
+            
+            // Validate date range
+            if (start.isAfter(end)) {
+                Map<String, Object> errorResponse = new HashMap<>();
+                errorResponse.put("error", "Ngày bắt đầu phải nhỏ hơn hoặc bằng ngày kết thúc");
+                return ResponseEntity.badRequest().body(errorResponse);
+            }
+            
+            PeriodStatisticsDTO statistics = statisticsService.getPeriodStatisticsByDateRange(start, end);
+            
+            System.out.println("✅ [StatisticsController] Successfully returning date range statistics");
+            System.out.println("   - Start Date: " + startDate);
+            System.out.println("   - End Date: " + endDate);
+            System.out.println("   - Doanh thu: " + statistics.getDoanhThu());
+            System.out.println("   - Sản phẩm đã bán: " + statistics.getSanPhamDaBan());
+            System.out.println("   - Đơn hàng: " + statistics.getDonHang());
+            System.out.println("========================================");
+            
+            return ResponseEntity.ok(statistics);
+        } catch (java.time.format.DateTimeParseException e) {
+            System.err.println("❌ [StatisticsController] Invalid date format: " + e.getMessage());
+            Map<String, Object> errorResponse = new HashMap<>();
+            errorResponse.put("error", "Định dạng ngày không hợp lệ. Vui lòng sử dụng format: yyyy-MM-dd");
+            return ResponseEntity.badRequest().body(errorResponse);
+        } catch (Exception e) {
+            System.err.println("========================================");
+            System.err.println("❌ [StatisticsController] ERROR occurred:");
+            System.err.println("   Message: " + e.getMessage());
+            System.err.println("   Cause: " + (e.getCause() != null ? e.getCause().getMessage() : "N/A"));
+            System.err.println("========================================");
+            e.printStackTrace();
+            
+            Map<String, Object> errorResponse = new HashMap<>();
+            errorResponse.put("error", "Lỗi khi lấy thống kê theo khoảng thời gian: " + e.getMessage());
+            errorResponse.put("message", e.getMessage());
+            return ResponseEntity.status(500).body(errorResponse);
+        }
+    }
+    
+    /**
      * Endpoint debug để kiểm tra dữ liệu trong database
      */
     @GetMapping("/period-debug")

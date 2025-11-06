@@ -16,6 +16,8 @@ public class PeriodStatisticsDTO {
     private Integer sanPhamDaBan;        // Tổng soLuongSanPham
     private Integer donHang;             // Số lượng đơn hàng
     private String period;    
+    private BigDecimal actualRevenue;    // Tổng thanhTien của các hóa đơn đã thanh toán
+    private BigDecimal debtRevenue;      // Công nợ = doanhThu - actualRevenue
     
     // Loại khoảng thời gian: "day", "week", "month", "year"
 }

@@ -24,4 +24,5 @@ public class HoaDonChiTietDTO {
     private BigDecimal giamGia;
     private BigDecimal thanhTien;
     private String anhSanPham;
+    
 }

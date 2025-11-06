@@ -292,8 +292,7 @@ public class HoaDonService {
 
     @Transactional
     public HoaDonDTO updateHoaDon(Long id, HoaDonDTO dto) {
-        // Load hóa đơn với relationships bằng cách sử dụng getHoaDonById để đảm bảo load đầy đủ
-        // Entity đã được load trong persistence context, không cần merge
+
         HoaDon h = getHoaDonById(id)
                 .orElseThrow(() -> new EntityNotFoundException("Không tìm thấy hóa đơn"));
         
@@ -311,6 +310,7 @@ public class HoaDonService {
             // Xóa các chi tiết cũ bằng cách clear() collection
             // Với orphanRemoval = true, clear() sẽ tự động xóa các item khỏi database
             h.getDanhSachChiTiet().clear();
+
             
             // Ngay lập tức add các chi tiết mới vào collection (không được để collection rỗng quá lâu)
             if (!dto.getDanhSachChiTiet().isEmpty()) {
@@ -332,6 +332,7 @@ public class HoaDonService {
                     
                     // Add ngay vào collection sau khi clear (không được delay)
                     h.getDanhSachChiTiet().add(hoaDonChiTiet);
+
                 }
             }
             // Nếu danhSachChiTiet là empty array, collection đã được clear và giữ nguyên empty
