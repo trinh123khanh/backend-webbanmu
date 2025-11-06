@@ -296,16 +296,25 @@ public class HoaDonService {
 
     @Transactional
     public HoaDonDTO updateHoaDon(Long id, HoaDonDTO dto) {
-        // Load hóa đơn với relationships bằng cách sử dụng getHoaDonById để đảm bảo load đầy đủ
+
         HoaDon h = getHoaDonById(id)
                 .orElseThrow(() -> new EntityNotFoundException("Không tìm thấy hóa đơn"));
         
         updateEntityFromDTO(h, dto);
         
         // Xử lý danh sách chi tiết sản phẩm nếu có
-        // Xóa các chi tiết cũ trước (với orphanRemoval = true, clear sẽ tự động xóa)
-        if (h.getDanhSachChiTiet() != null && !h.getDanhSachChiTiet().isEmpty()) {
+        // QUAN TRỌNG: Với orphanRemoval = true, KHÔNG được set collection mới hoặc clear() mà không add lại ngay
+        // Giải pháp: Clear và add lại trong cùng một block, đảm bảo collection luôn có reference
+        if (dto.getDanhSachChiTiet() != null) {
+            // Đảm bảo collection được khởi tạo trước
+            if (h.getDanhSachChiTiet() == null) {
+                h.setDanhSachChiTiet(new ArrayList<>());
+            }
+            
+            // Xóa các chi tiết cũ bằng cách clear() collection
+            // Với orphanRemoval = true, clear() sẽ tự động xóa các item khỏi database
             h.getDanhSachChiTiet().clear();
+
         }
         
         // Thêm các chi tiết mới
@@ -314,25 +323,38 @@ public class HoaDonService {
             for (HoaDonChiTietDTO chiTietDTO : dto.getDanhSachChiTiet()) {
                 if (chiTietDTO.getChiTietSanPhamId() == null) {
                     continue; // Bỏ qua nếu không có chiTietSanPhamId
+
+
+            
+//             // Ngay lập tức add các chi tiết mới vào collection (không được để collection rỗng quá lâu)
+//             if (!dto.getDanhSachChiTiet().isEmpty()) {
+//                 for (HoaDonChiTietDTO chiTietDTO : dto.getDanhSachChiTiet()) {
+//                     if (chiTietDTO.getChiTietSanPhamId() == null) {
+//                         continue; // Bỏ qua nếu không có chiTietSanPhamId
+//                     }
+                    
+//                     ChiTietSanPham chiTietSanPham = chiTietSanPhamRepository.findById(chiTietDTO.getChiTietSanPhamId())
+//                             .orElseThrow(() -> new RuntimeException("Không tìm thấy chi tiết sản phẩm với ID: " + chiTietDTO.getChiTietSanPhamId()));
+                    
+//                     HoaDonChiTiet hoaDonChiTiet = new HoaDonChiTiet();
+//                     hoaDonChiTiet.setHoaDon(h);
+//                     hoaDonChiTiet.setChiTietSanPham(chiTietSanPham);
+//                     hoaDonChiTiet.setSoLuong(chiTietDTO.getSoLuong() != null ? chiTietDTO.getSoLuong() : 0);
+//                     hoaDonChiTiet.setDonGia(chiTietDTO.getDonGia() != null ? chiTietDTO.getDonGia() : java.math.BigDecimal.ZERO);
+//                     hoaDonChiTiet.setGiamGia(chiTietDTO.getGiamGia() != null ? chiTietDTO.getGiamGia() : java.math.BigDecimal.ZERO);
+//                     hoaDonChiTiet.setThanhTien(chiTietDTO.getThanhTien() != null ? chiTietDTO.getThanhTien() : java.math.BigDecimal.ZERO);
+                    
+//                     // Add ngay vào collection sau khi clear (không được delay)
+//                     h.getDanhSachChiTiet().add(hoaDonChiTiet);
+
+// >>>>>>> main
                 }
-                
-                ChiTietSanPham chiTietSanPham = chiTietSanPhamRepository.findById(chiTietDTO.getChiTietSanPhamId())
-                        .orElseThrow(() -> new RuntimeException("Không tìm thấy chi tiết sản phẩm với ID: " + chiTietDTO.getChiTietSanPhamId()));
-                
-                HoaDonChiTiet hoaDonChiTiet = new HoaDonChiTiet();
-                hoaDonChiTiet.setHoaDon(h);
-                hoaDonChiTiet.setChiTietSanPham(chiTietSanPham);
-                hoaDonChiTiet.setSoLuong(chiTietDTO.getSoLuong() != null ? chiTietDTO.getSoLuong() : 0);
-                hoaDonChiTiet.setDonGia(chiTietDTO.getDonGia() != null ? chiTietDTO.getDonGia() : java.math.BigDecimal.ZERO);
-                hoaDonChiTiet.setGiamGia(chiTietDTO.getGiamGia() != null ? chiTietDTO.getGiamGia() : java.math.BigDecimal.ZERO);
-                hoaDonChiTiet.setThanhTien(chiTietDTO.getThanhTien() != null ? chiTietDTO.getThanhTien() : java.math.BigDecimal.ZERO);
-                
-                chiTietList.add(hoaDonChiTiet);
             }
-            h.setDanhSachChiTiet(chiTietList);
+            // Nếu danhSachChiTiet là empty array, collection đã được clear và giữ nguyên empty
         }
+        // Nếu dto.getDanhSachChiTiet() == null, giữ nguyên collection hiện tại (không thay đổi)
         
-        // Lưu hóa đơn trước để có ID
+        // Lưu hóa đơn
         HoaDon saved = hoaDonRepository.save(h);
         
         // Xử lý phương thức thanh toán nếu có

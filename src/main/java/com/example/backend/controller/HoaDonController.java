@@ -254,24 +254,56 @@ public class HoaDonController {
     @PutMapping("/api/hoa-don/{id}")
     public ResponseEntity<?> updateHoaDon(@PathVariable Long id, @RequestBody HoaDonDTO hoaDonDTO) {
         try {
+            // LOG request để debug
+            System.out.println("📥 Received PUT request for invoice ID: " + id);
+            System.out.println("📦 Request body (HoaDonDTO):");
+            System.out.println("   - maHoaDon: " + hoaDonDTO.getMaHoaDon());
+            System.out.println("   - khachHangId: " + hoaDonDTO.getKhachHangId());
+            System.out.println("   - tongTien: " + hoaDonDTO.getTongTien());
+            System.out.println("   - thanhTien: " + hoaDonDTO.getThanhTien());
+            System.out.println("   - tienGiamGia: " + hoaDonDTO.getTienGiamGia());
+            System.out.println("   - soLuongSanPham: " + hoaDonDTO.getSoLuongSanPham());
+            System.out.println("   - nhanVienId: " + hoaDonDTO.getNhanVienId());
+            System.out.println("   - trangThai: " + hoaDonDTO.getTrangThai());
+            System.out.println("   - danhSachChiTiet size: " + (hoaDonDTO.getDanhSachChiTiet() != null ? hoaDonDTO.getDanhSachChiTiet().size() : 0));
+            if (hoaDonDTO.getDanhSachChiTiet() != null && !hoaDonDTO.getDanhSachChiTiet().isEmpty()) {
+                System.out.println("   - danhSachChiTiet details:");
+                for (int i = 0; i < hoaDonDTO.getDanhSachChiTiet().size(); i++) {
+                    var item = hoaDonDTO.getDanhSachChiTiet().get(i);
+                    System.out.println("     [" + i + "] chiTietSanPhamId: " + item.getChiTietSanPhamId() + 
+                                     ", soLuong: " + item.getSoLuong() + 
+                                     ", donGia: " + item.getDonGia());
+                }
+            }
+            
             // Validate dữ liệu đầu vào
             if (hoaDonDTO.getMaHoaDon() == null || hoaDonDTO.getMaHoaDon().trim().isEmpty()) {
+                System.out.println("❌ Validation failed: maHoaDon is null or empty");
                 return ResponseEntity.badRequest().body("Mã hóa đơn không được để trống");
             }
             if (hoaDonDTO.getKhachHangId() == null) {
+                System.out.println("❌ Validation failed: khachHangId is null");
                 return ResponseEntity.badRequest().body("Khách hàng ID không được để trống");
             }
             if (hoaDonDTO.getTongTien() == null || hoaDonDTO.getTongTien().compareTo(java.math.BigDecimal.ZERO) <= 0) {
+                System.out.println("❌ Validation failed: tongTien is null or <= 0: " + hoaDonDTO.getTongTien());
                 return ResponseEntity.badRequest().body("Tổng tiền phải lớn hơn 0");
             }
             
+            System.out.println("✅ Validation passed, calling hoaDonService.updateHoaDon...");
             HoaDonDTO updatedHoaDon = hoaDonService.updateHoaDon(id, hoaDonDTO);
+            System.out.println("✅ Invoice updated successfully, new status: " + updatedHoaDon.getTrangThai());
             return ResponseEntity.ok(updatedHoaDon);
         } catch (jakarta.persistence.EntityNotFoundException e) {
+            System.out.println("❌ EntityNotFoundException: " + e.getMessage());
             return ResponseEntity.status(org.springframework.http.HttpStatus.NOT_FOUND).body(e.getMessage());
         } catch (RuntimeException e) {
+            System.out.println("❌ RuntimeException: " + e.getMessage());
+            e.printStackTrace();
             return ResponseEntity.status(org.springframework.http.HttpStatus.BAD_REQUEST).body(e.getMessage());
         } catch (Exception e) {
+            System.out.println("❌ Exception: " + e.getMessage());
+            e.printStackTrace();
             return ResponseEntity.status(org.springframework.http.HttpStatus.INTERNAL_SERVER_ERROR)
                     .body("Lỗi server: " + e.getMessage());
         }
