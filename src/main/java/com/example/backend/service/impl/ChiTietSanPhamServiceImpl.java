@@ -19,15 +19,18 @@ public class ChiTietSanPhamServiceImpl implements ChiTietSanPhamService {
     private final SanPhamRepository sanPhamRepository;
     private final KichThuocRepository kichThuocRepository;
     private final MauSacRepository mauSacRepository;
+    private final TrongLuongRepository trongLuongRepository;
 
     public ChiTietSanPhamServiceImpl(ChiTietSanPhamRepository repository,
                                     SanPhamRepository sanPhamRepository,
                                     KichThuocRepository kichThuocRepository,
-                                    MauSacRepository mauSacRepository) {
+                                    MauSacRepository mauSacRepository,
+                                    TrongLuongRepository trongLuongRepository) {
         this.repository = repository;
         this.sanPhamRepository = sanPhamRepository;
         this.kichThuocRepository = kichThuocRepository;
         this.mauSacRepository = mauSacRepository;
+        this.trongLuongRepository = trongLuongRepository;
     }
 
     @Override
@@ -78,11 +81,15 @@ public class ChiTietSanPhamServiceImpl implements ChiTietSanPhamService {
         entity.setSanPham(sanPhamRepository.findById(req.getSanPhamId()).orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Sản phẩm không hợp lệ")));
         entity.setKichThuoc(kichThuocRepository.findById(req.getKichThuocId()).orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Kích thước không hợp lệ")));
         entity.setMauSac(mauSacRepository.findById(req.getMauSacId()).orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Màu sắc không hợp lệ")));
-        // Trọng lượng: chỉ dùng giá trị nhập tay
+        // Trọng lượng: chấp nhận tên nhập tay; nếu không có, chấp nhận id; nếu cả hai trống thì để null
         if (req.getTrongLuongTen() != null && !req.getTrongLuongTen().trim().isEmpty()) {
             entity.setTrongLuongTen(req.getTrongLuongTen().trim());
+        } else if (req.getTrongLuongId() != null && req.getTrongLuongId() > 0) {
+            var tl = trongLuongRepository.findById(req.getTrongLuongId())
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Trọng lượng không hợp lệ"));
+            entity.setTrongLuongTen(String.valueOf(tl.getGiaTriTrongLuong()));
         } else {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Trọng lượng là bắt buộc");
+            entity.setTrongLuongTen(null);
         }
         // Lưu nguyên chuỗi theo yêu cầu
         entity.setGiaBan(req.getGiaBan());
