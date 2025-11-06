@@ -16,6 +16,7 @@ import com.example.backend.repository.NhanVienRepository;
 import com.example.backend.repository.ChiTietSanPhamRepository;
 import com.example.backend.repository.HinhThucThanhToanRepository;
 import com.example.backend.repository.PhuongThucThanhToanRepository;
+import com.example.backend.repository.HoaDonChiTietRepository;
 import com.example.backend.service.DiaChiKhachHangService;
 import jakarta.persistence.EntityNotFoundException;
 import jakarta.persistence.EntityManager;
@@ -43,6 +44,7 @@ public class HoaDonService {
     private final DiaChiKhachHangService diaChiKhachHangService;
     private final HinhThucThanhToanRepository hinhThucThanhToanRepository;
     private final PhuongThucThanhToanRepository phuongThucThanhToanRepository;
+    private final HoaDonChiTietRepository hoaDonChiTietRepository;
     
     @PersistenceContext
     private EntityManager entityManager;
@@ -53,7 +55,8 @@ public class HoaDonService {
                          ChiTietSanPhamRepository chiTietSanPhamRepository,
                          DiaChiKhachHangService diaChiKhachHangService,
                          HinhThucThanhToanRepository hinhThucThanhToanRepository,
-                         PhuongThucThanhToanRepository phuongThucThanhToanRepository) {
+                         PhuongThucThanhToanRepository phuongThucThanhToanRepository,
+                         HoaDonChiTietRepository hoaDonChiTietRepository) {
         this.hoaDonRepository = hoaDonRepository;
         this.khachHangRepository = khachHangRepository;
         this.nhanVienRepository = nhanVienRepository;
@@ -61,6 +64,7 @@ public class HoaDonService {
         this.diaChiKhachHangService = diaChiKhachHangService;
         this.hinhThucThanhToanRepository = hinhThucThanhToanRepository;
         this.phuongThucThanhToanRepository = phuongThucThanhToanRepository;
+        this.hoaDonChiTietRepository = hoaDonChiTietRepository;
     }
 
     public HoaDonDTO toDTO(HoaDon h) {
@@ -140,11 +144,37 @@ public class HoaDonService {
         builder.phuongThucThanhToan(phuongThucValue != null ? phuongThucValue : "cash");
         
         // Map danh sách chi tiết sản phẩm
+        // QUAN TRỌNG: Luôn map danhSachChiTiet, kể cả khi trạng thái là HUY/DA_HUY
+        // để frontend có thể hiển thị sản phẩm đã hủy
         if (h.getDanhSachChiTiet() != null && !h.getDanhSachChiTiet().isEmpty()) {
+            System.out.println("📦 Mapping danhSachChiTiet to DTO, count: " + h.getDanhSachChiTiet().size());
             List<HoaDonChiTietDTO> chiTietList = h.getDanhSachChiTiet().stream()
                     .map(this::toChiTietDTO)
                     .collect(Collectors.toList());
             builder.danhSachChiTiet(chiTietList);
+            System.out.println("✅ Mapped danhSachChiTiet, DTO count: " + chiTietList.size());
+        } else {
+            System.out.println("⚠️ No danhSachChiTiet found in entity for invoice ID: " + h.getId() + ", status: " + h.getTrangThai());
+            // Thử load lại từ repository (có thể do LEFT JOIN FETCH không load được)
+            try {
+                List<HoaDonChiTiet> chiTietFromRepo = hoaDonChiTietRepository.findByHoaDonId(h.getId());
+                if (chiTietFromRepo != null && !chiTietFromRepo.isEmpty()) {
+                    System.out.println("✅ Found " + chiTietFromRepo.size() + " items in repository, mapping...");
+                    List<HoaDonChiTietDTO> chiTietList = chiTietFromRepo.stream()
+                            .map(this::toChiTietDTO)
+                            .collect(Collectors.toList());
+                    builder.danhSachChiTiet(chiTietList);
+                    System.out.println("✅ Mapped danhSachChiTiet from repository, DTO count: " + chiTietList.size());
+                } else {
+                    System.out.println("⚠️ No danhSachChiTiet found in repository either");
+                    // Set empty list thay vì null để frontend có thể xử lý
+                    builder.danhSachChiTiet(new java.util.ArrayList<>());
+                }
+            } catch (Exception e) {
+                System.err.println("❌ Error loading danhSachChiTiet from repository: " + e.getMessage());
+                // Set empty list thay vì null để frontend có thể xử lý
+                builder.danhSachChiTiet(new java.util.ArrayList<>());
+            }
         }
         
         return builder.build();
@@ -197,10 +227,20 @@ public class HoaDonService {
         if (d.getTienGiamGia() != null) h.setTienGiamGia(d.getTienGiamGia());
         if (d.getGiamGiaPhanTram() != null) h.setGiamGiaPhanTram(d.getGiamGiaPhanTram());
         if (d.getThanhTien() != null) h.setThanhTien(d.getThanhTien());
-        if (d.getGhiChu() != null) h.setGhiChu(d.getGhiChu());
+        
+        // Xử lý ghi chú: Cho phép cả null và empty string (để có thể xóa ghi chú)
+        // Nhưng nếu có giá trị thì set vào
+        if (d.getGhiChu() != null) {
+            System.out.println("📝 Setting ghiChu: '" + d.getGhiChu() + "' (length: " + d.getGhiChu().length() + ")");
+            h.setGhiChu(d.getGhiChu());
+        } else {
+            System.out.println("⚠️ ghiChu is null in DTO, keeping existing value: '" + h.getGhiChu() + "'");
+        }
+        
         if (d.getTrangThai() != null) {
             // Convert String từ DTO sang enum, map "HUY" -> "DA_HUY"
             HoaDon.TrangThaiHoaDon trangThaiEnum = convertStringToTrangThaiEnum(d.getTrangThai());
+            System.out.println("🔄 Setting trangThai: " + d.getTrangThai() + " -> " + trangThaiEnum);
             h.setTrangThai(trangThaiEnum);
         }
         if (d.getSoLuongSanPham() != null) h.setSoLuongSanPham(d.getSoLuongSanPham());
@@ -304,56 +344,66 @@ public class HoaDonService {
         
         // Xử lý danh sách chi tiết sản phẩm nếu có
         // QUAN TRỌNG: Với orphanRemoval = true, KHÔNG được set collection mới hoặc clear() mà không add lại ngay
-        // Giải pháp: Clear và add lại trong cùng một block, đảm bảo collection luôn có reference
-        if (dto.getDanhSachChiTiet() != null) {
+        // Giải pháp: Chỉ clear và add lại khi có danhSachChiTiet mới (không empty)
+        // Nếu danhSachChiTiet là null hoặc empty, giữ nguyên collection hiện tại
+        System.out.println("📦 Processing danhSachChiTiet in updateHoaDon:");
+        System.out.println("   - dto.getDanhSachChiTiet() is null: " + (dto.getDanhSachChiTiet() == null));
+        System.out.println("   - dto.getDanhSachChiTiet() size: " + (dto.getDanhSachChiTiet() != null ? dto.getDanhSachChiTiet().size() : "null"));
+        System.out.println("   - Current h.getDanhSachChiTiet() size: " + (h.getDanhSachChiTiet() != null ? h.getDanhSachChiTiet().size() : "null"));
+        
+        // Chỉ xử lý danhSachChiTiet nếu có dữ liệu mới (không null và không empty)
+        // Nếu null hoặc empty, giữ nguyên collection hiện tại để không mất dữ liệu
+        if (dto.getDanhSachChiTiet() != null && !dto.getDanhSachChiTiet().isEmpty()) {
+            System.out.println("✅ Updating danhSachChiTiet with " + dto.getDanhSachChiTiet().size() + " items");
+            
             // Đảm bảo collection được khởi tạo trước
             if (h.getDanhSachChiTiet() == null) {
                 h.setDanhSachChiTiet(new ArrayList<>());
             }
-            
+
             // Xóa các chi tiết cũ bằng cách clear() collection
             // Với orphanRemoval = true, clear() sẽ tự động xóa các item khỏi database
             h.getDanhSachChiTiet().clear();
-
-        }
-        
-        // Thêm các chi tiết mới
-        if (dto.getDanhSachChiTiet() != null && !dto.getDanhSachChiTiet().isEmpty()) {
+            
+            // Thêm các chi tiết mới ngay lập tức
             List<HoaDonChiTiet> chiTietList = new ArrayList<>();
             for (HoaDonChiTietDTO chiTietDTO : dto.getDanhSachChiTiet()) {
                 if (chiTietDTO.getChiTietSanPhamId() == null) {
+                    System.out.println("⚠️ Skipping item with null chiTietSanPhamId");
                     continue; // Bỏ qua nếu không có chiTietSanPhamId
-
-
-            
-//             // Ngay lập tức add các chi tiết mới vào collection (không được để collection rỗng quá lâu)
-//             if (!dto.getDanhSachChiTiet().isEmpty()) {
-//                 for (HoaDonChiTietDTO chiTietDTO : dto.getDanhSachChiTiet()) {
-//                     if (chiTietDTO.getChiTietSanPhamId() == null) {
-//                         continue; // Bỏ qua nếu không có chiTietSanPhamId
-//                     }
+                }
+                
+                try {
+                    ChiTietSanPham chiTietSanPham = chiTietSanPhamRepository.findById(chiTietDTO.getChiTietSanPhamId())
+                            .orElseThrow(() -> new RuntimeException("Không tìm thấy chi tiết sản phẩm với ID: " + chiTietDTO.getChiTietSanPhamId()));
                     
-//                     ChiTietSanPham chiTietSanPham = chiTietSanPhamRepository.findById(chiTietDTO.getChiTietSanPhamId())
-//                             .orElseThrow(() -> new RuntimeException("Không tìm thấy chi tiết sản phẩm với ID: " + chiTietDTO.getChiTietSanPhamId()));
+                    HoaDonChiTiet hoaDonChiTiet = new HoaDonChiTiet();
+                    hoaDonChiTiet.setHoaDon(h);
+                    hoaDonChiTiet.setChiTietSanPham(chiTietSanPham);
+                    hoaDonChiTiet.setSoLuong(chiTietDTO.getSoLuong() != null ? chiTietDTO.getSoLuong() : 0);
+                    hoaDonChiTiet.setDonGia(chiTietDTO.getDonGia() != null ? chiTietDTO.getDonGia() : java.math.BigDecimal.ZERO);
+                    hoaDonChiTiet.setGiamGia(chiTietDTO.getGiamGia() != null ? chiTietDTO.getGiamGia() : java.math.BigDecimal.ZERO);
+                    hoaDonChiTiet.setThanhTien(chiTietDTO.getThanhTien() != null ? chiTietDTO.getThanhTien() : java.math.BigDecimal.ZERO);
                     
-//                     HoaDonChiTiet hoaDonChiTiet = new HoaDonChiTiet();
-//                     hoaDonChiTiet.setHoaDon(h);
-//                     hoaDonChiTiet.setChiTietSanPham(chiTietSanPham);
-//                     hoaDonChiTiet.setSoLuong(chiTietDTO.getSoLuong() != null ? chiTietDTO.getSoLuong() : 0);
-//                     hoaDonChiTiet.setDonGia(chiTietDTO.getDonGia() != null ? chiTietDTO.getDonGia() : java.math.BigDecimal.ZERO);
-//                     hoaDonChiTiet.setGiamGia(chiTietDTO.getGiamGia() != null ? chiTietDTO.getGiamGia() : java.math.BigDecimal.ZERO);
-//                     hoaDonChiTiet.setThanhTien(chiTietDTO.getThanhTien() != null ? chiTietDTO.getThanhTien() : java.math.BigDecimal.ZERO);
-                    
-//                     // Add ngay vào collection sau khi clear (không được delay)
-//                     h.getDanhSachChiTiet().add(hoaDonChiTiet);
-
-// >>>>>>> main
+                    // Add ngay vào collection sau khi clear (không được delay)
+                    h.getDanhSachChiTiet().add(hoaDonChiTiet);
+                    chiTietList.add(hoaDonChiTiet);
+                } catch (Exception e) {
+                    System.err.println("❌ Error creating HoaDonChiTiet for chiTietSanPhamId " + chiTietDTO.getChiTietSanPhamId() + ": " + e.getMessage());
+                    // Tiếp tục với item tiếp theo
                 }
             }
-            // Nếu danhSachChiTiet là empty array, collection đã được clear và giữ nguyên empty
+            
+            System.out.println("✅ Added " + chiTietList.size() + " items to danhSachChiTiet");
+        } else {
+            // Nếu danhSachChiTiet là null hoặc empty, giữ nguyên collection hiện tại
+            // Điều này đảm bảo không mất dữ liệu khi chỉ cập nhật trạng thái hoặc ghi chú
+            System.out.println("⚠️ danhSachChiTiet is null or empty, keeping existing collection (size: " + 
+                (h.getDanhSachChiTiet() != null ? h.getDanhSachChiTiet().size() : 0) + ")");
         }
-        // Nếu dto.getDanhSachChiTiet() == null, giữ nguyên collection hiện tại (không thay đổi)
         
+        System.out.println("💾 Saving invoice with ghiChu: '" + h.getGhiChu() + "'");
+
         // Lưu hóa đơn
         HoaDon saved = hoaDonRepository.save(h);
         
@@ -470,7 +520,7 @@ public class HoaDonService {
                 trangThaiEnum = null;
             }
         }
-        
+
         // Đếm tổng số bản ghi trước
         StringBuilder countQueryStr = new StringBuilder(
             "SELECT COUNT(DISTINCT h) FROM HoaDon h " +
@@ -486,7 +536,7 @@ public class HoaDonService {
         if (trangThaiEnum != null) {
             countQueryStr.append(" AND h.trangThai = :trangThai");
         }
-        
+
         jakarta.persistence.TypedQuery<Long> countQuery = entityManager.createQuery(
             countQueryStr.toString(),
             Long.class
@@ -505,7 +555,7 @@ public class HoaDonService {
         if (trangThaiEnum != null) {
             countQuery.setParameter("trangThai", trangThaiEnum);
         }
-        
+
         long totalElements = countQuery.getSingleResult();
         
         // Query với join fetch để load các relationships
@@ -532,7 +582,7 @@ public class HoaDonService {
         if (trangThaiEnum != null) {
             queryStr.append(" AND h.trangThai = :trangThai");
         }
-        
+
         // Luôn có ORDER BY để đảm bảo thứ tự: mặc định ORDER BY id ASC (hóa đơn cũ nhất lên đầu, mới nhất xuống cuối)
         // Chỉ thay đổi ORDER BY nếu user click vào cột để sort
         Sort sort = pageable.getSort();
@@ -565,7 +615,7 @@ public class HoaDonService {
         if (trangThaiEnum != null) {
             query.setParameter("trangThai", trangThaiEnum);
         }
-        
+
         // Apply pagination
         query.setFirstResult((int) pageable.getOffset());
         query.setMaxResults(pageable.getPageSize());
