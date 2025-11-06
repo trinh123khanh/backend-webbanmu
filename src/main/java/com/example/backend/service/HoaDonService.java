@@ -292,44 +292,54 @@ public class HoaDonService {
 
     @Transactional
     public HoaDonDTO updateHoaDon(Long id, HoaDonDTO dto) {
-        // Load hóa đơn với relationships bằng cách sử dụng getHoaDonById để đảm bảo load đầy đ
+
         HoaDon h = getHoaDonById(id)
                 .orElseThrow(() -> new EntityNotFoundException("Không tìm thấy hóa đơn"));
         
         updateEntityFromDTO(h, dto);
         
         // Xử lý danh sách chi tiết sản phẩm nếu có
-        // Xóa các chi tiết cũ trước (với orphanRemoval = true, clear sẽ tự động xóa)
-        if (h.getDanhSachChiTiet() != null && !h.getDanhSachChiTiet().isEmpty()) {
-            h.getDanhSachChiTiet().clear();
-        }
-        
-        
-        // Thêm các chi tiết mới
-        if (dto.getDanhSachChiTiet() != null && !dto.getDanhSachChiTiet().isEmpty()) {
-            List<HoaDonChiTiet> chiTietList = new ArrayList<>();
-            for (HoaDonChiTietDTO chiTietDTO : dto.getDanhSachChiTiet()) {
-                if (chiTietDTO.getChiTietSanPhamId() == null) {
-                    continue; // Bỏ qua nếu không có chiTietSanPhamId
-                }
-                
-                ChiTietSanPham chiTietSanPham = chiTietSanPhamRepository.findById(chiTietDTO.getChiTietSanPhamId())
-                        .orElseThrow(() -> new RuntimeException("Không tìm thấy chi tiết sản phẩm với ID: " + chiTietDTO.getChiTietSanPhamId()));
-                
-                HoaDonChiTiet hoaDonChiTiet = new HoaDonChiTiet();
-                hoaDonChiTiet.setHoaDon(h);
-                hoaDonChiTiet.setChiTietSanPham(chiTietSanPham);
-                hoaDonChiTiet.setSoLuong(chiTietDTO.getSoLuong() != null ? chiTietDTO.getSoLuong() : 0);
-                hoaDonChiTiet.setDonGia(chiTietDTO.getDonGia() != null ? chiTietDTO.getDonGia() : java.math.BigDecimal.ZERO);
-                hoaDonChiTiet.setGiamGia(chiTietDTO.getGiamGia() != null ? chiTietDTO.getGiamGia() : java.math.BigDecimal.ZERO);
-                hoaDonChiTiet.setThanhTien(chiTietDTO.getThanhTien() != null ? chiTietDTO.getThanhTien() : java.math.BigDecimal.ZERO);
-                
-                chiTietList.add(hoaDonChiTiet);
+        // QUAN TRỌNG: Với orphanRemoval = true, KHÔNG được set collection mới hoặc clear() mà không add lại ngay
+        // Giải pháp: Clear và add lại trong cùng một block, đảm bảo collection luôn có reference
+        if (dto.getDanhSachChiTiet() != null) {
+            // Đảm bảo collection được khởi tạo trước
+            if (h.getDanhSachChiTiet() == null) {
+                h.setDanhSachChiTiet(new ArrayList<>());
             }
-            h.setDanhSachChiTiet(chiTietList);
+            
+            // Xóa các chi tiết cũ bằng cách clear() collection
+            // Với orphanRemoval = true, clear() sẽ tự động xóa các item khỏi database
+            h.getDanhSachChiTiet().clear();
+
+            
+            // Ngay lập tức add các chi tiết mới vào collection (không được để collection rỗng quá lâu)
+            if (!dto.getDanhSachChiTiet().isEmpty()) {
+                for (HoaDonChiTietDTO chiTietDTO : dto.getDanhSachChiTiet()) {
+                    if (chiTietDTO.getChiTietSanPhamId() == null) {
+                        continue; // Bỏ qua nếu không có chiTietSanPhamId
+                    }
+                    
+                    ChiTietSanPham chiTietSanPham = chiTietSanPhamRepository.findById(chiTietDTO.getChiTietSanPhamId())
+                            .orElseThrow(() -> new RuntimeException("Không tìm thấy chi tiết sản phẩm với ID: " + chiTietDTO.getChiTietSanPhamId()));
+                    
+                    HoaDonChiTiet hoaDonChiTiet = new HoaDonChiTiet();
+                    hoaDonChiTiet.setHoaDon(h);
+                    hoaDonChiTiet.setChiTietSanPham(chiTietSanPham);
+                    hoaDonChiTiet.setSoLuong(chiTietDTO.getSoLuong() != null ? chiTietDTO.getSoLuong() : 0);
+                    hoaDonChiTiet.setDonGia(chiTietDTO.getDonGia() != null ? chiTietDTO.getDonGia() : java.math.BigDecimal.ZERO);
+                    hoaDonChiTiet.setGiamGia(chiTietDTO.getGiamGia() != null ? chiTietDTO.getGiamGia() : java.math.BigDecimal.ZERO);
+                    hoaDonChiTiet.setThanhTien(chiTietDTO.getThanhTien() != null ? chiTietDTO.getThanhTien() : java.math.BigDecimal.ZERO);
+                    
+                    // Add ngay vào collection sau khi clear (không được delay)
+                    h.getDanhSachChiTiet().add(hoaDonChiTiet);
+
+                }
+            }
+            // Nếu danhSachChiTiet là empty array, collection đã được clear và giữ nguyên empty
         }
+        // Nếu dto.getDanhSachChiTiet() == null, giữ nguyên collection hiện tại (không thay đổi)
         
-        // Lưu hóa đơn trước để có ID
+        // Lưu hóa đơn
         HoaDon saved = hoaDonRepository.save(h);
         
         // Xử lý phương thức thanh toán nếu có
@@ -413,7 +423,7 @@ public class HoaDonService {
         }
     }
 
-    public Page<HoaDon> getAllHoaDon(String keyword, String phuongThucThanhToan, Pageable pageable) {
+    public Page<HoaDon> getAllHoaDon(String keyword, String phuongThucThanhToan, String trangThai, Pageable pageable) {
         // Map từ frontend format sang backend format
         String tenHinhThuc = null;
         if (phuongThucThanhToan != null && !phuongThucThanhToan.trim().isEmpty()) {
@@ -423,6 +433,26 @@ public class HoaDonService {
                 tenHinhThuc = "Chuyển khoản";
             } else {
                 tenHinhThuc = phuongThucThanhToan;
+            }
+        }
+        
+        // Map trangThai từ String (frontend) sang enum (backend)
+        // Frontend gửi: CHO_XAC_NHAN, DA_XAC_NHAN, DANG_GIAO_HANG, DA_GIAO_HANG, HUY
+        // Backend enum: CHO_XAC_NHAN, DA_XAC_NHAN, DANG_GIAO_HANG, DA_GIAO_HANG, DA_HUY
+        HoaDon.TrangThaiHoaDon trangThaiEnum = null;
+        if (trangThai != null && !trangThai.trim().isEmpty()) {
+            try {
+                String trangThaiUpper = trangThai.toUpperCase();
+                // Map HUY từ frontend sang DA_HUY trong backend
+                if ("HUY".equals(trangThaiUpper)) {
+                    trangThaiUpper = "DA_HUY";
+                }
+                trangThaiEnum = HoaDon.TrangThaiHoaDon.valueOf(trangThaiUpper);
+                System.out.println("✅ Mapped trangThai: " + trangThai + " -> " + trangThaiEnum.name());
+            } catch (IllegalArgumentException e) {
+                System.err.println("⚠️ Invalid trangThai value: " + trangThai);
+                System.err.println("💡 Valid values: CHO_XAC_NHAN, DA_XAC_NHAN, DANG_GIAO_HANG, DA_GIAO_HANG, HUY");
+                trangThaiEnum = null;
             }
         }
         
@@ -438,6 +468,10 @@ public class HoaDonService {
             countQueryStr.append(" AND (htt.tenHinhThuc = :tenHinhThuc OR htt.tenHinhThuc IS NULL)");
         }
         
+        if (trangThaiEnum != null) {
+            countQueryStr.append(" AND h.trangThai = :trangThai");
+        }
+        
         jakarta.persistence.TypedQuery<Long> countQuery = entityManager.createQuery(
             countQueryStr.toString(),
             Long.class
@@ -451,6 +485,10 @@ public class HoaDonService {
         
         if (tenHinhThuc != null) {
             countQuery.setParameter("tenHinhThuc", tenHinhThuc);
+        }
+        
+        if (trangThaiEnum != null) {
+            countQuery.setParameter("trangThai", trangThaiEnum);
         }
         
         long totalElements = countQuery.getSingleResult();
@@ -474,6 +512,10 @@ public class HoaDonService {
         
         if (tenHinhThuc != null) {
             queryStr.append(" AND (htt.tenHinhThuc = :tenHinhThuc OR htt.tenHinhThuc IS NULL)");
+        }
+        
+        if (trangThaiEnum != null) {
+            queryStr.append(" AND h.trangThai = :trangThai");
         }
         
         // Luôn có ORDER BY để đảm bảo thứ tự: mặc định ORDER BY id ASC (hóa đơn cũ nhất lên đầu, mới nhất xuống cuối)
@@ -503,6 +545,10 @@ public class HoaDonService {
         
         if (tenHinhThuc != null) {
             query.setParameter("tenHinhThuc", tenHinhThuc);
+        }
+        
+        if (trangThaiEnum != null) {
+            query.setParameter("trangThai", trangThaiEnum);
         }
         
         // Apply pagination
