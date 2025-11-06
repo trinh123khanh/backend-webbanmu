@@ -1,0 +1,418 @@
+package com.example.backend.service;
+
+import com.example.backend.dto.HoaDonChoRequest;
+import com.example.backend.dto.HoaDonChoResponse;
+import com.example.backend.dto.GioHangChoItemRequest;
+import com.example.backend.dto.GioHangChoItemResponse;
+import com.example.backend.entity.HoaDonCho;
+import com.example.backend.entity.GioHangCho;
+import com.example.backend.entity.KhachHang;
+import com.example.backend.entity.NhanVien;
+import com.example.backend.entity.ChiTietSanPham;
+import com.example.backend.repository.HoaDonChoRepository;
+import com.example.backend.repository.GioHangChoRepository;
+import com.example.backend.repository.KhachHangRepository;
+import com.example.backend.repository.NhanVienRepository;
+import com.example.backend.repository.ChiTietSanPhamRepository;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.EntityNotFoundException;
+import jakarta.persistence.PersistenceContext;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.math.BigDecimal;
+import java.util.List;
+import java.util.stream.Collectors;
+
+@Slf4j
+@Service
+@Transactional(readOnly = true)
+public class HoaDonChoService {
+
+    private final HoaDonChoRepository hoaDonChoRepository;
+    private final GioHangChoRepository gioHangChoRepository;
+    private final KhachHangRepository khachHangRepository;
+    private final NhanVienRepository nhanVienRepository;
+    private final ChiTietSanPhamRepository chiTietSanPhamRepository;
+
+    @PersistenceContext
+    private EntityManager entityManager;
+
+    public HoaDonChoService(HoaDonChoRepository hoaDonChoRepository,
+                           GioHangChoRepository gioHangChoRepository,
+                           KhachHangRepository khachHangRepository,
+                           NhanVienRepository nhanVienRepository,
+                           ChiTietSanPhamRepository chiTietSanPhamRepository) {
+        this.hoaDonChoRepository = hoaDonChoRepository;
+        this.gioHangChoRepository = gioHangChoRepository;
+        this.khachHangRepository = khachHangRepository;
+        this.nhanVienRepository = nhanVienRepository;
+        this.chiTietSanPhamRepository = chiTietSanPhamRepository;
+    }
+
+    public HoaDonChoResponse toResponse(HoaDonCho h) {
+        log.debug("Converting HoaDonCho to response. ID: {}, gioHangCho size: {}", 
+                h.getId(), h.getGioHangCho() != null ? h.getGioHangCho().size() : 0);
+        
+        List<GioHangChoItemResponse> gioHang = h.getGioHangCho() != null ?
+                h.getGioHangCho().stream()
+                        .map(this::toGioHangItemResponse)
+                        .collect(Collectors.toList()) :
+                List.of();
+        
+        log.debug("Response gioHang size: {}", gioHang.size());
+
+        Long tongSoLuong = gioHang.stream()
+                .mapToLong(item -> item.getSoLuong() != null ? item.getSoLuong() : 0L)
+                .sum();
+
+        BigDecimal tongTien = gioHang.stream()
+                .map(item -> item.getDonGia() != null && item.getSoLuong() != null ?
+                        item.getDonGia().multiply(BigDecimal.valueOf(item.getSoLuong())) :
+                        BigDecimal.ZERO)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        BigDecimal tongGiamGia = gioHang.stream()
+                .map(item -> item.getGiamGia() != null ? item.getGiamGia() : BigDecimal.ZERO)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        BigDecimal thanhTien = tongTien.subtract(tongGiamGia).max(BigDecimal.ZERO);
+
+        return HoaDonChoResponse.builder()
+                .id(h.getId())
+                .maHoaDonCho(h.getMaHoaDonCho())
+                .khachHangId(h.getKhachHang() != null ? h.getKhachHang().getId() : null)
+                .tenKhachHang(h.getTenKhachHang())
+                .soDienThoaiKhachHang(h.getSoDienThoaiKhachHang())
+                .nhanVienId(h.getNhanVien() != null ? h.getNhanVien().getId() : null)
+                .tenNhanVien(h.getTenNhanVien())
+                .ghiChu(h.getGhiChu())
+                .trangThai(h.getTrangThai())
+                .ngayTao(h.getNgayTao())
+                .ngayCapNhat(h.getNgayCapNhat())
+                .danhSachGioHang(gioHang)
+                .tongSoLuong(tongSoLuong)
+                .tongTien(tongTien)
+                .tongGiamGia(tongGiamGia)
+                .thanhTien(thanhTien)
+                .build();
+    }
+
+    private GioHangChoItemResponse toGioHangItemResponse(GioHangCho item) {
+        return GioHangChoItemResponse.builder()
+                .id(item.getId())
+                .chiTietSanPhamId(item.getChiTietSanPham() != null ? item.getChiTietSanPham().getId() : null)
+                .tenSanPham(item.getTenSanPham())
+                .soLuong(item.getSoLuong())
+                .donGia(item.getDonGia())
+                .giamGia(item.getGiamGia())
+                .thanhTien(item.getThanhTien())
+                .build();
+    }
+
+    @Transactional
+    public HoaDonChoResponse createHoaDonCho(HoaDonChoRequest request) {
+        // Kiểm tra số lượng hóa đơn chờ hiện tại (tối đa 5)
+        final int MAX_PENDING_INVOICES = 5;
+        long countPending = hoaDonChoRepository.countByTrangThai("DANG_CHO");
+        if (countPending >= MAX_PENDING_INVOICES) {
+            throw new RuntimeException(
+                String.format("Bạn chỉ có thể tạo tối đa %d hóa đơn chờ. Vui lòng xóa hoặc thanh toán hóa đơn chờ hiện tại trước khi tạo mới.", 
+                    MAX_PENDING_INVOICES)
+            );
+        }
+
+        HoaDonCho hoaDonCho = new HoaDonCho();
+        hoaDonCho.setMaHoaDonCho(request.getMaHoaDonCho());
+        hoaDonCho.setTenKhachHang(request.getTenKhachHang());
+        hoaDonCho.setSoDienThoaiKhachHang(request.getSoDienThoaiKhachHang());
+        hoaDonCho.setTenNhanVien(request.getTenNhanVien());
+        hoaDonCho.setGhiChu(request.getGhiChu());
+        hoaDonCho.setTrangThai(request.getTrangThai() != null ? request.getTrangThai() : "DANG_CHO");
+
+        // Set khachHang if khachHangId is provided
+        if (request.getKhachHangId() != null) {
+            KhachHang khachHang = khachHangRepository.findById(request.getKhachHangId())
+                    .orElse(null);
+            hoaDonCho.setKhachHang(khachHang);
+        }
+
+        // Set nhanVien if nhanVienId is provided
+        if (request.getNhanVienId() != null) {
+            NhanVien nhanVien = nhanVienRepository.findById(request.getNhanVienId())
+                    .orElse(null);
+            hoaDonCho.setNhanVien(nhanVien);
+        }
+
+        HoaDonCho saved = hoaDonChoRepository.save(hoaDonCho);
+
+        // Add cart items if provided
+        if (request.getDanhSachGioHang() != null && !request.getDanhSachGioHang().isEmpty()) {
+            for (GioHangChoItemRequest itemRequest : request.getDanhSachGioHang()) {
+                addItemToCart(saved.getId(), itemRequest);
+            }
+        }
+
+        // Reload with fresh data using fetch join
+        return toResponse(hoaDonChoRepository.findByIdWithGioHangCho(saved.getId()).orElseThrow());
+    }
+
+    @Transactional
+    public HoaDonChoResponse addItemToCart(Long hoaDonChoId, GioHangChoItemRequest itemRequest) {
+        HoaDonCho hoaDonCho = hoaDonChoRepository.findById(hoaDonChoId)
+                .orElseThrow(() -> new EntityNotFoundException("Không tìm thấy hóa đơn chờ với ID: " + hoaDonChoId));
+
+        ChiTietSanPham chiTietSanPham = chiTietSanPhamRepository.findById(itemRequest.getChiTietSanPhamId())
+                .orElseThrow(() -> new EntityNotFoundException("Không tìm thấy chi tiết sản phẩm với ID: " + itemRequest.getChiTietSanPhamId()));
+
+        // Check if item already exists in cart
+        var existingItem = gioHangChoRepository.findByHoaDonChoIdAndChiTietSanPhamId(hoaDonChoId, itemRequest.getChiTietSanPhamId());
+        
+        int quantityToAdd = itemRequest.getSoLuong() != null ? itemRequest.getSoLuong() : 1;
+        
+        // Check available stock
+        int currentStock = 0;
+        try {
+            currentStock = Integer.parseInt(chiTietSanPham.getSoLuongTon());
+        } catch (NumberFormatException e) {
+            log.warn("Invalid stock quantity format for ChiTietSanPham id: {}", chiTietSanPham.getId());
+        }
+        
+        int quantityInCart = existingItem.map(GioHangCho::getSoLuong).orElse(0);
+        int newQuantity = quantityInCart + quantityToAdd;
+        
+        if (newQuantity > currentStock) {
+            throw new RuntimeException(
+                String.format("Số lượng sản phẩm không đủ. Hiện tại còn %d sản phẩm trong kho.", currentStock)
+            );
+        }
+        
+        GioHangCho gioHangCho;
+        if (existingItem.isPresent()) {
+            // Update quantity if item exists
+            gioHangCho = existingItem.get();
+            gioHangCho.setSoLuong(newQuantity);
+        } else {
+            // Create new cart item
+            gioHangCho = new GioHangCho();
+            gioHangCho.setHoaDonCho(hoaDonCho);
+            gioHangCho.setChiTietSanPham(chiTietSanPham);
+            gioHangCho.setTenSanPham(itemRequest.getTenSanPham());
+            gioHangCho.setSoLuong(quantityToAdd);
+            // Parse giaBan from String to BigDecimal
+            BigDecimal donGia = itemRequest.getDonGia();
+            if (donGia == null && chiTietSanPham.getGiaBan() != null) {
+                try {
+                    donGia = new BigDecimal(chiTietSanPham.getGiaBan());
+                } catch (NumberFormatException e) {
+                    donGia = BigDecimal.ZERO;
+                }
+            }
+            gioHangCho.setDonGia(donGia != null ? donGia : BigDecimal.ZERO);
+            gioHangCho.setGiamGia(itemRequest.getGiamGia() != null ? itemRequest.getGiamGia() : BigDecimal.ZERO);
+        }
+        
+        // Calculate thanhTien
+        BigDecimal total = gioHangCho.getDonGia().multiply(BigDecimal.valueOf(gioHangCho.getSoLuong()));
+        gioHangCho.setThanhTien(total.subtract(gioHangCho.getGiamGia() != null ? gioHangCho.getGiamGia() : BigDecimal.ZERO).max(BigDecimal.ZERO));
+
+        gioHangChoRepository.save(gioHangCho);
+        gioHangChoRepository.flush();
+
+        // Update product stock: subtract quantity added to cart
+        int newStock = currentStock - quantityToAdd;
+        chiTietSanPham.setSoLuongTon(String.valueOf(newStock));
+        chiTietSanPhamRepository.save(chiTietSanPham);
+        chiTietSanPhamRepository.flush();
+        
+        log.info("Updated stock for ChiTietSanPham id: {} from {} to {}", 
+                chiTietSanPham.getId(), currentStock, newStock);
+
+        // Reload with fresh data using fetch join
+        return toResponse(hoaDonChoRepository.findByIdWithGioHangCho(hoaDonChoId).orElseThrow());
+    }
+
+    @Transactional
+    public HoaDonChoResponse updateCartItemQuantity(Long hoaDonChoId, Long gioHangChoId, Integer soLuong) {
+        GioHangCho gioHangCho = gioHangChoRepository.findById(gioHangChoId)
+                .orElseThrow(() -> new EntityNotFoundException("Không tìm thấy giỏ hàng với ID: " + gioHangChoId));
+
+        if (!gioHangCho.getHoaDonCho().getId().equals(hoaDonChoId)) {
+            throw new RuntimeException("Giỏ hàng không thuộc hóa đơn chờ này");
+        }
+
+        int newQuantity = soLuong != null && soLuong > 0 ? soLuong : 1;
+        int oldQuantity = gioHangCho.getSoLuong();
+        int quantityDifference = newQuantity - oldQuantity;
+
+        // Get product and current stock
+        ChiTietSanPham chiTietSanPham = gioHangCho.getChiTietSanPham();
+        int currentStock = 0;
+        try {
+            currentStock = Integer.parseInt(chiTietSanPham.getSoLuongTon());
+        } catch (NumberFormatException e) {
+            log.warn("Invalid stock quantity format for ChiTietSanPham id: {}", chiTietSanPham.getId());
+        }
+
+        // If increasing quantity, check if stock is sufficient
+        if (quantityDifference > 0 && quantityDifference > currentStock) {
+            throw new RuntimeException(
+                String.format("Số lượng sản phẩm không đủ. Hiện tại còn %d sản phẩm trong kho.", currentStock)
+            );
+        }
+
+        // Update cart quantity
+        gioHangCho.setSoLuong(newQuantity);
+        
+        // Recalculate thanhTien
+        BigDecimal total = gioHangCho.getDonGia().multiply(BigDecimal.valueOf(gioHangCho.getSoLuong()));
+        gioHangCho.setThanhTien(total.subtract(gioHangCho.getGiamGia() != null ? gioHangCho.getGiamGia() : BigDecimal.ZERO).max(BigDecimal.ZERO));
+
+        gioHangChoRepository.save(gioHangCho);
+        gioHangChoRepository.flush();
+
+        // Update product stock based on quantity difference
+        // If quantity increased, subtract the difference
+        // If quantity decreased, add the difference back
+        int newStock = currentStock - quantityDifference;
+        chiTietSanPham.setSoLuongTon(String.valueOf(newStock));
+        chiTietSanPhamRepository.save(chiTietSanPham);
+        chiTietSanPhamRepository.flush();
+        
+        log.info("Updated stock for ChiTietSanPham id: {} from {} to {} (quantity changed from {} to {})", 
+                chiTietSanPham.getId(), currentStock, newStock, oldQuantity, newQuantity);
+
+        // Reload with fresh data using fetch join
+        return toResponse(hoaDonChoRepository.findByIdWithGioHangCho(hoaDonChoId).orElseThrow());
+    }
+
+    @Transactional
+    public HoaDonChoResponse removeItemFromCart(Long hoaDonChoId, Long gioHangChoId) {
+        log.info("Deleting cart item. hoaDonChoId: {}, gioHangChoId: {}", hoaDonChoId, gioHangChoId);
+        
+        // Verify the cart item exists and belongs to this invoice
+        GioHangCho gioHangCho = gioHangChoRepository.findById(gioHangChoId)
+                .orElseThrow(() -> new EntityNotFoundException("Không tìm thấy giỏ hàng với ID: " + gioHangChoId));
+
+        if (!gioHangCho.getHoaDonCho().getId().equals(hoaDonChoId)) {
+            throw new RuntimeException("Giỏ hàng không thuộc hóa đơn chờ này");
+        }
+
+        log.info("Found cart item to delete: id={}, name={}", gioHangCho.getId(), gioHangCho.getTenSanPham());
+        
+        // Get product and quantity to restore stock
+        ChiTietSanPham chiTietSanPham = gioHangCho.getChiTietSanPham();
+        int quantityToRestore = gioHangCho.getSoLuong();
+        
+        // Use native query to delete directly from database - this bypasses JPA caching
+        // This ensures immediate deletion in database
+        try {
+            gioHangChoRepository.deleteByIdNative(gioHangChoId);
+            gioHangChoRepository.flush();
+            log.info("Cart item deleted from database using native query and flushed.");
+        } catch (Exception e) {
+            log.error("Native delete failed: {}", e.getMessage(), e);
+            // Fallback to JPA delete
+            gioHangChoRepository.delete(gioHangCho);
+            gioHangChoRepository.flush();
+            log.info("Fallback to JPA delete successful.");
+        }
+
+        // Restore product stock: add back the quantity that was in cart
+        int currentStock = 0;
+        try {
+            currentStock = Integer.parseInt(chiTietSanPham.getSoLuongTon());
+        } catch (NumberFormatException e) {
+            log.warn("Invalid stock quantity format for ChiTietSanPham id: {}", chiTietSanPham.getId());
+        }
+        
+        int newStock = currentStock + quantityToRestore;
+        chiTietSanPham.setSoLuongTon(String.valueOf(newStock));
+        chiTietSanPhamRepository.save(chiTietSanPham);
+        chiTietSanPhamRepository.flush();
+        
+        log.info("Restored stock for ChiTietSanPham id: {} from {} to {} (restored {} items)", 
+                chiTietSanPham.getId(), currentStock, newStock, quantityToRestore);
+
+        // Clear entity manager to force fresh load from database
+        entityManager.clear();
+
+        // Reload HoaDonCho with fresh data from database using fetch join
+        HoaDonCho reloaded = hoaDonChoRepository.findByIdWithGioHangCho(hoaDonChoId)
+                .orElseThrow(() -> new EntityNotFoundException("Không tìm thấy hóa đơn chờ với ID: " + hoaDonChoId));
+        
+        log.info("HoaDonCho reloaded. gioHangCho size after delete: {}", 
+                reloaded.getGioHangCho() != null ? reloaded.getGioHangCho().size() : 0);
+        
+        return toResponse(reloaded);
+    }
+
+    @Transactional
+    public HoaDonChoResponse updateHoaDonCho(Long id, HoaDonChoRequest request) {
+        HoaDonCho hoaDonCho = hoaDonChoRepository.findById(id)
+                .orElseThrow(() -> new EntityNotFoundException("Không tìm thấy hóa đơn chờ với ID: " + id));
+
+        if (request.getTenKhachHang() != null) {
+            hoaDonCho.setTenKhachHang(request.getTenKhachHang());
+        }
+        if (request.getSoDienThoaiKhachHang() != null) {
+            hoaDonCho.setSoDienThoaiKhachHang(request.getSoDienThoaiKhachHang());
+        }
+        if (request.getKhachHangId() != null) {
+            KhachHang khachHang = khachHangRepository.findById(request.getKhachHangId())
+                    .orElse(null);
+            hoaDonCho.setKhachHang(khachHang);
+        }
+        if (request.getNhanVienId() != null) {
+            NhanVien nhanVien = nhanVienRepository.findById(request.getNhanVienId())
+                    .orElse(null);
+            hoaDonCho.setNhanVien(nhanVien);
+        }
+        if (request.getTenNhanVien() != null) {
+            hoaDonCho.setTenNhanVien(request.getTenNhanVien());
+        }
+        if (request.getGhiChu() != null) {
+            hoaDonCho.setGhiChu(request.getGhiChu());
+        }
+        if (request.getTrangThai() != null) {
+            hoaDonCho.setTrangThai(request.getTrangThai());
+        }
+
+        hoaDonChoRepository.save(hoaDonCho);
+
+        return toResponse(hoaDonCho);
+    }
+
+    @Transactional
+    public void deleteHoaDonCho(Long id) {
+        HoaDonCho hoaDonCho = hoaDonChoRepository.findById(id)
+                .orElseThrow(() -> new EntityNotFoundException("Không tìm thấy hóa đơn chờ với ID: " + id));
+        hoaDonChoRepository.delete(hoaDonCho);
+    }
+
+    public List<HoaDonChoResponse> getAllHoaDonCho() {
+        return hoaDonChoRepository.findAllOrderByNgayTaoDesc().stream()
+                .map(this::toResponse)
+                .collect(Collectors.toList());
+    }
+
+    public List<HoaDonChoResponse> getHoaDonChoByTrangThai(String trangThai) {
+        return hoaDonChoRepository.findByTrangThai(trangThai).stream()
+                .map(this::toResponse)
+                .collect(Collectors.toList());
+    }
+
+    public HoaDonChoResponse getHoaDonChoById(Long id) {
+        return hoaDonChoRepository.findByIdWithGioHangCho(id)
+                .map(this::toResponse)
+                .orElseThrow(() -> new EntityNotFoundException("Không tìm thấy hóa đơn chờ với ID: " + id));
+    }
+
+    public List<HoaDonChoResponse> getHoaDonChoByKhachHangId(Long khachHangId) {
+        return hoaDonChoRepository.findByKhachHangId(khachHangId).stream()
+                .map(this::toResponse)
+                .collect(Collectors.toList());
+    }
+}
+
