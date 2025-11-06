@@ -254,6 +254,14 @@ public class HoaDonController {
     @PutMapping("/api/hoa-don/{id}")
     public ResponseEntity<?> updateHoaDon(@PathVariable Long id, @RequestBody HoaDonDTO hoaDonDTO) {
         try {
+            System.out.println("🔍 ========== PUT /api/hoa-don/" + id + " ==========");
+            System.out.println("📥 Received HoaDonDTO:");
+            System.out.println("   - maHoaDon: " + hoaDonDTO.getMaHoaDon());
+            System.out.println("   - trangThai: " + hoaDonDTO.getTrangThai());
+            System.out.println("   - ghiChu: " + hoaDonDTO.getGhiChu());
+            System.out.println("   - ghiChu length: " + (hoaDonDTO.getGhiChu() != null ? hoaDonDTO.getGhiChu().length() : "null"));
+            System.out.println("   - danhSachChiTiet size: " + (hoaDonDTO.getDanhSachChiTiet() != null ? hoaDonDTO.getDanhSachChiTiet().size() : "null"));
+            
             // Validate dữ liệu đầu vào
             if (hoaDonDTO.getMaHoaDon() == null || hoaDonDTO.getMaHoaDon().trim().isEmpty()) {
                 return ResponseEntity.badRequest().body("Mã hóa đơn không được để trống");
@@ -266,6 +274,11 @@ public class HoaDonController {
             }
             
             HoaDonDTO updatedHoaDon = hoaDonService.updateHoaDon(id, hoaDonDTO);
+            System.out.println("✅ Invoice updated successfully:");
+            System.out.println("   - New status: " + updatedHoaDon.getTrangThai());
+            System.out.println("   - New ghiChu: " + updatedHoaDon.getGhiChu());
+            System.out.println("   - ghiChu length: " + (updatedHoaDon.getGhiChu() != null ? updatedHoaDon.getGhiChu().length() : "null"));
+            System.out.println("==========================================");
             return ResponseEntity.ok(updatedHoaDon);
         } catch (jakarta.persistence.EntityNotFoundException e) {
             return ResponseEntity.status(org.springframework.http.HttpStatus.NOT_FOUND).body(e.getMessage());

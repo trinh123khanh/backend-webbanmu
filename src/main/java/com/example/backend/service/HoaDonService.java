@@ -197,10 +197,20 @@ public class HoaDonService {
         if (d.getTienGiamGia() != null) h.setTienGiamGia(d.getTienGiamGia());
         if (d.getGiamGiaPhanTram() != null) h.setGiamGiaPhanTram(d.getGiamGiaPhanTram());
         if (d.getThanhTien() != null) h.setThanhTien(d.getThanhTien());
-        if (d.getGhiChu() != null) h.setGhiChu(d.getGhiChu());
+        
+        // Xử lý ghi chú: Cho phép cả null và empty string (để có thể xóa ghi chú)
+        // Nhưng nếu có giá trị thì set vào
+        if (d.getGhiChu() != null) {
+            System.out.println("📝 Setting ghiChu: '" + d.getGhiChu() + "' (length: " + d.getGhiChu().length() + ")");
+            h.setGhiChu(d.getGhiChu());
+        } else {
+            System.out.println("⚠️ ghiChu is null in DTO, keeping existing value: '" + h.getGhiChu() + "'");
+        }
+        
         if (d.getTrangThai() != null) {
             // Convert String từ DTO sang enum, map "HUY" -> "DA_HUY"
             HoaDon.TrangThaiHoaDon trangThaiEnum = convertStringToTrangThaiEnum(d.getTrangThai());
+            System.out.println("🔄 Setting trangThai: " + d.getTrangThai() + " -> " + trangThaiEnum);
             h.setTrangThai(trangThaiEnum);
         }
         if (d.getSoLuongSanPham() != null) h.setSoLuongSanPham(d.getSoLuongSanPham());
@@ -353,6 +363,8 @@ public class HoaDonService {
             // Nếu danhSachChiTiet là empty array, collection đã được clear và giữ nguyên empty
         }
         // Nếu dto.getDanhSachChiTiet() == null, giữ nguyên collection hiện tại (không thay đổi)
+        
+        System.out.println("💾 Saving invoice with ghiChu: '" + h.getGhiChu() + "'");
 
         // Lưu hóa đơn
         HoaDon saved = hoaDonRepository.save(h);
