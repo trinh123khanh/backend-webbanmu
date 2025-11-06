@@ -76,7 +76,7 @@ public class HoaDonService {
                 .giamGiaPhanTram(h.getGiamGiaPhanTram())
                 .thanhTien(h.getThanhTien())
                 .ghiChu(h.getGhiChu())
-                .trangThai(h.getTrangThai())
+                .trangThai(convertTrangThaiEnumToString(h.getTrangThai()))
                 .soLuongSanPham(h.getSoLuongSanPham());
         
         // Map thông tin khách hàng
@@ -198,7 +198,11 @@ public class HoaDonService {
         if (d.getGiamGiaPhanTram() != null) h.setGiamGiaPhanTram(d.getGiamGiaPhanTram());
         if (d.getThanhTien() != null) h.setThanhTien(d.getThanhTien());
         if (d.getGhiChu() != null) h.setGhiChu(d.getGhiChu());
-        if (d.getTrangThai() != null) h.setTrangThai(d.getTrangThai());
+        if (d.getTrangThai() != null) {
+            // Convert String từ DTO sang enum, map "HUY" -> "DA_HUY"
+            HoaDon.TrangThaiHoaDon trangThaiEnum = convertStringToTrangThaiEnum(d.getTrangThai());
+            h.setTrangThai(trangThaiEnum);
+        }
         if (d.getSoLuongSanPham() != null) h.setSoLuongSanPham(d.getSoLuongSanPham());
         
         // Map khách hàng từ ID
@@ -412,7 +416,7 @@ public class HoaDonService {
         }
     }
 
-    public Page<HoaDon> getAllHoaDon(String keyword, String phuongThucThanhToan, Pageable pageable) {
+    public Page<HoaDon> getAllHoaDon(String keyword, String phuongThucThanhToan, String trangThai, Pageable pageable) {
         // Map từ frontend format sang backend format
         String tenHinhThuc = null;
         if (phuongThucThanhToan != null && !phuongThucThanhToan.trim().isEmpty()) {
@@ -422,6 +426,26 @@ public class HoaDonService {
                 tenHinhThuc = "Chuyển khoản";
             } else {
                 tenHinhThuc = phuongThucThanhToan;
+            }
+        }
+        
+        // Map trangThai từ String (frontend) sang enum (backend)
+        // Frontend gửi: CHO_XAC_NHAN, DA_XAC_NHAN, DANG_GIAO_HANG, DA_GIAO_HANG, HUY
+        // Backend enum: CHO_XAC_NHAN, DA_XAC_NHAN, DANG_GIAO_HANG, DA_GIAO_HANG, DA_HUY
+        HoaDon.TrangThaiHoaDon trangThaiEnum = null;
+        if (trangThai != null && !trangThai.trim().isEmpty()) {
+            try {
+                String trangThaiUpper = trangThai.toUpperCase();
+                // Map HUY từ frontend sang DA_HUY trong backend
+                if ("HUY".equals(trangThaiUpper)) {
+                    trangThaiUpper = "DA_HUY";
+                }
+                trangThaiEnum = HoaDon.TrangThaiHoaDon.valueOf(trangThaiUpper);
+                System.out.println("✅ Mapped trangThai: " + trangThai + " -> " + trangThaiEnum.name());
+            } catch (IllegalArgumentException e) {
+                System.err.println("⚠️ Invalid trangThai value: " + trangThai);
+                System.err.println("💡 Valid values: CHO_XAC_NHAN, DA_XAC_NHAN, DANG_GIAO_HANG, DA_GIAO_HANG, HUY");
+                trangThaiEnum = null;
             }
         }
         
@@ -437,6 +461,10 @@ public class HoaDonService {
             countQueryStr.append(" AND (htt.tenHinhThuc = :tenHinhThuc OR htt.tenHinhThuc IS NULL)");
         }
         
+        if (trangThaiEnum != null) {
+            countQueryStr.append(" AND h.trangThai = :trangThai");
+        }
+        
         jakarta.persistence.TypedQuery<Long> countQuery = entityManager.createQuery(
             countQueryStr.toString(),
             Long.class
@@ -450,6 +478,10 @@ public class HoaDonService {
         
         if (tenHinhThuc != null) {
             countQuery.setParameter("tenHinhThuc", tenHinhThuc);
+        }
+        
+        if (trangThaiEnum != null) {
+            countQuery.setParameter("trangThai", trangThaiEnum);
         }
         
         long totalElements = countQuery.getSingleResult();
@@ -473,6 +505,10 @@ public class HoaDonService {
         
         if (tenHinhThuc != null) {
             queryStr.append(" AND (htt.tenHinhThuc = :tenHinhThuc OR htt.tenHinhThuc IS NULL)");
+        }
+        
+        if (trangThaiEnum != null) {
+            queryStr.append(" AND h.trangThai = :trangThai");
         }
         
         // Luôn có ORDER BY để đảm bảo thứ tự: mặc định ORDER BY id ASC (hóa đơn cũ nhất lên đầu, mới nhất xuống cuối)
@@ -502,6 +538,10 @@ public class HoaDonService {
         
         if (tenHinhThuc != null) {
             query.setParameter("tenHinhThuc", tenHinhThuc);
+        }
+        
+        if (trangThaiEnum != null) {
+            query.setParameter("trangThai", trangThaiEnum);
         }
         
         // Apply pagination
@@ -570,5 +610,39 @@ public class HoaDonService {
         
         // Create a Page manually
         return new org.springframework.data.domain.PageImpl<>(results, pageable, totalElements);
+    }
+
+    /**
+     * Convert TrangThaiHoaDon enum sang String cho DTO
+     * Map DA_HUY -> HUY cho frontend
+     */
+    private String convertTrangThaiEnumToString(HoaDon.TrangThaiHoaDon trangThai) {
+        if (trangThai == null) {
+            return null;
+        }
+        // Map DA_HUY sang HUY cho frontend
+        if (trangThai == HoaDon.TrangThaiHoaDon.DA_HUY) {
+            return "HUY";
+        }
+        return trangThai.name();
+    }
+
+    /**
+     * Convert String từ DTO sang TrangThaiHoaDon enum
+     * Map HUY -> DA_HUY cho backend
+     */
+    private HoaDon.TrangThaiHoaDon convertStringToTrangThaiEnum(String trangThai) {
+        if (trangThai == null || trangThai.trim().isEmpty()) {
+            return null;
+        }
+        // Map HUY từ frontend sang DA_HUY cho backend
+        if ("HUY".equals(trangThai)) {
+            return HoaDon.TrangThaiHoaDon.DA_HUY;
+        }
+        try {
+            return HoaDon.TrangThaiHoaDon.valueOf(trangThai);
+        } catch (IllegalArgumentException e) {
+            throw new RuntimeException("Trạng thái không hợp lệ: " + trangThai, e);
+        }
     }
 }
