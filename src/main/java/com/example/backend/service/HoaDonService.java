@@ -76,7 +76,7 @@ public class HoaDonService {
                 .giamGiaPhanTram(h.getGiamGiaPhanTram())
                 .thanhTien(h.getThanhTien())
                 .ghiChu(h.getGhiChu())
-                .trangThai(h.getTrangThai())
+                .trangThai(convertTrangThaiEnumToString(h.getTrangThai()))
                 .soLuongSanPham(h.getSoLuongSanPham());
         
         // Map thông tin khách hàng
@@ -198,7 +198,11 @@ public class HoaDonService {
         if (d.getGiamGiaPhanTram() != null) h.setGiamGiaPhanTram(d.getGiamGiaPhanTram());
         if (d.getThanhTien() != null) h.setThanhTien(d.getThanhTien());
         if (d.getGhiChu() != null) h.setGhiChu(d.getGhiChu());
-        if (d.getTrangThai() != null) h.setTrangThai(d.getTrangThai());
+        if (d.getTrangThai() != null) {
+            // Convert String từ DTO sang enum, map "HUY" -> "DA_HUY"
+            HoaDon.TrangThaiHoaDon trangThaiEnum = convertStringToTrangThaiEnum(d.getTrangThai());
+            h.setTrangThai(trangThaiEnum);
+        }
         if (d.getSoLuongSanPham() != null) h.setSoLuongSanPham(d.getSoLuongSanPham());
         
         // Map khách hàng từ ID
@@ -311,28 +315,39 @@ public class HoaDonService {
             // Với orphanRemoval = true, clear() sẽ tự động xóa các item khỏi database
             h.getDanhSachChiTiet().clear();
 
-            
-            // Ngay lập tức add các chi tiết mới vào collection (không được để collection rỗng quá lâu)
-            if (!dto.getDanhSachChiTiet().isEmpty()) {
-                for (HoaDonChiTietDTO chiTietDTO : dto.getDanhSachChiTiet()) {
-                    if (chiTietDTO.getChiTietSanPhamId() == null) {
-                        continue; // Bỏ qua nếu không có chiTietSanPhamId
-                    }
-                    
-                    ChiTietSanPham chiTietSanPham = chiTietSanPhamRepository.findById(chiTietDTO.getChiTietSanPhamId())
-                            .orElseThrow(() -> new RuntimeException("Không tìm thấy chi tiết sản phẩm với ID: " + chiTietDTO.getChiTietSanPhamId()));
-                    
-                    HoaDonChiTiet hoaDonChiTiet = new HoaDonChiTiet();
-                    hoaDonChiTiet.setHoaDon(h);
-                    hoaDonChiTiet.setChiTietSanPham(chiTietSanPham);
-                    hoaDonChiTiet.setSoLuong(chiTietDTO.getSoLuong() != null ? chiTietDTO.getSoLuong() : 0);
-                    hoaDonChiTiet.setDonGia(chiTietDTO.getDonGia() != null ? chiTietDTO.getDonGia() : java.math.BigDecimal.ZERO);
-                    hoaDonChiTiet.setGiamGia(chiTietDTO.getGiamGia() != null ? chiTietDTO.getGiamGia() : java.math.BigDecimal.ZERO);
-                    hoaDonChiTiet.setThanhTien(chiTietDTO.getThanhTien() != null ? chiTietDTO.getThanhTien() : java.math.BigDecimal.ZERO);
-                    
-                    // Add ngay vào collection sau khi clear (không được delay)
-                    h.getDanhSachChiTiet().add(hoaDonChiTiet);
+        }
+        
+        // Thêm các chi tiết mới
+        if (dto.getDanhSachChiTiet() != null && !dto.getDanhSachChiTiet().isEmpty()) {
+            List<HoaDonChiTiet> chiTietList = new ArrayList<>();
+            for (HoaDonChiTietDTO chiTietDTO : dto.getDanhSachChiTiet()) {
+                if (chiTietDTO.getChiTietSanPhamId() == null) {
+                    continue; // Bỏ qua nếu không có chiTietSanPhamId
 
+
+            
+//             // Ngay lập tức add các chi tiết mới vào collection (không được để collection rỗng quá lâu)
+//             if (!dto.getDanhSachChiTiet().isEmpty()) {
+//                 for (HoaDonChiTietDTO chiTietDTO : dto.getDanhSachChiTiet()) {
+//                     if (chiTietDTO.getChiTietSanPhamId() == null) {
+//                         continue; // Bỏ qua nếu không có chiTietSanPhamId
+//                     }
+                    
+//                     ChiTietSanPham chiTietSanPham = chiTietSanPhamRepository.findById(chiTietDTO.getChiTietSanPhamId())
+//                             .orElseThrow(() -> new RuntimeException("Không tìm thấy chi tiết sản phẩm với ID: " + chiTietDTO.getChiTietSanPhamId()));
+                    
+//                     HoaDonChiTiet hoaDonChiTiet = new HoaDonChiTiet();
+//                     hoaDonChiTiet.setHoaDon(h);
+//                     hoaDonChiTiet.setChiTietSanPham(chiTietSanPham);
+//                     hoaDonChiTiet.setSoLuong(chiTietDTO.getSoLuong() != null ? chiTietDTO.getSoLuong() : 0);
+//                     hoaDonChiTiet.setDonGia(chiTietDTO.getDonGia() != null ? chiTietDTO.getDonGia() : java.math.BigDecimal.ZERO);
+//                     hoaDonChiTiet.setGiamGia(chiTietDTO.getGiamGia() != null ? chiTietDTO.getGiamGia() : java.math.BigDecimal.ZERO);
+//                     hoaDonChiTiet.setThanhTien(chiTietDTO.getThanhTien() != null ? chiTietDTO.getThanhTien() : java.math.BigDecimal.ZERO);
+                    
+//                     // Add ngay vào collection sau khi clear (không được delay)
+//                     h.getDanhSachChiTiet().add(hoaDonChiTiet);
+
+// >>>>>>> main
                 }
             }
             // Nếu danhSachChiTiet là empty array, collection đã được clear và giữ nguyên empty
@@ -617,5 +632,39 @@ public class HoaDonService {
         
         // Create a Page manually
         return new org.springframework.data.domain.PageImpl<>(results, pageable, totalElements);
+    }
+
+    /**
+     * Convert TrangThaiHoaDon enum sang String cho DTO
+     * Map DA_HUY -> HUY cho frontend
+     */
+    private String convertTrangThaiEnumToString(HoaDon.TrangThaiHoaDon trangThai) {
+        if (trangThai == null) {
+            return null;
+        }
+        // Map DA_HUY sang HUY cho frontend
+        if (trangThai == HoaDon.TrangThaiHoaDon.DA_HUY) {
+            return "HUY";
+        }
+        return trangThai.name();
+    }
+
+    /**
+     * Convert String từ DTO sang TrangThaiHoaDon enum
+     * Map HUY -> DA_HUY cho backend
+     */
+    private HoaDon.TrangThaiHoaDon convertStringToTrangThaiEnum(String trangThai) {
+        if (trangThai == null || trangThai.trim().isEmpty()) {
+            return null;
+        }
+        // Map HUY từ frontend sang DA_HUY cho backend
+        if ("HUY".equals(trangThai)) {
+            return HoaDon.TrangThaiHoaDon.DA_HUY;
+        }
+        try {
+            return HoaDon.TrangThaiHoaDon.valueOf(trangThai);
+        } catch (IllegalArgumentException e) {
+            throw new RuntimeException("Trạng thái không hợp lệ: " + trangThai, e);
+        }
     }
 }

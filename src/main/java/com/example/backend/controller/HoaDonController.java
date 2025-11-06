@@ -73,8 +73,8 @@ public class HoaDonController {
 
     @PatchMapping("/api/admin/invoices/{id}/trang-thai")
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<?> updateTrangThaiHoaDonForAdmin(@PathVariable Long id, @RequestParam String trangThai) {
-        return updateTrangThaiHoaDon(id, trangThai);
+    public ResponseEntity<?> updateTrangThaiHoaDonForAdmin(@PathVariable Long id, @RequestBody Map<String, String> requestBody) {
+        return updateTrangThaiHoaDon(id, requestBody);
     }
 
     // ===== STAFF ENDPOINTS - CRUD hóa đơn do mình tạo =====
@@ -106,8 +106,8 @@ public class HoaDonController {
 
     @PatchMapping("/api/staff/invoices/{id}/trang-thai")
     @PreAuthorize("hasAnyRole('ADMIN', 'STAFF')")
-    public ResponseEntity<?> updateTrangThaiHoaDonForStaff(@PathVariable Long id, @RequestParam String trangThai) {
-        return updateTrangThaiHoaDon(id, trangThai);
+    public ResponseEntity<?> updateTrangThaiHoaDonForStaff(@PathVariable Long id, @RequestBody Map<String, String> requestBody) {
+        return updateTrangThaiHoaDon(id, requestBody);
     }
 
     // ===== CUSTOMER ENDPOINTS - Xem/hủy đơn hàng =====
@@ -161,7 +161,9 @@ public class HoaDonController {
     @PreAuthorize("hasRole('CUSTOMER')")
     public ResponseEntity<?> cancelOrderForCustomer(@PathVariable Long id) {
         // Chỉ cho phép hủy đơn hàng ở trạng thái CHO_XAC_NHAN
-        return updateTrangThaiHoaDon(id, "HUY");
+        Map<String, String> requestBody = new HashMap<>();
+        requestBody.put("trangThai", "HUY");
+        return updateTrangThaiHoaDon(id, requestBody);
     }
 
     // ===== BACKWARD COMPATIBILITY - Giữ lại các endpoint cũ =====
@@ -324,7 +326,7 @@ public class HoaDonController {
                     .tenNhanVien("Nguyễn Văn A")
                     .tongTien(java.math.BigDecimal.valueOf(1000000))
                     .thanhTien(java.math.BigDecimal.valueOf(1000000))
-                    .trangThai(HoaDon.TrangThaiHoaDon.CHO_XAC_NHAN)
+                    .trangThai("CHO_XAC_NHAN")
                     .ngayTao(java.time.LocalDateTime.now())
                     .build();
 
@@ -339,7 +341,7 @@ public class HoaDonController {
                     .tongTien(java.math.BigDecimal.valueOf(2000000))
                     .thanhTien(java.math.BigDecimal.valueOf(1800000))
                     .tienGiamGia(java.math.BigDecimal.valueOf(200000))
-                    .trangThai(HoaDon.TrangThaiHoaDon.DA_XAC_NHAN)
+                    .trangThai("DA_XAC_NHAN")
                     .ngayTao(java.time.LocalDateTime.now().minusHours(2))
                     .build();
 
@@ -355,28 +357,70 @@ public class HoaDonController {
     // Removed createSampleCustomers method as KhachHangRepository was deleted
 
     // Cập nhật trạng thái hóa đơn
-    @PatchMapping("/api/hoa-don/{id}/trang-thai")
+    // Best Practice: PATCH request nên dùng @RequestBody (RFC 5789)
+    // Ưu điểm: Dễ mở rộng (có thể thêm reason, note), dễ debug, consistent với REST standards
+    @PatchMapping(value = "/api/hoa-don/{id}/trang-thai", consumes = "application/json", produces = "application/json")
     public ResponseEntity<?> updateTrangThaiHoaDon(
             @PathVariable Long id,
-            @RequestParam String trangThai) {
+            @RequestBody(required = false) Map<String, String> requestBody) {
         try {
-            // Validate trạng thái
-            try {
-                HoaDon.TrangThaiHoaDon.valueOf(trangThai);
-            } catch (IllegalArgumentException e) {
+            System.out.println("🔍 ========== PATCH /api/hoa-don/" + id + "/trang-thai ==========");
+            System.out.println("📥 Received request body: " + requestBody);
+            System.out.println("📥 Request body is null: " + (requestBody == null));
+            
+            // Kiểm tra requestBody null hoặc empty
+            if (requestBody == null || requestBody.isEmpty()) {
+                System.err.println("❌ Request body is null or empty");
                 return ResponseEntity.badRequest()
-                    .body("Trạng thái không hợp lệ: " + trangThai);
+                    .body("Required parameter 'trangThai' is not present. Please send { \"trangThai\": \"HUY\" } in request body.");
             }
             
-            HoaDonDTO updatedHoaDon = hoaDonService.updateTrangThaiHoaDon(id, trangThai);
+            // Lấy trangThai từ request body
+            String trangThai = requestBody.get("trangThai");
+            if (trangThai == null || trangThai.trim().isEmpty()) {
+                System.err.println("❌ trangThai is null or empty in request body");
+                System.err.println("📥 Available keys in requestBody: " + requestBody.keySet());
+                return ResponseEntity.badRequest()
+                    .body("Required parameter 'trangThai' is not present. Please send { \"trangThai\": \"HUY\" } in request body.");
+            }
+            
+            System.out.println("📥 Received trangThai from body: '" + trangThai + "'");
+            
+            // Map "HUY" từ frontend sang "DA_HUY" cho backend
+            String trangThaiToUpdate = trangThai;
+            if ("HUY".equals(trangThai)) {
+                trangThaiToUpdate = "DA_HUY";
+                System.out.println("🔄 Mapped HUY -> DA_HUY");
+            }
+            
+            // Validate trạng thái
+            try {
+                HoaDon.TrangThaiHoaDon.valueOf(trangThaiToUpdate);
+                System.out.println("✅ Valid trangThai: " + trangThaiToUpdate);
+            } catch (IllegalArgumentException e) {
+                System.err.println("❌ Invalid trangThai: " + trangThaiToUpdate);
+                System.err.println("💡 Valid values: CHO_XAC_NHAN, DA_XAC_NHAN, DANG_GIAO_HANG, DA_GIAO_HANG, DA_HUY");
+                return ResponseEntity.badRequest()
+                    .body("Trạng thái không hợp lệ: " + trangThai + ". Giá trị hợp lệ: CHO_XAC_NHAN, DA_XAC_NHAN, DANG_GIAO_HANG, DA_GIAO_HANG, HUY");
+            }
+            
+            System.out.println("📞 Calling service.updateTrangThaiHoaDon...");
+            HoaDonDTO updatedHoaDon = hoaDonService.updateTrangThaiHoaDon(id, trangThaiToUpdate);
+            System.out.println("✅ Update successful, new status: " + updatedHoaDon.getTrangThai());
+            System.out.println("==========================================");
             return ResponseEntity.ok(updatedHoaDon);
         } catch (jakarta.persistence.EntityNotFoundException e) {
+            System.err.println("❌ Entity not found: " + e.getMessage());
             return ResponseEntity.status(org.springframework.http.HttpStatus.NOT_FOUND)
                 .body(e.getMessage());
         } catch (RuntimeException e) {
+            System.err.println("❌ RuntimeException: " + e.getMessage());
+            e.printStackTrace();
             return ResponseEntity.status(org.springframework.http.HttpStatus.BAD_REQUEST)
                 .body(e.getMessage());
         } catch (Exception e) {
+            System.err.println("❌ Unexpected error: " + e.getMessage());
+            e.printStackTrace();
             return ResponseEntity.status(org.springframework.http.HttpStatus.INTERNAL_SERVER_ERROR)
                 .body("Lỗi server: " + e.getMessage());
         }

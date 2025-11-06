@@ -36,7 +36,7 @@ public class HoaDonDTO {
     private BigDecimal thanhTien;
     private String ghiChu;
     private String phuongThucThanhToan; // Phương thức thanh toán
-    private HoaDon.TrangThaiHoaDon trangThai;
+    private String trangThai; // String để map DA_HUY -> HUY cho frontend
     private Integer soLuongSanPham;
     private List<HoaDonChiTietDTO> danhSachChiTiet; // Danh sách chi tiết sản phẩm trong hóa đơn
 
