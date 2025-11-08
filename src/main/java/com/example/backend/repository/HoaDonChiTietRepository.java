@@ -62,7 +62,16 @@ public interface HoaDonChiTietRepository extends JpaRepository<HoaDonChiTiet, Lo
            "WHERE hd.trangThai != 'DA_HUY'")
     long countAllExcludingCancelled();
     
-    List<HoaDonChiTiet> findByHoaDonId(Long hoaDonId);
+    // Query với JOIN FETCH để load đầy đủ relationships
+    @Query("SELECT DISTINCT hdct FROM HoaDonChiTiet hdct " +
+           "LEFT JOIN FETCH hdct.chiTietSanPham ct " +
+           "LEFT JOIN FETCH ct.sanPham s " +
+           "LEFT JOIN FETCH s.nhaSanXuat " +
+           "LEFT JOIN FETCH s.loaiMuBaoHiem " +
+           "LEFT JOIN FETCH ct.mauSac " +
+           "LEFT JOIN FETCH ct.kichThuoc " +
+           "WHERE hdct.hoaDon.id = :hoaDonId")
+    List<HoaDonChiTiet> findByHoaDonId(@Param("hoaDonId") Long hoaDonId);
     
     // Query đơn giản nhất - lấy tất cả không filter gì cả (để test)
     @Query("SELECT hdct FROM HoaDonChiTiet hdct " +

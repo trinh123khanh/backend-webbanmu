@@ -38,6 +38,7 @@ public class HoaDonDTO {
     private String phuongThucThanhToan; // Phương thức thanh toán
     private String trangThai; // String để map DA_HUY -> HUY cho frontend
     private Integer soLuongSanPham;
+    private String viTriBanHang; // "Online" hoặc "Tại quầy" - dựa trên nhanVienId (null = Online)
     private List<HoaDonChiTietDTO> danhSachChiTiet; // Danh sách chi tiết sản phẩm trong hóa đơn
 
     
