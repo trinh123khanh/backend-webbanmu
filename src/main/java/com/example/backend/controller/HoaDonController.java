@@ -233,9 +233,10 @@ public class HoaDonController {
             if (hoaDonDTO.getMaHoaDon() == null || hoaDonDTO.getMaHoaDon().trim().isEmpty()) {
                 return ResponseEntity.badRequest().body("Mã hóa đơn không được để trống");
             }
-            if (hoaDonDTO.getKhachHangId() == null) {
-                return ResponseEntity.badRequest().body("Khách hàng ID không được để trống");
-            }
+            // CHO PHÉP khachHangId = null để test thanh toán không cần đăng nhập
+            // if (hoaDonDTO.getKhachHangId() == null) {
+            //     return ResponseEntity.badRequest().body("Khách hàng ID không được để trống");
+            // }
             if (hoaDonDTO.getTongTien() == null || hoaDonDTO.getTongTien().compareTo(java.math.BigDecimal.ZERO) <= 0) {
                 return ResponseEntity.badRequest().body("Tổng tiền phải lớn hơn 0");
             }

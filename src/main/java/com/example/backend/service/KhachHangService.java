@@ -52,10 +52,10 @@ public class KhachHangService {
         return khachHangPage.map(this::convertToDTOWithAddress);
     }
 
-    // Lấy khách hàng theo ID
+    // Lấy khách hàng theo ID (chi tiết đầy đủ bao gồm địa chỉ)
     public Optional<KhachHangDTO> getKhachHangById(Long id) {
         return khachHangRepository.findById(id)
-                .map(this::convertToDTO);
+                .map(this::convertToDTOWithAddress);
     }
 
 
@@ -89,6 +89,12 @@ public class KhachHangService {
         return khachHangRepository.findBySoDienThoai(soDienThoai)
                 .map(this::convertToDTO);
 
+    }
+
+    // Lấy khách hàng theo User ID
+    public Optional<KhachHangDTO> getKhachHangByUserId(Long userId) {
+        return khachHangRepository.findByUserId(userId)
+                .map(this::convertToDTO);
     }
 
     // Tạo khách hàng mới

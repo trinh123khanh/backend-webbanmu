@@ -2,6 +2,7 @@ package com.example.backend.controller;
 
 import com.example.backend.dto.KhachHangDTO;
 import com.example.backend.service.KhachHangService;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.http.HttpStatus;
@@ -14,6 +15,7 @@ import java.util.Optional;
 @RestController
 @RequestMapping("/api/khach-hang")
 @CrossOrigin(originPatterns = {"http://localhost:*", "http://127.0.0.1:*"})
+@Slf4j
 public class KhachHangController {
 
     @Autowired
@@ -53,15 +55,24 @@ public class KhachHangController {
         }
     }
 
-    // Lấy khách hàng theo ID
+    // Lấy chi tiết khách hàng theo ID (bao gồm địa chỉ mặc định)
     @GetMapping("/{id}")
-    public ResponseEntity<KhachHangDTO> getKhachHangById(@PathVariable Long id) {
+    public ResponseEntity<?> getKhachHangById(@PathVariable Long id) {
         try {
+            log.info("📋 API: Lấy chi tiết khách hàng theo ID: {}", id);
             Optional<KhachHangDTO> khachHang = khachHangService.getKhachHangById(id);
-            return khachHang.map(ResponseEntity::ok)
-                           .orElse(ResponseEntity.notFound().build());
+            if (khachHang.isPresent()) {
+                log.info("✅ Tìm thấy khách hàng ID: {}, Tên: {}", id, khachHang.get().getTenKhachHang());
+                return ResponseEntity.ok(khachHang.get());
+            } else {
+                log.warn("⚠️ Không tìm thấy khách hàng với ID: {}", id);
+                return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body("Không tìm thấy khách hàng với ID: " + id);
+            }
         } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+            log.error("❌ Lỗi khi lấy thông tin khách hàng ID: {}", id, e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body("Lỗi khi lấy thông tin khách hàng: " + e.getMessage());
         }
     }
 
@@ -94,6 +105,18 @@ public class KhachHangController {
     public ResponseEntity<KhachHangDTO> getKhachHangBySoDienThoai(@PathVariable String soDienThoai) {
         try {
             Optional<KhachHangDTO> khachHang = khachHangService.getKhachHangBySoDienThoai(soDienThoai);
+            return khachHang.map(ResponseEntity::ok)
+                           .orElse(ResponseEntity.notFound().build());
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        }
+    }
+
+    // Lấy khách hàng theo User ID
+    @GetMapping("/user/{userId}")
+    public ResponseEntity<KhachHangDTO> getKhachHangByUserId(@PathVariable Long userId) {
+        try {
+            Optional<KhachHangDTO> khachHang = khachHangService.getKhachHangByUserId(userId);
             return khachHang.map(ResponseEntity::ok)
                            .orElse(ResponseEntity.notFound().build());
         } catch (Exception e) {

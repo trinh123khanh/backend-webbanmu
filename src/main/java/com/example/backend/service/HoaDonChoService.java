@@ -220,14 +220,14 @@ public class HoaDonChoService {
         gioHangChoRepository.save(gioHangCho);
         gioHangChoRepository.flush();
 
-        // Update product stock: subtract quantity added to cart
-        int newStock = currentStock - quantityToAdd;
-        chiTietSanPham.setSoLuongTon(String.valueOf(newStock));
-        chiTietSanPhamRepository.save(chiTietSanPham);
-        chiTietSanPhamRepository.flush();
-        
-        log.info("Updated stock for ChiTietSanPham id: {} from {} to {}", 
-                chiTietSanPham.getId(), currentStock, newStock);
+        // QUAN TRỌNG: KHÔNG trừ số lượng khi thêm vào giỏ hàng
+        // Số lượng sẽ được trừ khi:
+        // 1. Tạo hoá đơn từ giỏ hàng (tại quầy) - khi tạo HoaDon từ HoaDonCho
+        // 2. Tạo hoá đơn từ website (checkout) - khi tạo HoaDon với status = DA_XAC_NHAN
+        // 3. Cập nhật trạng thái hoá đơn thành DA_XAC_NHAN
+        // Chỉ kiểm tra tồn kho để đảm bảo đủ hàng, nhưng không trừ ngay
+        log.info("✅ Added item to cart. ChiTietSanPham id: {}, quantity: {}, current stock: {} (Stock will be deducted when invoice is created or confirmed)", 
+                chiTietSanPham.getId(), quantityToAdd, currentStock);
 
         // Reload with fresh data using fetch join
         return toResponse(hoaDonChoRepository.findByIdWithGioHangCho(hoaDonChoId).orElseThrow());
@@ -272,16 +272,11 @@ public class HoaDonChoService {
         gioHangChoRepository.save(gioHangCho);
         gioHangChoRepository.flush();
 
-        // Update product stock based on quantity difference
-        // If quantity increased, subtract the difference
-        // If quantity decreased, add the difference back
-        int newStock = currentStock - quantityDifference;
-        chiTietSanPham.setSoLuongTon(String.valueOf(newStock));
-        chiTietSanPhamRepository.save(chiTietSanPham);
-        chiTietSanPhamRepository.flush();
-        
-        log.info("Updated stock for ChiTietSanPham id: {} from {} to {} (quantity changed from {} to {})", 
-                chiTietSanPham.getId(), currentStock, newStock, oldQuantity, newQuantity);
+        // QUAN TRỌNG: KHÔNG trừ/cộng số lượng khi cập nhật số lượng trong giỏ hàng
+        // Số lượng sẽ được trừ khi tạo hoá đơn từ giỏ hàng hoặc khi hoá đơn được xác nhận
+        // Chỉ kiểm tra tồn kho để đảm bảo đủ hàng, nhưng không trừ ngay
+        log.info("✅ Updated cart item quantity. ChiTietSanPham id: {}, quantity changed from {} to {}, current stock: {} (Stock will be deducted when invoice is created or confirmed)", 
+                chiTietSanPham.getId(), oldQuantity, newQuantity, currentStock);
 
         // Reload with fresh data using fetch join
         return toResponse(hoaDonChoRepository.findByIdWithGioHangCho(hoaDonChoId).orElseThrow());
@@ -301,9 +296,9 @@ public class HoaDonChoService {
 
         log.info("Found cart item to delete: id={}, name={}", gioHangCho.getId(), gioHangCho.getTenSanPham());
         
-        // Get product and quantity to restore stock
+        // Get product and quantity (for logging only)
         ChiTietSanPham chiTietSanPham = gioHangCho.getChiTietSanPham();
-        int quantityToRestore = gioHangCho.getSoLuong();
+        int quantityRemoved = gioHangCho.getSoLuong();
         
         // Use native query to delete directly from database - this bypasses JPA caching
         // This ensures immediate deletion in database
@@ -319,21 +314,11 @@ public class HoaDonChoService {
             log.info("Fallback to JPA delete successful.");
         }
 
-        // Restore product stock: add back the quantity that was in cart
-        int currentStock = 0;
-        try {
-            currentStock = Integer.parseInt(chiTietSanPham.getSoLuongTon());
-        } catch (NumberFormatException e) {
-            log.warn("Invalid stock quantity format for ChiTietSanPham id: {}", chiTietSanPham.getId());
-        }
-        
-        int newStock = currentStock + quantityToRestore;
-        chiTietSanPham.setSoLuongTon(String.valueOf(newStock));
-        chiTietSanPhamRepository.save(chiTietSanPham);
-        chiTietSanPhamRepository.flush();
-        
-        log.info("Restored stock for ChiTietSanPham id: {} from {} to {} (restored {} items)", 
-                chiTietSanPham.getId(), currentStock, newStock, quantityToRestore);
+        // QUAN TRỌNG: KHÔNG hoàn lại số lượng khi xóa khỏi giỏ hàng
+        // Vì số lượng chưa bị trừ khi thêm vào giỏ hàng
+        // Số lượng chỉ được trừ khi tạo hoá đơn từ giỏ hàng hoặc khi hoá đơn được xác nhận
+        log.info("✅ Removed item from cart. ChiTietSanPham id: {}, quantity removed: {} (Stock was not deducted when added to cart, so no need to restore)", 
+                chiTietSanPham.getId(), quantityRemoved);
 
         // Clear entity manager to force fresh load from database
         entityManager.clear();

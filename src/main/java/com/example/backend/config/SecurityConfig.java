@@ -62,7 +62,11 @@ public class SecurityConfig {
                 .requestMatchers("/swagger-ui/**", "/v3/api-docs/**").permitAll()
                 .requestMatchers("/actuator/health").permitAll()
                 
-                // Statistics endpoints - ADMIN và STAFF
+                // Statistics endpoints - cho phép public GET để hiển thị best-selling products trên shop
+                // Đặt rule cụ thể TRƯỚC rule chung để đảm bảo ưu tiên
+                .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/statistics/best-selling-products").permitAll()
+                .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/statistics/best-selling-products/**").permitAll()
+                // Statistics endpoints khác - ADMIN và STAFF
                 .requestMatchers("/api/statistics/**").hasAnyRole("ADMIN", "STAFF")
                 
                 // Admin endpoints - chỉ ADMIN
@@ -79,7 +83,24 @@ public class SecurityConfig {
                 .requestMatchers("/api/customer/profile/**").hasRole("CUSTOMER")
                 .requestMatchers("/api/customer/orders/**").hasRole("CUSTOMER")
                 
-                // Backward compatibility - endpoints cũ cho phép ADMIN và STAFF
+                // CHO PHÉP tạo hóa đơn mà không cần authentication (để khách hàng có thể đặt hàng)
+                .requestMatchers(org.springframework.http.HttpMethod.POST, "/api/hoa-don").permitAll()
+                
+                // CHO PHÉP GET hóa đơn để xem chi tiết (cho customer và public access)
+                // Cho phép tất cả GET requests đến /api/hoa-don/** (bao gồm /api/hoa-don/{id}, /api/hoa-don/page, etc.)
+                // Đặt TRƯỚC rule chung để ưu tiên
+                .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/hoa-don/**").permitAll()
+                
+                // CHO PHÉP truy cập giỏ hàng chờ (hoa-don-cho) để checkout
+                .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/hoa-don-cho/**").permitAll()
+                .requestMatchers(org.springframework.http.HttpMethod.POST, "/api/hoa-don-cho/**").permitAll()
+                
+                // Backward compatibility - endpoints cũ cho phép ADMIN và STAFF (PUT, PATCH, DELETE)
+                // GET và POST đã được cho phép ở trên, chỉ cần bảo vệ các method khác
+                .requestMatchers(org.springframework.http.HttpMethod.PUT, "/api/hoa-don/**").hasAnyRole("ADMIN", "STAFF")
+                .requestMatchers(org.springframework.http.HttpMethod.PATCH, "/api/hoa-don/**").hasAnyRole("ADMIN", "STAFF")
+                .requestMatchers(org.springframework.http.HttpMethod.DELETE, "/api/hoa-don/**").hasAnyRole("ADMIN", "STAFF")
+                // Fallback: các method khác của /api/hoa-don/** yêu cầu ADMIN hoặc STAFF
                 .requestMatchers("/api/hoa-don/**").hasAnyRole("ADMIN", "STAFF")
                 
                 // TẠM THỜI: Mở toàn bộ API để debug lỗi 403 khi tạo sản phẩm

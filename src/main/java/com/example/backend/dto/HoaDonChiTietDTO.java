@@ -24,5 +24,7 @@ public class HoaDonChiTietDTO {
     private BigDecimal giamGia;
     private BigDecimal thanhTien;
     private String anhSanPham;
+    private String danhMuc; // Loại mũ bảo hiểm (danh mục sản phẩm)
+    private String thuongHieu; // Thương hiệu (nếu có)
     
 }
