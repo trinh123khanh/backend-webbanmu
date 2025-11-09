@@ -1,15 +1,19 @@
 package com.example.backend.controller;
 
 import com.example.backend.dto.KhachHangDTO;
+import com.example.backend.repository.UserRepository;
 import com.example.backend.service.KhachHangService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.List;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Optional;
 
 @RestController
@@ -20,6 +24,9 @@ public class KhachHangController {
 
     @Autowired
     private KhachHangService khachHangService;
+    
+    @Autowired
+    private UserRepository userRepository;
 
     // Lấy tất cả khách hàng với phân trang
     @GetMapping
@@ -55,6 +62,80 @@ public class KhachHangController {
         }
     }
 
+
+    // Lấy thông tin khách hàng hiện tại từ JWT token (username)
+    // QUAN TRỌNG: Route này PHẢI được đặt TRƯỚC route /{id} để tránh conflict
+    @GetMapping("/me")
+    public ResponseEntity<?> getCurrentCustomer() {
+        try {
+            // Lấy username từ JWT token
+            Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+            if (auth == null || auth.getName() == null || "anonymousUser".equals(auth.getName())) {
+                log.warn("⚠️ Unauthorized access to /me endpoint");
+                Map<String, Object> errorResponse = new HashMap<>();
+                errorResponse.put("error", true);
+                errorResponse.put("message", "Bạn cần đăng nhập để xem thông tin cá nhân");
+                errorResponse.put("status", HttpStatus.UNAUTHORIZED.value());
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(errorResponse);
+            }
+            
+            String username = auth.getName();
+            log.info("📋 API: Lấy thông tin khách hàng hiện tại từ username: {}", username);
+            
+            // Tìm User từ username
+            var userOptional = userRepository.findByUsername(username);
+            if (userOptional.isEmpty()) {
+                log.error("❌ Không tìm thấy user với username: {}", username);
+                Map<String, Object> errorResponse = new HashMap<>();
+                errorResponse.put("error", true);
+                errorResponse.put("message", "Không tìm thấy tài khoản với username: " + username);
+                errorResponse.put("status", HttpStatus.NOT_FOUND.value());
+                return ResponseEntity.status(HttpStatus.NOT_FOUND).body(errorResponse);
+            }
+            
+            var user = userOptional.get();
+            log.info("✅ Tìm thấy user: {} (ID: {})", username, user.getId());
+            
+            // Tìm KhachHang từ user_id
+            Optional<KhachHangDTO> khachHangOptional = khachHangService.getKhachHangByUserId(user.getId());
+            
+            if (khachHangOptional.isPresent()) {
+                KhachHangDTO khachHang = khachHangOptional.get();
+                log.info("✅ Tìm thấy khách hàng cho user: {}, Khách hàng ID: {}", username, khachHang.getId());
+                return ResponseEntity.ok(khachHang);
+            } else {
+                // Nếu chưa có KhachHang, tự động tạo một record mới
+                log.warn("⚠️ Không tìm thấy khách hàng cho user: {}, đang tạo mới...", username);
+                try {
+                    KhachHangDTO newKhachHangDTO = khachHangService.createKhachHangFromUser(user);
+                    log.info("✅ Đã tạo khách hàng mới cho user: {}, Khách hàng ID: {}", username, newKhachHangDTO.getId());
+                    return ResponseEntity.ok(newKhachHangDTO);
+                } catch (Exception createEx) {
+                    log.error("❌ Không thể tạo khách hàng mới cho user: {}", username, createEx);
+                    Map<String, Object> errorResponse = new HashMap<>();
+                    errorResponse.put("error", true);
+                    errorResponse.put("message", "Không thể tạo thông tin khách hàng: " + createEx.getMessage());
+                    errorResponse.put("status", HttpStatus.INTERNAL_SERVER_ERROR.value());
+                    return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(errorResponse);
+                }
+            }
+        } catch (RuntimeException e) {
+            log.error("❌ RuntimeException khi lấy thông tin khách hàng hiện tại: {}", e.getMessage(), e);
+            // Trả về error response dưới dạng JSON
+            Map<String, Object> errorResponse = new HashMap<>();
+            errorResponse.put("error", true);
+            errorResponse.put("message", e.getMessage());
+            errorResponse.put("status", HttpStatus.BAD_REQUEST.value());
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(errorResponse);
+        } catch (Exception e) {
+            log.error("❌ Lỗi khi lấy thông tin khách hàng hiện tại", e);
+            // Trả về error response dưới dạng JSON
+            Map<String, Object> errorResponse = new HashMap<>();
+            errorResponse.put("error", true);
+            errorResponse.put("message", "Lỗi khi lấy thông tin khách hàng: " + e.getMessage());
+            errorResponse.put("status", HttpStatus.INTERNAL_SERVER_ERROR.value());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(errorResponse);
+
     // Lấy chi tiết khách hàng theo ID (bao gồm địa chỉ mặc định)
     @GetMapping("/{id}")
     public ResponseEntity<?> getKhachHangById(@PathVariable Long id) {
@@ -73,6 +154,7 @@ public class KhachHangController {
             log.error("❌ Lỗi khi lấy thông tin khách hàng ID: {}", id, e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                 .body("Lỗi khi lấy thông tin khách hàng: " + e.getMessage());
+
         }
     }
 
@@ -121,6 +203,28 @@ public class KhachHangController {
                            .orElse(ResponseEntity.notFound().build());
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        }
+    }
+
+    // Lấy chi tiết khách hàng theo ID (bao gồm địa chỉ mặc định)
+    // QUAN TRỌNG: Route này PHẢI được đặt SAU các route cụ thể như /me, /ma/{maKhachHang}, etc.
+    @GetMapping("/{id}")
+    public ResponseEntity<?> getKhachHangById(@PathVariable Long id) {
+        try {
+            log.info("📋 API: Lấy chi tiết khách hàng theo ID: {}", id);
+            Optional<KhachHangDTO> khachHang = khachHangService.getKhachHangById(id);
+            if (khachHang.isPresent()) {
+                log.info("✅ Tìm thấy khách hàng ID: {}, Tên: {}", id, khachHang.get().getTenKhachHang());
+                return ResponseEntity.ok(khachHang.get());
+            } else {
+                log.warn("⚠️ Không tìm thấy khách hàng với ID: {}", id);
+                return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body("Không tìm thấy khách hàng với ID: " + id);
+            }
+        } catch (Exception e) {
+            log.error("❌ Lỗi khi lấy thông tin khách hàng ID: {}", id, e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body("Lỗi khi lấy thông tin khách hàng: " + e.getMessage());
         }
     }
 
