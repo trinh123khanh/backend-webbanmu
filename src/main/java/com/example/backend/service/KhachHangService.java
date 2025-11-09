@@ -3,7 +3,9 @@ package com.example.backend.service;
 import com.example.backend.dto.KhachHangDTO;
 import com.example.backend.dto.DiaChiKhachHangDTO;
 import com.example.backend.entity.KhachHang;
+import com.example.backend.entity.User;
 import com.example.backend.repository.KhachHangRepository;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -19,6 +21,7 @@ import java.util.stream.Collectors;
 
 @Service
 @Transactional
+@Slf4j
 public class KhachHangService {
 
     @Autowired
@@ -91,10 +94,114 @@ public class KhachHangService {
 
     }
 
-    // Lấy khách hàng theo User ID
+    // Lấy khách hàng theo User ID (bao gồm địa chỉ mặc định)
     public Optional<KhachHangDTO> getKhachHangByUserId(Long userId) {
         return khachHangRepository.findByUserId(userId)
-                .map(this::convertToDTO);
+                .map(this::convertToDTOWithAddress);
+    }
+    
+    /**
+     * Tạo KhachHang từ User (dùng khi user chưa có record trong bảng khach_hang)
+     */
+    public KhachHangDTO createKhachHangFromUser(User user) {
+        log.info("🔄 Tạo KhachHang từ User: {} (ID: {})", user.getUsername(), user.getId());
+        
+        // Kiểm tra xem đã có KhachHang chưa (theo user_id)
+        Optional<KhachHang> existingKhachHangByUserId = khachHangRepository.findByUserId(user.getId());
+        if (existingKhachHangByUserId.isPresent()) {
+            log.info("✅ KhachHang đã tồn tại cho user: {} (ID: {})", user.getUsername(), existingKhachHangByUserId.get().getId());
+            return convertToDTO(existingKhachHangByUserId.get());
+        }
+        
+        // Kiểm tra xem có KhachHang nào có email trùng với user nhưng chưa có user_id không
+        // (có thể là orphan record từ lần đăng ký trước)
+        if (user.getEmail() != null && !user.getEmail().trim().isEmpty()) {
+            Optional<KhachHang> existingByEmail = khachHangRepository.findByEmail(user.getEmail());
+            if (existingByEmail.isPresent()) {
+                KhachHang existingKh = existingByEmail.get();
+                // Nếu KhachHang này chưa có user_id, thì update user_id cho nó
+                if (existingKh.getUser() == null) {
+                    log.info("🔄 Tìm thấy KhachHang orphan với email {}, đang cập nhật user_id...", user.getEmail());
+                    existingKh.setUser(user);
+                    // Cập nhật thông tin từ user nếu cần
+                    if (existingKh.getTenKhachHang() == null || existingKh.getTenKhachHang().trim().isEmpty()) {
+                        existingKh.setTenKhachHang(user.getFullName() != null && !user.getFullName().isBlank() 
+                                ? user.getFullName() : user.getUsername());
+                    }
+                    KhachHang savedKhachHang = khachHangRepository.save(existingKh);
+                    log.info("✅ Đã cập nhật KhachHang orphan thành công: {} (ID: {})", 
+                            savedKhachHang.getTenKhachHang(), savedKhachHang.getId());
+                    return convertToDTO(savedKhachHang);
+                } else if (!existingKh.getUser().getId().equals(user.getId())) {
+                    // Email đã được sử dụng bởi KhachHang khác với user khác
+                    log.warn("⚠️ Email {} đã được sử dụng bởi KhachHang khác (ID: {}, User ID: {}), sẽ tạo KhachHang mới không có email", 
+                            user.getEmail(), existingKh.getId(), existingKh.getUser().getId());
+                    // Tiếp tục tạo KhachHang mới nhưng không set email
+                }
+            }
+        }
+        
+        // Tạo KhachHang mới
+        KhachHang khachHang = new KhachHang();
+        khachHang.setTenKhachHang(user.getFullName() != null && !user.getFullName().isBlank() 
+                ? user.getFullName() : user.getUsername());
+        
+        // Set email nếu chưa bị sử dụng bởi KhachHang khác
+        if (user.getEmail() != null && !user.getEmail().trim().isEmpty()) {
+            Optional<KhachHang> existingByEmail = khachHangRepository.findByEmail(user.getEmail());
+            if (existingByEmail.isEmpty()) {
+                // Email chưa tồn tại, set email
+                khachHang.setEmail(user.getEmail());
+            } else {
+                KhachHang existingKh = existingByEmail.get();
+                // Nếu email đã được sử dụng bởi KhachHang khác (khác user), không set email
+                if (existingKh.getUser() != null && !existingKh.getUser().getId().equals(user.getId())) {
+                    log.warn("⚠️ Email {} đã được sử dụng bởi KhachHang khác, không set email cho KhachHang mới", user.getEmail());
+                    khachHang.setEmail(null); // Không set email để tránh unique constraint violation
+                } else {
+                    // Email chưa được sử dụng hoặc là của user này (đã xử lý ở trên), set email
+                    khachHang.setEmail(user.getEmail());
+                }
+            }
+        }
+        
+        khachHang.setSoDienThoai(null);
+        khachHang.setTrangThai(true);
+        khachHang.setNgayTao(LocalDate.now());
+        khachHang.setUser(user); // Liên kết với user
+        
+        // Tạo mã khách hàng unique
+        String mkh;
+        int attempts = 0;
+        do {
+            mkh = "KH" + System.currentTimeMillis() + (attempts > 0 ? "_" + attempts : "");
+            attempts++;
+            if (attempts > 10) {
+                mkh = "KH" + System.currentTimeMillis() + "_" + (int)(Math.random() * 10000);
+                break;
+            }
+        } while (khachHangRepository.existsByMaKhachHang(mkh));
+        
+        khachHang.setMaKhachHang(mkh);
+        
+        // Set các giá trị mặc định
+        khachHang.setSoLanMua(0);
+        khachHang.setDiemTichLuy(0);
+        // lanMuaGanNhat có thể null
+        
+        // Save KhachHang
+        try {
+            KhachHang savedKhachHang = khachHangRepository.saveAndFlush(khachHang);
+            log.info("✅ Đã tạo KhachHang thành công: {} (ID: {}, maKhachHang: {})", 
+                    savedKhachHang.getTenKhachHang(), savedKhachHang.getId(), savedKhachHang.getMaKhachHang());
+            return convertToDTO(savedKhachHang);
+        } catch (Exception ex) {
+            log.error("❌ Lỗi khi save KhachHang: {}", ex.getMessage(), ex);
+            log.error("   - KhachHang details: tenKhachHang={}, email={}, maKhachHang={}, user_id={}", 
+                    khachHang.getTenKhachHang(), khachHang.getEmail(), khachHang.getMaKhachHang(), 
+                    khachHang.getUser() != null ? khachHang.getUser().getId() : null);
+            throw new RuntimeException("Không thể tạo thông tin khách hàng: " + ex.getMessage(), ex);
+        }
     }
 
     // Tạo khách hàng mới
@@ -140,30 +247,46 @@ public class KhachHangService {
         KhachHang existingKhachHang = khachHangRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Không tìm thấy khách hàng với ID: " + id));
 
-        // Kiểm tra email đã tồn tại (trừ khách hàng hiện tại)
-        if (khachHangRepository.existsByEmailAndIdNot(khachHangDTO.getEmail(), id)) {
-            throw new RuntimeException("Email đã tồn tại: " + khachHangDTO.getEmail());
+        // Kiểm tra email đã tồn tại (trừ khách hàng hiện tại) - chỉ kiểm tra nếu có giá trị
+        if (khachHangDTO.getEmail() != null && !khachHangDTO.getEmail().trim().isEmpty()) {
+            if (khachHangRepository.existsByEmailAndIdNot(khachHangDTO.getEmail(), id)) {
+                throw new RuntimeException("Email đã tồn tại: " + khachHangDTO.getEmail());
+            }
         }
 
-        // Kiểm tra số điện thoại đã tồn tại (trừ khách hàng hiện tại)
-        if (khachHangRepository.existsBySoDienThoaiAndIdNot(khachHangDTO.getSoDienThoai(), id)) {
-            throw new RuntimeException("Số điện thoại đã tồn tại: " + khachHangDTO.getSoDienThoai());
+        // Kiểm tra số điện thoại đã tồn tại (trừ khách hàng hiện tại) - chỉ kiểm tra nếu có giá trị
+        if (khachHangDTO.getSoDienThoai() != null && !khachHangDTO.getSoDienThoai().trim().isEmpty()) {
+            if (khachHangRepository.existsBySoDienThoaiAndIdNot(khachHangDTO.getSoDienThoai(), id)) {
+                throw new RuntimeException("Số điện thoại đã tồn tại: " + khachHangDTO.getSoDienThoai());
+            }
         }
 
-        // Kiểm tra mã khách hàng đã tồn tại (trừ khách hàng hiện tại)
-        if (khachHangRepository.existsByMaKhachHangAndIdNot(khachHangDTO.getMaKhachHang(), id)) {
-            throw new RuntimeException("Mã khách hàng đã tồn tại: " + khachHangDTO.getMaKhachHang());
-        }
+        // Không kiểm tra mã khách hàng vì frontend không gửi (giữ nguyên mã hiện tại)
 
-        // Cập nhật thông tin
-        existingKhachHang.setMaKhachHang(khachHangDTO.getMaKhachHang());
-        existingKhachHang.setTenKhachHang(khachHangDTO.getTenKhachHang());
-        existingKhachHang.setEmail(khachHangDTO.getEmail());
-        existingKhachHang.setSoDienThoai(khachHangDTO.getSoDienThoai());
-        existingKhachHang.setDiaChi(khachHangDTO.getDiaChi());
-        existingKhachHang.setNgaySinh(khachHangDTO.getNgaySinh());
-        existingKhachHang.setGioiTinh(khachHangDTO.getGioiTinh());
-        existingKhachHang.setTrangThai(khachHangDTO.getTrangThai());
+        // Cập nhật thông tin - chỉ cập nhật các trường được gửi từ frontend
+        // Không cập nhật maKhachHang (giữ nguyên mã khách hàng hiện tại)
+        if (khachHangDTO.getTenKhachHang() != null) {
+            existingKhachHang.setTenKhachHang(khachHangDTO.getTenKhachHang());
+        }
+        if (khachHangDTO.getEmail() != null) {
+            existingKhachHang.setEmail(khachHangDTO.getEmail());
+        }
+        if (khachHangDTO.getSoDienThoai() != null) {
+            existingKhachHang.setSoDienThoai(khachHangDTO.getSoDienThoai());
+        }
+        if (khachHangDTO.getDiaChi() != null) {
+            existingKhachHang.setDiaChi(khachHangDTO.getDiaChi());
+        }
+        if (khachHangDTO.getNgaySinh() != null) {
+            existingKhachHang.setNgaySinh(khachHangDTO.getNgaySinh());
+        }
+        if (khachHangDTO.getGioiTinh() != null) {
+            existingKhachHang.setGioiTinh(khachHangDTO.getGioiTinh());
+        }
+        // Không cập nhật trangThai từ frontend (chỉ admin/staff mới được cập nhật)
+        // if (khachHangDTO.getTrangThai() != null) {
+        //     existingKhachHang.setTrangThai(khachHangDTO.getTrangThai());
+        // }
 
         KhachHang updatedKhachHang = khachHangRepository.save(existingKhachHang);
         return convertToDTO(updatedKhachHang);

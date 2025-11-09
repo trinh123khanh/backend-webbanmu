@@ -24,7 +24,6 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.Set;
-import java.util.UUID;
 import java.util.stream.Collectors;
 
 @Service
@@ -76,13 +75,23 @@ public class AuthService {
 
     @Transactional
     public AuthResponse register(RegisterRequest request) {
+        log.info("🔐 Bắt đầu đăng ký user: {}", request.getUsername());
+        
         // Kiểm tra username đã tồn tại
         if (userRepository.existsByUsername(request.getUsername())) {
+            log.warn("⚠️ Username đã tồn tại: {}", request.getUsername());
             throw new RuntimeException("Tên đăng nhập đã được sử dụng");
         }
 
-        // Kiểm tra email đã tồn tại
+        // Kiểm tra email đã tồn tại trong User
         if (userRepository.existsByEmail(request.getEmail())) {
+            log.warn("⚠️ Email đã tồn tại trong User: {}", request.getEmail());
+            throw new RuntimeException("Email đã được sử dụng");
+        }
+        
+        // Kiểm tra email đã tồn tại trong KhachHang chưa (tránh duplicate)
+        if (khachHangRepository.findByEmail(request.getEmail()).isPresent()) {
+            log.warn("⚠️ Email đã tồn tại trong KhachHang: {}", request.getEmail());
             throw new RuntimeException("Email đã được sử dụng");
         }
 
@@ -94,28 +103,55 @@ public class AuthService {
         user.setFullName(request.getFullName());
         user.addRole(User.UserRole.CUSTOMER);
 
-        user = userRepository.save(user);
+        try {
+            user = userRepository.save(user);
+            log.info("✅ Đã tạo User thành công: {} (ID: {})", user.getUsername(), user.getId());
+        } catch (Exception ex) {
+            log.error("❌ Không thể tạo User: {}", ex.getMessage(), ex);
+            throw new RuntimeException("Không thể tạo tài khoản: " + ex.getMessage(), ex);
+        }
 
         // Tạo bản ghi KhachHang liên kết với user vừa tạo
+        KhachHang kh = new KhachHang();
+        kh.setTenKhachHang(request.getFullName() != null && !request.getFullName().isBlank()
+                ? request.getFullName() : request.getUsername());
+        kh.setEmail(request.getEmail());
+        kh.setSoDienThoai(null);
+        kh.setTrangThai(true);
+        kh.setNgayTao(java.time.LocalDate.now());
+        kh.setUser(user); // liên kết user_id
+        
+        // Set các giá trị mặc định
+        kh.setSoLanMua(0);
+        kh.setDiemTichLuy(0);
+        // lanMuaGanNhat có thể null
+        
+        // Tạo mã khách hàng đơn giản, duy nhất - đảm bảo không trùng
+        String mkh;
+        int attempts = 0;
+        do {
+            mkh = "KH" + System.currentTimeMillis() + (attempts > 0 ? "_" + attempts : "");
+            attempts++;
+            if (attempts > 10) {
+                // Nếu sau 10 lần thử vẫn trùng, thêm random để đảm bảo unique
+                mkh = "KH" + System.currentTimeMillis() + "_" + (int)(Math.random() * 10000);
+                break;
+            }
+        } while (khachHangRepository.existsByMaKhachHang(mkh));
+        
+        kh.setMaKhachHang(mkh);
+        log.info("📝 Đã tạo mã khách hàng: {}", mkh);
+        
+        // Save KhachHang - QUAN TRỌNG: Phải save trong cùng transaction
         try {
-            KhachHang kh = new KhachHang();
-            kh.setTenKhachHang(request.getFullName() != null && !request.getFullName().isBlank()
-                    ? request.getFullName() : request.getUsername());
-            kh.setEmail(request.getEmail());
-            kh.setSoDienThoai(null);
-            kh.setTrangThai(true);
-            kh.setNgayTao(java.time.LocalDate.now());
-            kh.setUser(user); // liên kết user_id
-            // Tạo mã khách hàng đơn giản, duy nhất
-            String mkh = "KH" + System.currentTimeMillis();
-            try { kh.setMaKhachHang(mkh); } catch (Exception ignored) {}
-            // Giá trị mặc định khác (nếu tồn tại các trường tương ứng)
-            try { kh.setSoLanMua(0); } catch (Exception ignored) {}
-            try { kh.setDiemTichLuy(0); } catch (Exception ignored) {}
-            try { kh.setLanMuaGanNhat(null); } catch (Exception ignored) {}
-            khachHangRepository.save(kh);
+            kh = khachHangRepository.saveAndFlush(kh);
+            log.info("✅ Đã tạo KhachHang thành công: {} (ID: {}, maKhachHang: {})", 
+                    kh.getTenKhachHang(), kh.getId(), kh.getMaKhachHang());
         } catch (Exception ex) {
-            log.warn("Không thể tạo bản ghi KhachHang cho user {}: {}", user.getUsername(), ex.getMessage());
+            log.error("❌ Không thể tạo bản ghi KhachHang cho user {}: {}", user.getUsername(), ex.getMessage(), ex);
+            // Rollback transaction bằng cách throw exception
+            // Transaction sẽ tự động rollback khi có exception
+            throw new RuntimeException("Không thể tạo thông tin khách hàng: " + ex.getMessage(), ex);
         }
 
         // Tạo JWT token
