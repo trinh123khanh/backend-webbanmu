@@ -83,9 +83,11 @@ public class SecurityConfig {
                 .requestMatchers("/api/customer/profile/**").hasRole("CUSTOMER")
                 .requestMatchers("/api/customer/orders/**").hasRole("CUSTOMER")
                 
+
                 // Khách hàng lấy thông tin cá nhân từ JWT token - yêu cầu authentication
                 .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/khach-hang/me").authenticated()
                 
+
                 // CHO PHÉP tạo hóa đơn mà không cần authentication (để khách hàng có thể đặt hàng)
                 .requestMatchers(org.springframework.http.HttpMethod.POST, "/api/hoa-don").permitAll()
                 

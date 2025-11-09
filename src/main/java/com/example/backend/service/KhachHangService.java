@@ -93,7 +93,6 @@ public class KhachHangService {
                 .map(this::convertToDTO);
 
     }
-
     // Lấy khách hàng theo User ID (bao gồm địa chỉ mặc định)
     public Optional<KhachHangDTO> getKhachHangByUserId(Long userId) {
         return khachHangRepository.findByUserId(userId)
@@ -202,6 +201,11 @@ public class KhachHangService {
                     khachHang.getUser() != null ? khachHang.getUser().getId() : null);
             throw new RuntimeException("Không thể tạo thông tin khách hàng: " + ex.getMessage(), ex);
         }
+
+    // Lấy khách hàng theo User ID
+    public Optional<KhachHangDTO> getKhachHangByUserId(Long userId) {
+        return khachHangRepository.findByUserId(userId)
+                .map(this::convertToDTO);
     }
 
     // Tạo khách hàng mới
