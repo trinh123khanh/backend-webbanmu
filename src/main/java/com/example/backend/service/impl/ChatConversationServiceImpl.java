@@ -8,11 +8,14 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
+import java.text.Normalizer;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -54,6 +57,10 @@ public class ChatConversationServiceImpl implements ChatConversationService {
                 .build();
         conversations.put(conversation.getId(), conversation);
         conversationsByCustomer.put(khachHangId, conversation);
+        
+        // Tự động gửi tin nhắn chào khi tạo conversation mới
+        addWelcomeMessage(conversation);
+        
         log.info("Created new conversation for customer {}", khachHangId);
         return conversation;
     }
@@ -81,8 +88,8 @@ public class ChatConversationServiceImpl implements ChatConversationService {
         conversation.setDangChoPhanHoi(true);
         updateUnreadCount(conversation, conversation.getKhachHangId());
 
-        // Tạo phản hồi tự động đơn giản
-        addAutoReply(conversation);
+        // Tạo phản hồi tự động: nếu hỏi về sản phẩm thì yêu cầu đợi nhân viên
+        addAutoReply(conversation, message.getNoiDung());
 
         return message;
     }
@@ -226,8 +233,41 @@ public class ChatConversationServiceImpl implements ChatConversationService {
         conversation.setSoTinNhanChuaDoc(count);
     }
 
-    private void addAutoReply(ConversationDTO conversation) {
-        String reply = "Cảm ơn bạn đã liên hệ! Chúng tôi sẽ phản hồi trong thời gian sớm nhất.";
+    /**
+     * Thêm tin nhắn chào khi tạo conversation mới
+     */
+    private void addWelcomeMessage(ConversationDTO conversation) {
+        String welcomeMessage = "Xin chào! Tôi là trợ lý AI của cửa hàng. Tôi có thể giúp gì cho bạn?";
+        ChatMessageDTO welcomeMsg = ChatMessageDTO.builder()
+                .id(messageIdSequence.getAndIncrement())
+                .conversationId(conversation.getId())
+                .noiDung(welcomeMessage)
+                .loaiNguoiGui("CHATBOT")
+                .thoiGianGui(now())
+                .tuDongTraLoi(true)
+                .daDoc(false)
+                .build();
+        conversation.getMessages().add(welcomeMsg);
+        conversation.setNgayCapNhat(now());
+    }
+
+    /**
+     * Thêm phản hồi tự động
+     * Chatbot tự động trả lời dựa trên nội dung tin nhắn của khách hàng
+     */
+    private void addAutoReply(ConversationDTO conversation, String customerMessage) {
+        String reply;
+        
+        // Kiểm tra xem tin nhắn có liên quan đến sản phẩm không
+        if (isGreeting(customerMessage)) {
+            reply = "Xin chào bạn! Rất vui được hỗ trợ. Bạn cần tư vấn sản phẩm hay thông tin gì không?";
+        } else if (isProductRelated(customerMessage)) {
+            // Với yêu cầu mua hàng, thông báo chờ nhân viên hỗ trợ
+            reply = "Bạn đợi nhân viên trả lời.";
+        } else {
+            reply = "Cảm ơn bạn đã liên hệ! Chúng tôi sẽ phản hồi trong thời gian sớm nhất.";
+        }
+        
         ChatMessageDTO autoMessage = ChatMessageDTO.builder()
                 .id(messageIdSequence.getAndIncrement())
                 .conversationId(conversation.getId())
@@ -239,6 +279,71 @@ public class ChatConversationServiceImpl implements ChatConversationService {
                 .build();
         conversation.getMessages().add(autoMessage);
         conversation.setNgayCapNhat(now());
+    }
+
+    /**
+     * Kiểm tra xem tin nhắn có liên quan đến sản phẩm không
+     */
+    private boolean isProductRelated(String message) {
+        if (message == null || message.trim().isEmpty()) {
+            return false;
+        }
+        
+        String lowerMessage = message.toLowerCase(Locale.ROOT).trim();
+        String sanitized = sanitizeText(lowerMessage);
+        
+        // Danh sách từ khóa liên quan đến sản phẩm và mua hàng
+        String[] productKeywords = {
+            "sản phẩm", "san pham", "product",
+            "mũ", "mu", "helmet", "nón", "non",
+            "giá", "gia", "price", "giá cả", "gia ca",
+            "mua", "buy", "purchase", "đặt hàng", "dat hang", "order",
+            "muốn mua", "muon mua", "want to buy", "cần mua", "can mua",
+            "bán", "ban", "sell", "có bán", "co ban",
+            "hàng", "hang", "item", "goods",
+            "kích thước", "kich thuoc", "size",
+            "màu", "mau", "color", "colour",
+            "chất liệu", "chat lieu", "material",
+            "thương hiệu", "thuong hieu", "brand",
+            "model", "mẫu", "mau",
+            "tồn kho", "ton kho", "stock", "còn hàng", "con hang",
+            "giao hàng", "giao hang", "delivery", "ship",
+            "thanh toán", "thanh toan", "payment",
+            "trẻ em", "tre em", "children", "kid",
+            "người lớn", "nguoi lon", "adult",
+            "bán chạy", "ban chay", "best seller", "nổi bật", "noi bat"
+        };
+        
+        for (String keyword : productKeywords) {
+            if (lowerMessage.contains(keyword) || sanitized.contains(keyword)) {
+                return true;
+            }
+        }
+        
+        return false;
+    }
+
+    private boolean isGreeting(String message) {
+        if (message == null || message.trim().isEmpty()) {
+            return false;
+        }
+        String lower = message.toLowerCase(Locale.ROOT).trim();
+        String sanitized = sanitizeText(lower);
+        String[] greetings = {
+                "xin chào", "chào", "chao", "hello", "hi", "hey",
+                "alo", "good morning", "good afternoon", "good evening",
+                "konnichiwa" // just for fun
+        };
+        return Arrays.stream(greetings)
+                .anyMatch(g -> lower.contains(g) || sanitized.contains(g.replace(" ", "")));
+    }
+
+    private String sanitizeText(String text) {
+        if (text == null) return "";
+        String normalized = Normalizer.normalize(text, Normalizer.Form.NFD);
+        return normalized.replaceAll("\\p{M}", "")
+                .replaceAll("\\s+", "")
+                .toLowerCase(Locale.ROOT);
     }
 
     private String now() {
