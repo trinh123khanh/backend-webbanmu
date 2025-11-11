@@ -135,26 +135,6 @@ public class KhachHangController {
             errorResponse.put("message", "Lỗi khi lấy thông tin khách hàng: " + e.getMessage());
             errorResponse.put("status", HttpStatus.INTERNAL_SERVER_ERROR.value());
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(errorResponse);
-
-    // Lấy chi tiết khách hàng theo ID (bao gồm địa chỉ mặc định)
-    @GetMapping("/{id}")
-    public ResponseEntity<?> getKhachHangById(@PathVariable Long id) {
-        try {
-            log.info("📋 API: Lấy chi tiết khách hàng theo ID: {}", id);
-            Optional<KhachHangDTO> khachHang = khachHangService.getKhachHangById(id);
-            if (khachHang.isPresent()) {
-                log.info("✅ Tìm thấy khách hàng ID: {}, Tên: {}", id, khachHang.get().getTenKhachHang());
-                return ResponseEntity.ok(khachHang.get());
-            } else {
-                log.warn("⚠️ Không tìm thấy khách hàng với ID: {}", id);
-                return ResponseEntity.status(HttpStatus.NOT_FOUND)
-                    .body("Không tìm thấy khách hàng với ID: " + id);
-            }
-        } catch (Exception e) {
-            log.error("❌ Lỗi khi lấy thông tin khách hàng ID: {}", id, e);
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body("Lỗi khi lấy thông tin khách hàng: " + e.getMessage());
-
         }
     }
 
