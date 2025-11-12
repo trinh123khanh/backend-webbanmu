@@ -2,15 +2,20 @@ package com.example.backend.service;
 
 import com.example.backend.dto.NhanVienDTO;
 import com.example.backend.entity.NhanVien;
+import com.example.backend.entity.User;
 import com.example.backend.repository.NhanVienRepository;
+import com.example.backend.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.security.SecureRandom;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
@@ -19,9 +24,15 @@ import java.util.stream.Collectors;
 @Service
 @RequiredArgsConstructor
 @Transactional
+@Slf4j
 public class NhanVienService {
 
     private final NhanVienRepository nhanVienRepository;
+    private final UserRepository userRepository;
+    private final PasswordEncoder passwordEncoder;
+    private final EmailService emailService;
+    private static final String CHARACTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+    private static final int PASSWORD_LENGTH = 12;
 
     // Lấy tất cả nhân viên với phân trang
     public Page<NhanVienDTO> getAllNhanVien(int page, int size, String sortBy, String sortDir) {
@@ -61,8 +72,17 @@ public class NhanVienService {
         }
         
         // Kiểm tra email đã tồn tại
-        if (nhanVienDTO.getEmail() != null && nhanVienRepository.findByEmail(nhanVienDTO.getEmail()).isPresent()) {
+        if (nhanVienDTO.getEmail() == null || nhanVienDTO.getEmail().trim().isEmpty()) {
+            throw new RuntimeException("Email không được để trống");
+        }
+        
+        if (nhanVienRepository.findByEmail(nhanVienDTO.getEmail()).isPresent()) {
             throw new RuntimeException("Email đã tồn tại");
+        }
+        
+        // Kiểm tra email đã tồn tại trong User
+        if (userRepository.existsByEmail(nhanVienDTO.getEmail())) {
+            throw new RuntimeException("Email đã được sử dụng cho tài khoản khác");
         }
         
         // Kiểm tra số điện thoại đã tồn tại
@@ -70,11 +90,55 @@ public class NhanVienService {
             throw new RuntimeException("Số điện thoại đã tồn tại");
         }
         
+        // Tạo User cho nhân viên
+        String username = generateUsername(nhanVienDTO.getEmail(), nhanVienDTO.getMaNhanVien());
+        String plainPassword = generateRandomPassword();
+        String encodedPassword = passwordEncoder.encode(plainPassword);
+        
+        User user = new User();
+        user.setUsername(username);
+        user.setPassword(encodedPassword);
+        user.setEmail(nhanVienDTO.getEmail());
+        user.setFullName(nhanVienDTO.getHoTen());
+        user.addRole(User.UserRole.STAFF);
+        
+        // Kiểm tra username đã tồn tại
+        if (userRepository.existsByUsername(username)) {
+            // Nếu username đã tồn tại, thêm số vào cuối
+            int counter = 1;
+            String baseUsername = username;
+            while (userRepository.existsByUsername(username)) {
+                username = baseUsername + counter;
+                counter++;
+            }
+            user.setUsername(username);
+        }
+        
+        User savedUser = userRepository.save(user);
+        
+        // Tạo nhân viên và liên kết với User
         NhanVien nhanVien = convertToEntity(nhanVienDTO);
         nhanVien.setNgayVaoLam(LocalDate.now());
         nhanVien.setTrangThai(true);
+        nhanVien.setUser(savedUser);
         
         NhanVien savedNhanVien = nhanVienRepository.save(nhanVien);
+        
+        // Gửi email thông tin tài khoản (async, không ảnh hưởng đến response)
+        try {
+            emailService.sendEmployeeAccountInfo(
+                nhanVienDTO.getEmail(),
+                nhanVienDTO.getHoTen(),
+                username,
+                plainPassword,
+                nhanVienDTO.getMaNhanVien()
+            );
+            log.info("✅ Email thông tin tài khoản đã được gửi tới: {}", nhanVienDTO.getEmail());
+        } catch (Exception e) {
+            log.error("❌ Lỗi khi gửi email thông tin tài khoản tới {}: {}", nhanVienDTO.getEmail(), e.getMessage());
+            // Không throw exception để không ảnh hưởng đến việc tạo nhân viên
+        }
+        
         return convertToDTO(savedNhanVien);
     }
 
@@ -194,6 +258,34 @@ public class NhanVienService {
         String prefix = "NV";
         long count = nhanVienRepository.count();
         return prefix + String.format("%04d", count + 1);
+    }
+
+    // Tạo username từ email hoặc mã nhân viên
+    private String generateUsername(String email, String maNhanVien) {
+        if (email != null && !email.trim().isEmpty()) {
+            // Lấy phần trước @ của email
+            String username = email.split("@")[0];
+            // Loại bỏ các ký tự đặc biệt, chỉ giữ chữ và số
+            username = username.replaceAll("[^a-zA-Z0-9]", "");
+            return username.toLowerCase();
+        } else if (maNhanVien != null && !maNhanVien.trim().isEmpty()) {
+            return maNhanVien.toLowerCase();
+        } else {
+            throw new RuntimeException("Không thể tạo username: email và mã nhân viên đều trống");
+        }
+    }
+
+    // Tạo mật khẩu ngẫu nhiên
+    private String generateRandomPassword() {
+        SecureRandom random = new SecureRandom();
+        StringBuilder password = new StringBuilder(PASSWORD_LENGTH);
+        
+        for (int i = 0; i < PASSWORD_LENGTH; i++) {
+            int index = random.nextInt(CHARACTERS.length());
+            password.append(CHARACTERS.charAt(index));
+        }
+        
+        return password.toString();
     }
 
     // Convert Entity to DTO

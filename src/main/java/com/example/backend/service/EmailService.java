@@ -169,4 +169,49 @@ public class EmailService {
             log.error("❌ Lỗi khi gửi email OTP đặt lại mật khẩu tới {}: {}", email, e.getMessage(), e);
         }
     }
+
+    /**
+     * Gửi email thông tin tài khoản đăng nhập cho nhân viên mới
+     */
+    @Async
+    public void sendEmployeeAccountInfo(String email, String employeeName, String username, String password, String maNhanVien) {
+        if (!emailEnabled) {
+            log.info("Email service is disabled. Skipping employee account info email.");
+            return;
+        }
+
+        try {
+            String emailContent = String.format(
+                "Xin chào %s,\n\n" +
+                "Chúc mừng! Bạn đã được thêm vào hệ thống TDK Store với vai trò nhân viên.\n\n" +
+                "📌 Thông tin tài khoản đăng nhập:\n" +
+                "- Mã nhân viên: %s\n" +
+                "- Tên đăng nhập: %s\n" +
+                "- Mật khẩu: %s\n\n" +
+                "⚠️ LƯU Ý QUAN TRỌNG:\n" +
+                "- Vui lòng đổi mật khẩu ngay sau lần đăng nhập đầu tiên để bảo mật tài khoản.\n" +
+                "- Không chia sẻ thông tin đăng nhập với người khác.\n" +
+                "- Nếu bạn không yêu cầu tài khoản này, vui lòng liên hệ quản trị viên.\n\n" +
+                "Bạn có thể đăng nhập vào hệ thống tại: http://localhost:4200/login\n\n" +
+                "Trân trọng,\n" +
+                "TDK Store - Bán mũ bảo hiểm",
+                employeeName != null ? employeeName : "Nhân viên",
+                maNhanVien != null ? maNhanVien : "N/A",
+                username,
+                password
+            );
+
+            SimpleMailMessage message = new SimpleMailMessage();
+            message.setFrom(fromEmail);
+            message.setTo(email);
+            message.setSubject("🔑 Thông tin tài khoản đăng nhập - TDK Store");
+            message.setText(emailContent);
+            mailSender.send(message);
+
+            log.info("✅ Employee account info sent successfully to: {} (Username: {})", email, username);
+        } catch (Exception e) {
+            log.error("❌ Lỗi khi gửi email thông tin tài khoản tới {}: {}", email, e.getMessage(), e);
+            // Không throw exception để không ảnh hưởng đến logic tạo nhân viên
+        }
+    }
 }
