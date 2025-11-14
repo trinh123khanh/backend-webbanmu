@@ -1,5 +1,6 @@
 package com.example.backend.controller;
 
+import com.example.backend.dto.HoaDonActivityDTO;
 import com.example.backend.dto.HoaDonDTO;
 import com.example.backend.entity.HoaDon;
 import com.example.backend.entity.KhachHang;
@@ -7,6 +8,7 @@ import com.example.backend.entity.User;
 import com.example.backend.repository.KhachHangRepository;
 import com.example.backend.repository.UserRepository;
 import com.example.backend.service.HoaDonService;
+import com.example.backend.service.HoaDonActivityService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
@@ -28,13 +30,16 @@ public class HoaDonController {
     private final HoaDonService hoaDonService;
     private final UserRepository userRepository;
     private final KhachHangRepository khachHangRepository;
+    private final HoaDonActivityService hoaDonActivityService;
 
-    public HoaDonController(HoaDonService hoaDonService, 
-                             UserRepository userRepository,
-                             KhachHangRepository khachHangRepository) {
+    public HoaDonController(HoaDonService hoaDonService,
+                            UserRepository userRepository,
+                            KhachHangRepository khachHangRepository,
+                            HoaDonActivityService hoaDonActivityService) {
         this.hoaDonService = hoaDonService;
         this.userRepository = userRepository;
         this.khachHangRepository = khachHangRepository;
+        this.hoaDonActivityService = hoaDonActivityService;
     }
 
     // ===== ADMIN ENDPOINTS - CRUD tất cả hóa đơn =====
@@ -99,7 +104,6 @@ public class HoaDonController {
     @PreAuthorize("hasAnyRole('ADMIN', 'STAFF')")
     public ResponseEntity<?> createHoaDonForStaff(@RequestBody HoaDonDTO hoaDonDTO) {
         // Set nhanVienId từ authentication context
-        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         // TODO: Lấy nhanVienId từ user context
         return createHoaDon(hoaDonDTO);
     }
@@ -217,7 +221,7 @@ public class HoaDonController {
         }
     }
     
-    @GetMapping("/api/hoa-don/{id}")
+    @GetMapping("/api/hoa-don/{id:\\d+}")
     public ResponseEntity<HoaDonDTO> getHoaDonById(@PathVariable Long id) {
         return hoaDonService.getHoaDonById(id)
                 .map(hoaDonService::toDTO)
@@ -242,6 +246,12 @@ public class HoaDonController {
             }
             
             HoaDonDTO createdHoaDon = hoaDonService.createHoaDon(hoaDonDTO);
+            hoaDonActivityService.logActivity(
+                    createdHoaDon.getId(),
+                    createdHoaDon.getMaHoaDon(),
+                    "CREATE",
+                    "Tạo hóa đơn mới trong hệ thống"
+            );
             return ResponseEntity.status(org.springframework.http.HttpStatus.CREATED).body(createdHoaDon);
         } catch (RuntimeException e) {
             return ResponseEntity.status(org.springframework.http.HttpStatus.BAD_REQUEST).body(e.getMessage());
@@ -252,7 +262,7 @@ public class HoaDonController {
     }
 
     // Cập nhật hóa đơn
-    @PutMapping("/api/hoa-don/{id}")
+    @PutMapping("/api/hoa-don/{id:\\d+}")
     public ResponseEntity<?> updateHoaDon(@PathVariable Long id, @RequestBody HoaDonDTO hoaDonDTO) {
         try {
             System.out.println("🔍 ========== PUT /api/hoa-don/" + id + " ==========");
@@ -275,6 +285,12 @@ public class HoaDonController {
             }
             
             HoaDonDTO updatedHoaDon = hoaDonService.updateHoaDon(id, hoaDonDTO);
+            hoaDonActivityService.logActivity(
+                    updatedHoaDon.getId(),
+                    updatedHoaDon.getMaHoaDon(),
+                    "UPDATE",
+                    "Cập nhật thông tin hóa đơn"
+            );
             System.out.println("✅ Invoice updated successfully:");
             System.out.println("   - New status: " + updatedHoaDon.getTrangThai());
             System.out.println("   - New ghiChu: " + updatedHoaDon.getGhiChu());
@@ -341,7 +357,7 @@ public class HoaDonController {
     // Cập nhật trạng thái hóa đơn
     // Best Practice: PATCH request nên dùng @RequestBody (RFC 5789)
     // Ưu điểm: Dễ mở rộng (có thể thêm reason, note), dễ debug, consistent với REST standards
-    @PatchMapping(value = "/api/hoa-don/{id}/trang-thai", consumes = "application/json", produces = "application/json")
+    @PatchMapping(value = "/api/hoa-don/{id:\\d+}/trang-thai", consumes = "application/json", produces = "application/json")
     public ResponseEntity<?> updateTrangThaiHoaDon(
             @PathVariable Long id,
             @RequestBody(required = false) Map<String, String> requestBody) {
@@ -390,6 +406,12 @@ public class HoaDonController {
             HoaDonDTO updatedHoaDon = hoaDonService.updateTrangThaiHoaDon(id, trangThaiToUpdate);
             System.out.println("✅ Update successful, new status: " + updatedHoaDon.getTrangThai());
             System.out.println("==========================================");
+            hoaDonActivityService.logActivity(
+                    updatedHoaDon.getId(),
+                    updatedHoaDon.getMaHoaDon(),
+                    "STATUS_CHANGE",
+                    "Cập nhật trạng thái thành " + updatedHoaDon.getTrangThai()
+            );
             return ResponseEntity.ok(updatedHoaDon);
         } catch (jakarta.persistence.EntityNotFoundException e) {
             System.err.println("❌ Entity not found: " + e.getMessage());
@@ -411,5 +433,21 @@ public class HoaDonController {
     @GetMapping("/api/hoa-don/test")
     public ResponseEntity<String> test() {
         return ResponseEntity.ok("API hoạt động bình thường!");
+    }
+
+    @GetMapping("/api/hoa-don/activities")
+    @PreAuthorize("hasAnyRole('ADMIN','STAFF')")
+    public ResponseEntity<Map<String, Object>> getHoaDonActivities(
+            @RequestParam(required = false) Long hoaDonId,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size) {
+        Page<HoaDonActivityDTO> activityPage = hoaDonActivityService.getActivities(hoaDonId, page, size);
+        Map<String, Object> response = new HashMap<>();
+        response.put("content", activityPage.getContent());
+        response.put("totalElements", activityPage.getTotalElements());
+        response.put("totalPages", activityPage.getTotalPages());
+        response.put("currentPage", activityPage.getNumber());
+        response.put("size", activityPage.getSize());
+        return ResponseEntity.ok(response);
     }
 }
