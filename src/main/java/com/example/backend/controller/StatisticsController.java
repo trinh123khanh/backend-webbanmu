@@ -13,6 +13,7 @@ import com.example.backend.service.StatisticsService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.LocalDate;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -63,6 +64,75 @@ public class StatisticsController {
             errorResponse.put("error", "Lỗi khi lấy danh sách sản phẩm bán chạy: " + e.getMessage());
             errorResponse.put("data", List.of());
             errorResponse.put("message", e.getMessage());
+            return ResponseEntity.status(500).body(errorResponse);
+        }
+    }
+
+    @GetMapping("/best-selling-products/period")
+    public ResponseEntity<?> getBestSellingProductsByPeriod(
+            @RequestParam String period,
+            @RequestParam(defaultValue = "5") int limit) {
+        try {
+            System.out.println("========================================");
+            System.out.println("📥 [StatisticsController] Received GET request: /api/statistics/best-selling-products/period?period=" + period + "&limit=" + limit);
+            System.out.println("========================================");
+
+            List<BestSellingProductDTO> products = statisticsService.getBestSellingProductsByPeriod(period, limit);
+
+            Map<String, Object> response = new HashMap<>();
+            response.put("data", products);
+            response.put("total", products.size());
+            response.put("period", period);
+
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            System.err.println("❌ [StatisticsController] Error in best-selling-products/period: " + e.getMessage());
+            e.printStackTrace();
+            Map<String, Object> errorResponse = new HashMap<>();
+            errorResponse.put("error", "Lỗi khi lấy sản phẩm bán chạy theo period: " + e.getMessage());
+            errorResponse.put("data", List.of());
+            return ResponseEntity.status(500).body(errorResponse);
+        }
+    }
+
+    @GetMapping("/best-selling-products/date-range")
+    public ResponseEntity<?> getBestSellingProductsByDateRange(
+            @RequestParam String startDate,
+            @RequestParam String endDate,
+            @RequestParam(defaultValue = "5") int limit) {
+        try {
+            System.out.println("========================================");
+            System.out.println("📥 [StatisticsController] Received GET request: /api/statistics/best-selling-products/date-range?startDate=" + startDate + "&endDate=" + endDate + "&limit=" + limit);
+            System.out.println("========================================");
+
+            LocalDate start = LocalDate.parse(startDate);
+            LocalDate end = LocalDate.parse(endDate);
+
+            if (start.isAfter(end)) {
+                Map<String, Object> errorResponse = new HashMap<>();
+                errorResponse.put("error", "Ngày bắt đầu phải nhỏ hơn hoặc bằng ngày kết thúc");
+                return ResponseEntity.badRequest().body(errorResponse);
+            }
+
+            List<BestSellingProductDTO> products = statisticsService.getBestSellingProductsByDateRange(start, end, limit);
+
+            Map<String, Object> response = new HashMap<>();
+            response.put("data", products);
+            response.put("total", products.size());
+            response.put("startDate", startDate);
+            response.put("endDate", endDate);
+
+            return ResponseEntity.ok(response);
+        } catch (java.time.format.DateTimeParseException e) {
+            Map<String, Object> errorResponse = new HashMap<>();
+            errorResponse.put("error", "Định dạng ngày không hợp lệ. Vui lòng sử dụng format: yyyy-MM-dd");
+            return ResponseEntity.badRequest().body(errorResponse);
+        } catch (Exception e) {
+            System.err.println("❌ [StatisticsController] Error in best-selling-products/date-range: " + e.getMessage());
+            e.printStackTrace();
+            Map<String, Object> errorResponse = new HashMap<>();
+            errorResponse.put("error", "Lỗi khi lấy sản phẩm bán chạy theo khoảng ngày: " + e.getMessage());
+            errorResponse.put("data", List.of());
             return ResponseEntity.status(500).body(errorResponse);
         }
     }

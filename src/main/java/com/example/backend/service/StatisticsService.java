@@ -137,107 +137,56 @@ public class StatisticsService {
         
         System.out.println("✅ [StatisticsService] Step 2: Processing " + chiTietList.size() + " invoice detail records...");
         
-        // Nhóm theo chi_tiet_san_pham_id và tính tổng số lượng
-        Map<Long, BestSellingProductDTO> productMap = new HashMap<>();
-        int skippedCount = 0;
-        int processedCount = 0;
+        return buildBestSellingProductsResponse(chiTietList, limit, "DEFAULT");
+    }
+    
+    /**
+     * Lấy sản phẩm bán chạy theo khoảng thời gian day/week/month/year giống bộ lọc thống kê
+     */
+    public List<BestSellingProductDTO> getBestSellingProductsByPeriod(String period, int limit) {
+        System.out.println("========================================");
+        System.out.println("🔍 [StatisticsService] Starting getBestSellingProductsByPeriod with period=" + period + ", limit=" + limit);
+        System.out.println("========================================");
         
-        System.out.println("📦 [StatisticsService] Step 3: Grouping products by chiTietSanPhamId...");
+        DateRange dateRange = resolvePeriodDateRange(period);
+        System.out.println("📅 [StatisticsService] Period date range: " + dateRange.getStart() + " -> " + dateRange.getEnd());
         
-        for (HoaDonChiTiet hdct : chiTietList) {
-            processedCount++;
-            
-            // Kiểm tra null
-            if (hdct == null) {
-                System.out.println("⚠️ [StatisticsService] Record #" + processedCount + ": hdct is null");
-                skippedCount++;
-                continue;
-            }
-            
-            if (hdct.getChiTietSanPham() == null) {
-                System.out.println("⚠️ [StatisticsService] Record #" + processedCount + " (id=" + hdct.getId() + "): chiTietSanPham is null");
-                skippedCount++;
-                continue;
-            }
-            
-            if (hdct.getChiTietSanPham().getSanPham() == null) {
-                Long chiTietSanPhamId = hdct.getChiTietSanPham().getId();
-                System.out.println("⚠️ [StatisticsService] Record #" + processedCount + " (chiTietSanPhamId=" + chiTietSanPhamId + "): sanPham is null");
-                skippedCount++;
-                continue;
-            }
-            
-            Long chiTietSanPhamId = hdct.getChiTietSanPham().getId();
-            
-            if (!productMap.containsKey(chiTietSanPhamId)) {
-                // Tạo mới DTO nếu chưa có
-                var chiTietSP = hdct.getChiTietSanPham();
-                var sanPham = chiTietSP.getSanPham();
-                
-                // Lấy màu sắc từ chi_tiet_san_pham -> mau_sac_id -> mau_sac.ten_mau
-                String mauSac = null;
-                if (chiTietSP.getMauSac() != null) {
-                    mauSac = chiTietSP.getMauSac().getTenMau();
-                }
-                
-                // Lấy tên sản phẩm từ san_pham.ten_san_pham
-                String tenSanPham = sanPham.getTenSanPham();
-                
-                // Lấy kiểu dáng mũ từ san_pham -> kieu_dang_mu_id -> kieu_dang_mu.ten_kieu_dang
-                String kieuDang = null;
-                if (sanPham.getKieuDangMu() != null) {
-                    kieuDang = sanPham.getKieuDangMu().getTenKieuDang();
-                }
-                
-                BestSellingProductDTO dto = BestSellingProductDTO.builder()
-                    .chiTietSanPhamId(chiTietSanPhamId)
-                    .sanPhamId(sanPham.getId())
-                    .tenSanPham(tenSanPham)
-                    .mauSac(mauSac)
-                    .kieuDang(kieuDang)
-                    .donGia(hdct.getDonGia()) // Lấy từ hoa_don_chi_tiet.don_gia
-                    .soLuongBan(0) // Sẽ được cộng dồn sau
-                    .build();
-                
-                productMap.put(chiTietSanPhamId, dto);
-            }
-            
-            // Cộng dồn số lượng từ hoa_don_chi_tiet.so_luong
-            BestSellingProductDTO dto = productMap.get(chiTietSanPhamId);
-            dto.setSoLuongBan(dto.getSoLuongBan() + hdct.getSoLuong());
+        List<HoaDonChiTiet> chiTietList = hoaDonChiTietRepository.findWithProductDetailsByDateRange(
+            dateRange.getStart(),
+            dateRange.getEnd()
+        );
+        System.out.println("📦 [StatisticsService] Found " + chiTietList.size() + " invoice detail records for period filter");
+        
+        return buildBestSellingProductsResponse(chiTietList, limit, "PERIOD:" + period);
+    }
+    
+    /**
+     * Lấy sản phẩm bán chạy theo khoảng ngày tùy chọn (custom date range)
+     */
+    public List<BestSellingProductDTO> getBestSellingProductsByDateRange(LocalDate startDate, LocalDate endDate, int limit) {
+        System.out.println("========================================");
+        System.out.println("🔍 [StatisticsService] Starting getBestSellingProductsByDateRange with startDate=" + startDate + ", endDate=" + endDate + ", limit=" + limit);
+        System.out.println("========================================");
+        
+        if (startDate == null || endDate == null) {
+            System.out.println("⚠️ [StatisticsService] Start date or end date is null, returning empty list.");
+            return new ArrayList<>();
         }
         
-        System.out.println("📈 [StatisticsService] Step 4: Processing summary");
-        System.out.println("   - Total records processed: " + chiTietList.size());
-        System.out.println("   - Records skipped: " + skippedCount);
-        System.out.println("   - Product groups created: " + productMap.size());
-        
-        if (productMap.isEmpty()) {
-            System.out.println("⚠️ [StatisticsService] No valid products after processing!");
-            System.out.println("   All records were skipped. Possible issues:");
-            System.out.println("   1. chiTietSanPham relationships are not loaded");
-            System.out.println("   2. sanPham relationships are not loaded");
-            System.out.println("   3. Data integrity issues in database");
-            return new java.util.ArrayList<>();
+        if (endDate.isBefore(startDate)) {
+            System.out.println("⚠️ [StatisticsService] End date is before start date, returning empty list.");
+            return new ArrayList<>();
         }
         
-        // Sắp xếp theo số lượng bán giảm dần và lấy top
-        List<BestSellingProductDTO> result = productMap.values().stream()
-            .sorted((a, b) -> Integer.compare(b.getSoLuongBan(), a.getSoLuongBan()))
-            .limit(limit)
-            .collect(Collectors.toList());
+        LocalDateTime startDateTime = startDate.atStartOfDay();
+        LocalDateTime endDateTime = endDate.atTime(23, 59, 59);
         
-        System.out.println("✅ [StatisticsService] Returning " + result.size() + " best selling products:");
-        for (int i = 0; i < result.size(); i++) {
-            BestSellingProductDTO dto = result.get(i);
-            System.out.println("   " + (i + 1) + ". " + dto.getTenSanPham() + 
-                             " | Màu: " + (dto.getMauSac() != null ? dto.getMauSac() : "N/A") + 
-                             " | Kiểu: " + (dto.getKieuDang() != null ? dto.getKieuDang() : "N/A") + 
-                             " | SL: " + dto.getSoLuongBan() + 
-                             " | Giá: " + dto.getDonGia());
-        }
+        System.out.println("📅 [StatisticsService] Custom date range (DateTime): " + startDateTime + " -> " + endDateTime);
         
-        return result;
+        List<HoaDonChiTiet> chiTietList = hoaDonChiTietRepository.findWithProductDetailsByDateRange(startDateTime, endDateTime);
+        System.out.println("📦 [StatisticsService] Found " + chiTietList.size() + " invoice detail records for custom date range");
+        
+        return buildBestSellingProductsResponse(chiTietList, limit, "CUSTOM_RANGE");
     }
     
     /**
@@ -250,38 +199,9 @@ public class StatisticsService {
         System.out.println("📊 [StatisticsService] Getting period statistics for: " + period);
         System.out.println("========================================");
         
-        LocalDateTime endDate;
-        LocalDateTime startDate;
-        
-        // Xác định khoảng thời gian dựa vào period
-        LocalDate today = LocalDate.now();
-        switch (period.toLowerCase()) {
-            case "day":
-            case "today":
-                // Hôm nay: từ đầu ngày hôm nay đến hiện tại
-                startDate = today.atStartOfDay();
-                endDate = LocalDateTime.now();
-                break;
-            case "week":
-                // Tuần này: từ đầu tuần (Thứ 2) đến hiện tại
-                startDate = today.minusDays(today.getDayOfWeek().getValue() - 1).atStartOfDay();
-                endDate = LocalDateTime.now();
-                break;
-            case "month":
-                // Tháng 11/2025: từ 1/11/2025 đến 1/12/2025
-                startDate = LocalDate.of(2025, 11, 1).atStartOfDay();
-                endDate = LocalDate.of(2025, 12, 1).atStartOfDay();
-                break;
-            case "year":
-                // Năm 2025: từ 1/1/2025 đến 1/1/2026
-                startDate = LocalDate.of(2025, 1, 1).atStartOfDay();
-                endDate = LocalDate.of(2026, 1, 1).atStartOfDay();
-                break;
-            default:
-                System.err.println("⚠️ [StatisticsService] Invalid period: " + period + ", defaulting to month");
-                startDate = LocalDate.of(2025, 11, 1).atStartOfDay();
-                endDate = LocalDate.of(2025, 12, 1).atStartOfDay();
-        }
+        DateRange dateRange = resolvePeriodDateRange(period);
+        LocalDateTime startDate = dateRange.getStart();
+        LocalDateTime endDate = dateRange.getEnd();
         
         System.out.println("📅 [StatisticsService] Date range: " + startDate + " to " + endDate);
         
@@ -435,6 +355,123 @@ public class StatisticsService {
                 .actualRevenue(actualRevenue)
                 .debtRevenue(debtRevenue)
                 .build();
+    }
+
+    private List<BestSellingProductDTO> buildBestSellingProductsResponse(List<HoaDonChiTiet> chiTietList, int limit, String contextLabel) {
+        if (chiTietList == null || chiTietList.isEmpty()) {
+            System.out.println("⚠️ [StatisticsService] No invoice details found for context=" + contextLabel);
+            return new ArrayList<>();
+        }
+        
+        Map<Long, BestSellingProductDTO> productMap = new HashMap<>();
+        int skippedCount = 0;
+        int processedCount = 0;
+        
+        System.out.println("📦 [StatisticsService] Processing " + chiTietList.size() + " invoice detail records for context=" + contextLabel);
+        
+        for (HoaDonChiTiet hdct : chiTietList) {
+            processedCount++;
+            
+            if (hdct == null || hdct.getChiTietSanPham() == null || hdct.getChiTietSanPham().getSanPham() == null) {
+                System.out.println("⚠️ [StatisticsService] Record #" + processedCount + " skipped due to missing references (context=" + contextLabel + ")");
+                skippedCount++;
+                continue;
+            }
+            
+            Long chiTietSanPhamId = hdct.getChiTietSanPham().getId();
+            
+            if (!productMap.containsKey(chiTietSanPhamId)) {
+                var chiTietSP = hdct.getChiTietSanPham();
+                var sanPham = chiTietSP.getSanPham();
+                
+                String mauSac = chiTietSP.getMauSac() != null ? chiTietSP.getMauSac().getTenMau() : null;
+                String tenSanPham = sanPham.getTenSanPham();
+                String kieuDang = sanPham.getKieuDangMu() != null ? sanPham.getKieuDangMu().getTenKieuDang() : null;
+                
+                BestSellingProductDTO dto = BestSellingProductDTO.builder()
+                        .chiTietSanPhamId(chiTietSanPhamId)
+                        .sanPhamId(sanPham.getId())
+                        .tenSanPham(tenSanPham)
+                        .mauSac(mauSac)
+                        .kieuDang(kieuDang)
+                        .donGia(hdct.getDonGia())
+                        .soLuongBan(0)
+                        .build();
+                
+                productMap.put(chiTietSanPhamId, dto);
+            }
+            
+            BestSellingProductDTO dto = productMap.get(chiTietSanPhamId);
+            dto.setSoLuongBan(dto.getSoLuongBan() + hdct.getSoLuong());
+        }
+        
+        System.out.println("📈 [StatisticsService] Processing summary (" + contextLabel + "):");
+        System.out.println("   - Total records processed: " + chiTietList.size());
+        System.out.println("   - Records skipped: " + skippedCount);
+        System.out.println("   - Product groups created: " + productMap.size());
+        
+        if (productMap.isEmpty()) {
+            System.out.println("⚠️ [StatisticsService] No valid products after processing for context=" + contextLabel);
+            return new ArrayList<>();
+        }
+        
+        List<BestSellingProductDTO> result = productMap.values().stream()
+            .sorted((a, b) -> Integer.compare(b.getSoLuongBan(), a.getSoLuongBan()))
+            .limit(limit)
+            .collect(Collectors.toList());
+        
+        System.out.println("✅ [StatisticsService] Returning " + result.size() + " best selling products for context=" + contextLabel);
+        return result;
+    }
+
+    private DateRange resolvePeriodDateRange(String period) {
+        LocalDate today = LocalDate.now();
+        LocalDateTime startDate;
+        LocalDateTime endDate;
+        
+        switch (period == null ? "month" : period.toLowerCase()) {
+            case "day":
+            case "today":
+                startDate = today.atStartOfDay();
+                endDate = LocalDateTime.now();
+                break;
+            case "week":
+                startDate = today.minusDays(today.getDayOfWeek().getValue() - 1).atStartOfDay();
+                endDate = LocalDateTime.now();
+                break;
+            case "year":
+                startDate = LocalDate.of(2025, 1, 1).atStartOfDay();
+                endDate = LocalDate.of(2026, 1, 1).atStartOfDay();
+                break;
+            case "month":
+            default:
+                if (period != null && !List.of("day", "today", "week", "month", "year").contains(period.toLowerCase())) {
+                    System.err.println("⚠️ [StatisticsService] Invalid period: " + period + ", defaulting to month");
+                }
+                startDate = LocalDate.of(2025, 11, 1).atStartOfDay();
+                endDate = LocalDate.of(2025, 12, 1).atStartOfDay();
+                break;
+        }
+        
+        return new DateRange(startDate, endDate);
+    }
+
+    private static class DateRange {
+        private final LocalDateTime start;
+        private final LocalDateTime end;
+
+        public DateRange(LocalDateTime start, LocalDateTime end) {
+            this.start = start;
+            this.end = end;
+        }
+
+        public LocalDateTime getStart() {
+            return start;
+        }
+
+        public LocalDateTime getEnd() {
+            return end;
+        }
     }
     
     /**

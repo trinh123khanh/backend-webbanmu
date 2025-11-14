@@ -54,6 +54,8 @@ public class SecurityConfig {
             .authorizeHttpRequests(auth -> auth
                 // OPTIONS requests for CORS preflight - phải cho phép trước
                 .requestMatchers(org.springframework.http.HttpMethod.OPTIONS, "/**").permitAll()
+                // User info endpoint - yêu cầu authentication (đặt trước rule chung)
+                .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/auth/me").authenticated()
                 // Public endpoints - không cần authentication (đặt trước để ưu tiên)
                 .requestMatchers("/api/auth/**").permitAll()
                 .requestMatchers("/api/customer/products/**").permitAll()
