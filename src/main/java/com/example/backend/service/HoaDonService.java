@@ -19,7 +19,6 @@ import com.example.backend.repository.HinhThucThanhToanRepository;
 import com.example.backend.repository.PhuongThucThanhToanRepository;
 import com.example.backend.repository.HoaDonChiTietRepository;
 import com.example.backend.repository.ThongTinDonHangRepository;
-import com.example.backend.service.DiaChiKhachHangService;
 import jakarta.persistence.EntityNotFoundException;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
@@ -28,11 +27,14 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.ThreadLocalRandom;
 import java.util.stream.Collectors;
 
 @Service
@@ -271,27 +273,9 @@ public class HoaDonService {
         }
         if (d.getSoLuongSanPham() != null) h.setSoLuongSanPham(d.getSoLuongSanPham());
         
-        // Map khách hàng từ ID
-        // QUAN TRỌNG: Nếu khachHangId = null (khách hàng chưa đăng nhập), tạo KhachHang mới từ thông tin trong DTO
-        if (d.getKhachHangId() != null) {
-            KhachHang khachHang = khachHangRepository.findById(d.getKhachHangId())
-                    .orElseThrow(() -> new RuntimeException("Không tìm thấy khách hàng với ID: " + d.getKhachHangId()));
-            h.setKhachHang(khachHang);
-        } else if (d.getTenKhachHang() != null && !d.getTenKhachHang().trim().isEmpty() && 
-                   d.getSoDienThoaiKhachHang() != null && !d.getSoDienThoaiKhachHang().trim().isEmpty()) {
-            // Tạo khách hàng mới nếu chưa đăng nhập nhưng có thông tin
-            KhachHang newKhachHang = new KhachHang();
-            newKhachHang.setTenKhachHang(d.getTenKhachHang());
-            newKhachHang.setSoDienThoai(d.getSoDienThoaiKhachHang());
-            newKhachHang.setEmail(d.getEmailKhachHang());
-            // Tạo mã khách hàng tự động
-            String maKhachHang = "KH" + System.currentTimeMillis();
-            newKhachHang.setMaKhachHang(maKhachHang);
-            newKhachHang.setTrangThai(true);
-            // Địa chỉ sẽ được lưu vào bảng dia_chi_khach_hang sau
-            KhachHang savedKhachHang = khachHangRepository.save(newKhachHang);
-            h.setKhachHang(savedKhachHang);
-            System.out.println("✅ Created new customer for online order: " + savedKhachHang.getMaKhachHang());
+        KhachHang attachedCustomer = resolveCustomerForInvoice(d);
+        if (attachedCustomer != null) {
+            h.setKhachHang(attachedCustomer);
         }
         
         // Map nhân viên từ ID
@@ -300,6 +284,119 @@ public class HoaDonService {
                     .orElseThrow(() -> new RuntimeException("Không tìm thấy nhân viên với ID: " + d.getNhanVienId()));
             h.setNhanVien(nhanVien);
         }
+    }
+
+    private KhachHang resolveCustomerForInvoice(HoaDonDTO dto) {
+        if (dto == null) {
+            return null;
+        }
+
+        if (dto.getKhachHangId() != null) {
+            KhachHang khachHang = khachHangRepository.findById(dto.getKhachHangId())
+                    .orElseThrow(() -> new RuntimeException("Không tìm thấy khách hàng với ID: " + dto.getKhachHangId()));
+            updateCustomerProfileFromOrder(khachHang, dto, true, true);
+            updatePurchaseStats(khachHang);
+            return khachHangRepository.save(khachHang);
+        }
+
+        String name = sanitize(dto.getTenKhachHang());
+        String email = sanitize(dto.getEmailKhachHang());
+        String phone = sanitize(dto.getSoDienThoaiKhachHang());
+
+        if (!StringUtils.hasText(name) || !StringUtils.hasText(phone) || !StringUtils.hasText(email)) {
+            throw new IllegalArgumentException("Thông tin khách hàng chưa đầy đủ. Vui lòng cung cấp họ tên, số điện thoại và email.");
+        }
+
+        Optional<KhachHang> existing = Optional.empty();
+        boolean matchedByEmail = false;
+        boolean matchedByPhone = false;
+
+        if (StringUtils.hasText(email)) {
+            existing = khachHangRepository.findByEmail(email);
+            matchedByEmail = existing.isPresent();
+        }
+
+        if (existing.isEmpty() && StringUtils.hasText(phone)) {
+            existing = khachHangRepository.findBySoDienThoai(phone);
+            matchedByPhone = existing.isPresent();
+        }
+
+        if (existing.isPresent()) {
+            KhachHang khachHang = existing.get();
+            updateCustomerProfileFromOrder(khachHang, dto, matchedByEmail, matchedByPhone);
+            updatePurchaseStats(khachHang);
+            return khachHangRepository.save(khachHang);
+        }
+
+        KhachHang newKhachHang = new KhachHang();
+        newKhachHang.setMaKhachHang(generateUniqueCustomerCode());
+        newKhachHang.setTenKhachHang(name);
+        newKhachHang.setEmail(email);
+        newKhachHang.setSoDienThoai(phone);
+        newKhachHang.setDiaChi(sanitize(dto.getDiaChiChiTiet()));
+        newKhachHang.setTrangThai(true);
+        newKhachHang.setNgayTao(LocalDate.now());
+        newKhachHang.setSoLanMua(0);
+        updatePurchaseStats(newKhachHang);
+        return khachHangRepository.save(newKhachHang);
+    }
+
+    private void updateCustomerProfileFromOrder(KhachHang khachHang, HoaDonDTO dto, boolean matchedByEmail, boolean matchedByPhone) {
+        if (khachHang == null || dto == null) {
+            return;
+        }
+
+        String name = sanitize(dto.getTenKhachHang());
+        if (StringUtils.hasText(name)) {
+            khachHang.setTenKhachHang(name);
+        }
+
+        String email = sanitize(dto.getEmailKhachHang());
+        if (StringUtils.hasText(email)) {
+            if (matchedByEmail || !StringUtils.hasText(khachHang.getEmail())) {
+                khachHang.setEmail(email);
+            }
+        }
+
+        String phone = sanitize(dto.getSoDienThoaiKhachHang());
+        if (StringUtils.hasText(phone)) {
+            if (matchedByPhone || !StringUtils.hasText(khachHang.getSoDienThoai())) {
+                khachHang.setSoDienThoai(phone);
+            }
+        }
+
+        String address = sanitize(dto.getDiaChiChiTiet());
+        if (StringUtils.hasText(address) && !StringUtils.hasText(khachHang.getDiaChi())) {
+            khachHang.setDiaChi(address);
+        }
+    }
+
+    private void updatePurchaseStats(KhachHang khachHang) {
+        if (khachHang == null) {
+            return;
+        }
+        int soLanMua = khachHang.getSoLanMua() != null ? khachHang.getSoLanMua() : 0;
+        khachHang.setSoLanMua(soLanMua + 1);
+        khachHang.setLanMuaGanNhat(LocalDate.now());
+    }
+
+    private String generateUniqueCustomerCode() {
+        String code;
+        int attempts = 0;
+        do {
+            long randomPart = System.currentTimeMillis() + ThreadLocalRandom.current().nextInt(1000);
+            code = "KH" + randomPart;
+            attempts++;
+        } while (khachHangRepository.existsByMaKhachHang(code) && attempts < 5);
+
+        if (khachHangRepository.existsByMaKhachHang(code)) {
+            code = "KH" + ThreadLocalRandom.current().nextLong(1_000_000_000L, 9_999_999_999L);
+        }
+        return code;
+    }
+
+    private String sanitize(String value) {
+        return value != null ? value.trim() : null;
     }
 
     @Transactional
