@@ -4,18 +4,18 @@ import com.example.backend.dto.chat.ChatMessageDTO;
 import com.example.backend.dto.chat.ConversationDTO;
 import com.example.backend.dto.chat.SendMessageRequest;
 import com.example.backend.service.ChatConversationService;
+import com.example.backend.service.ChatbotService;
+import com.example.backend.service.KhachHangService;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
-import java.text.Normalizer;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -24,9 +24,12 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 
 @Service
+@RequiredArgsConstructor
 @Slf4j
 public class ChatConversationServiceImpl implements ChatConversationService {
 
+    private final ChatbotService chatbotService;
+    private final KhachHangService khachHangService;
     private final Map<Long, ConversationDTO> conversations = new ConcurrentHashMap<>();
     private final Map<Long, ConversationDTO> conversationsByCustomer = new ConcurrentHashMap<>();
     private final AtomicLong conversationIdSequence = new AtomicLong(1);
@@ -40,13 +43,29 @@ public class ChatConversationServiceImpl implements ChatConversationService {
         }
         ConversationDTO existing = conversationsByCustomer.get(khachHangId);
         if (existing != null) {
+            // Cập nhật thông tin khách hàng nếu cần
+            updateCustomerInfo(existing, khachHangId);
             updateUnreadCount(existing, khachHangId);
             return existing;
         }
+        
+        // Lấy thông tin khách hàng từ database
+        String khachHangTen = "Khách hàng #" + khachHangId;
+        String khachHangEmail = null;
+        Optional<com.example.backend.dto.KhachHangDTO> khachHangOpt = khachHangService.getKhachHangById(khachHangId);
+        if (khachHangOpt.isPresent()) {
+            com.example.backend.dto.KhachHangDTO khachHang = khachHangOpt.get();
+            if (khachHang.getTenKhachHang() != null && !khachHang.getTenKhachHang().trim().isEmpty()) {
+                khachHangTen = khachHang.getTenKhachHang();
+            }
+            khachHangEmail = khachHang.getEmail();
+        }
+        
         ConversationDTO conversation = ConversationDTO.builder()
                 .id(conversationIdSequence.getAndIncrement())
                 .khachHangId(khachHangId)
-                .khachHangTen("Khách hàng #" + khachHangId)
+                .khachHangTen(khachHangTen)
+                .khachHangEmail(khachHangEmail)
                 .ngayTao(now())
                 .ngayCapNhat(now())
                 .trangThai("DANG_CHO")
@@ -61,7 +80,7 @@ public class ChatConversationServiceImpl implements ChatConversationService {
         // Tự động gửi tin nhắn chào khi tạo conversation mới
         addWelcomeMessage(conversation);
         
-        log.info("Created new conversation for customer {}", khachHangId);
+        log.info("Created new conversation for customer {} ({})", khachHangId, khachHangTen);
         return conversation;
     }
 
@@ -70,6 +89,10 @@ public class ChatConversationServiceImpl implements ChatConversationService {
         ConversationDTO conversation = conversations.get(conversationId);
         if (conversation == null) {
             throw new IllegalArgumentException("Không tìm thấy cuộc trò chuyện");
+        }
+        // Cập nhật thông tin khách hàng nếu cần
+        if (conversation.getKhachHangId() != null) {
+            updateCustomerInfo(conversation, conversation.getKhachHangId());
         }
         updateUnreadCount(conversation, conversation.getKhachHangId());
         return conversation;
@@ -124,6 +147,12 @@ public class ChatConversationServiceImpl implements ChatConversationService {
     public List<ConversationDTO> getWaitingConversations() {
         return conversations.values().stream()
                 .filter(conv -> Objects.equals(conv.getTrangThai(), "DANG_CHO") || Boolean.TRUE.equals(conv.getDangChoPhanHoi()))
+                .peek(conv -> {
+                    // Cập nhật thông tin khách hàng cho mỗi conversation
+                    if (conv.getKhachHangId() != null) {
+                        updateCustomerInfo(conv, conv.getKhachHangId());
+                    }
+                })
                 .sorted(Comparator.comparing(ConversationDTO::getNgayCapNhat).reversed())
                 .collect(Collectors.toList());
     }
@@ -132,6 +161,12 @@ public class ChatConversationServiceImpl implements ChatConversationService {
     public List<ConversationDTO> getStaffConversations(Long nhanVienId) {
         return conversations.values().stream()
                 .filter(conv -> nhanVienId == null || Objects.equals(conv.getNhanVienId(), nhanVienId))
+                .peek(conv -> {
+                    // Cập nhật thông tin khách hàng cho mỗi conversation
+                    if (conv.getKhachHangId() != null) {
+                        updateCustomerInfo(conv, conv.getKhachHangId());
+                    }
+                })
                 .sorted(Comparator.comparing(ConversationDTO::getNgayCapNhat).reversed())
                 .collect(Collectors.toList());
     }
@@ -254,19 +289,11 @@ public class ChatConversationServiceImpl implements ChatConversationService {
     /**
      * Thêm phản hồi tự động
      * Chatbot tự động trả lời dựa trên nội dung tin nhắn của khách hàng
+     * Sử dụng ChatbotService để phân tích và truy vấn sản phẩm từ database
      */
     private void addAutoReply(ConversationDTO conversation, String customerMessage) {
-        String reply;
-        
-        // Kiểm tra xem tin nhắn có liên quan đến sản phẩm không
-        if (isGreeting(customerMessage)) {
-            reply = "Xin chào bạn! Rất vui được hỗ trợ. Bạn cần tư vấn sản phẩm hay thông tin gì không?";
-        } else if (isProductRelated(customerMessage)) {
-            // Với yêu cầu mua hàng, thông báo chờ nhân viên hỗ trợ
-            reply = "Bạn đợi nhân viên trả lời.";
-        } else {
-            reply = "Cảm ơn bạn đã liên hệ! Chúng tôi sẽ phản hồi trong thời gian sớm nhất.";
-        }
+        // Sử dụng ChatbotService để tạo phản hồi thông minh
+        String reply = chatbotService.generateReply(customerMessage);
         
         ChatMessageDTO autoMessage = ChatMessageDTO.builder()
                 .id(messageIdSequence.getAndIncrement())
@@ -281,69 +308,29 @@ public class ChatConversationServiceImpl implements ChatConversationService {
         conversation.setNgayCapNhat(now());
     }
 
+
     /**
-     * Kiểm tra xem tin nhắn có liên quan đến sản phẩm không
+     * Cập nhật thông tin khách hàng từ database
      */
-    private boolean isProductRelated(String message) {
-        if (message == null || message.trim().isEmpty()) {
-            return false;
-        }
-        
-        String lowerMessage = message.toLowerCase(Locale.ROOT).trim();
-        String sanitized = sanitizeText(lowerMessage);
-        
-        // Danh sách từ khóa liên quan đến sản phẩm và mua hàng
-        String[] productKeywords = {
-            "sản phẩm", "san pham", "product",
-            "mũ", "mu", "helmet", "nón", "non",
-            "giá", "gia", "price", "giá cả", "gia ca",
-            "mua", "buy", "purchase", "đặt hàng", "dat hang", "order",
-            "muốn mua", "muon mua", "want to buy", "cần mua", "can mua",
-            "bán", "ban", "sell", "có bán", "co ban",
-            "hàng", "hang", "item", "goods",
-            "kích thước", "kich thuoc", "size",
-            "màu", "mau", "color", "colour",
-            "chất liệu", "chat lieu", "material",
-            "thương hiệu", "thuong hieu", "brand",
-            "model", "mẫu", "mau",
-            "tồn kho", "ton kho", "stock", "còn hàng", "con hang",
-            "giao hàng", "giao hang", "delivery", "ship",
-            "thanh toán", "thanh toan", "payment",
-            "trẻ em", "tre em", "children", "kid",
-            "người lớn", "nguoi lon", "adult",
-            "bán chạy", "ban chay", "best seller", "nổi bật", "noi bat"
-        };
-        
-        for (String keyword : productKeywords) {
-            if (lowerMessage.contains(keyword) || sanitized.contains(keyword)) {
-                return true;
+    private void updateCustomerInfo(ConversationDTO conversation, Long khachHangId) {
+        try {
+            Optional<com.example.backend.dto.KhachHangDTO> khachHangOpt = khachHangService.getKhachHangById(khachHangId);
+            if (khachHangOpt.isPresent()) {
+                com.example.backend.dto.KhachHangDTO khachHang = khachHangOpt.get();
+                
+                // Cập nhật tên khách hàng nếu có
+                if (khachHang.getTenKhachHang() != null && !khachHang.getTenKhachHang().trim().isEmpty()) {
+                    conversation.setKhachHangTen(khachHang.getTenKhachHang());
+                }
+                
+                // Cập nhật email khách hàng nếu có
+                if (khachHang.getEmail() != null && !khachHang.getEmail().trim().isEmpty()) {
+                    conversation.setKhachHangEmail(khachHang.getEmail());
+                }
             }
+        } catch (Exception e) {
+            log.warn("Không thể cập nhật thông tin khách hàng {}: {}", khachHangId, e.getMessage());
         }
-        
-        return false;
-    }
-
-    private boolean isGreeting(String message) {
-        if (message == null || message.trim().isEmpty()) {
-            return false;
-        }
-        String lower = message.toLowerCase(Locale.ROOT).trim();
-        String sanitized = sanitizeText(lower);
-        String[] greetings = {
-                "xin chào", "chào", "chao", "hello", "hi", "hey",
-                "alo", "good morning", "good afternoon", "good evening",
-                "konnichiwa" // just for fun
-        };
-        return Arrays.stream(greetings)
-                .anyMatch(g -> lower.contains(g) || sanitized.contains(g.replace(" ", "")));
-    }
-
-    private String sanitizeText(String text) {
-        if (text == null) return "";
-        String normalized = Normalizer.normalize(text, Normalizer.Form.NFD);
-        return normalized.replaceAll("\\p{M}", "")
-                .replaceAll("\\s+", "")
-                .toLowerCase(Locale.ROOT);
     }
 
     private String now() {
