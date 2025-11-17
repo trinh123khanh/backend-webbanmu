@@ -5,6 +5,7 @@ import com.example.backend.dto.HoaDonDTO;
 import com.example.backend.entity.HoaDon;
 import com.example.backend.entity.KhachHang;
 import com.example.backend.entity.User;
+import com.example.backend.repository.HoaDonRepository;
 import com.example.backend.repository.KhachHangRepository;
 import com.example.backend.repository.UserRepository;
 import com.example.backend.service.HoaDonService;
@@ -28,15 +29,18 @@ import java.util.HashMap;
 public class HoaDonController {
 
     private final HoaDonService hoaDonService;
+    private final HoaDonRepository hoaDonRepository;
     private final UserRepository userRepository;
     private final KhachHangRepository khachHangRepository;
     private final HoaDonActivityService hoaDonActivityService;
 
     public HoaDonController(HoaDonService hoaDonService,
+                            HoaDonRepository hoaDonRepository,
                             UserRepository userRepository,
                             KhachHangRepository khachHangRepository,
                             HoaDonActivityService hoaDonActivityService) {
         this.hoaDonService = hoaDonService;
+        this.hoaDonRepository = hoaDonRepository;
         this.userRepository = userRepository;
         this.khachHangRepository = khachHangRepository;
         this.hoaDonActivityService = hoaDonActivityService;
@@ -246,12 +250,14 @@ public class HoaDonController {
             }
             
             HoaDonDTO createdHoaDon = hoaDonService.createHoaDon(hoaDonDTO);
-            hoaDonActivityService.logActivity(
-                    createdHoaDon.getId(),
-                    createdHoaDon.getMaHoaDon(),
-                    "CREATE",
-                    "Tạo hóa đơn mới trong hệ thống"
-            );
+            // Log activity với HoaDon entity
+            hoaDonRepository.findById(createdHoaDon.getId()).ifPresent(invoice -> {
+                hoaDonActivityService.logActivity(
+                        invoice,
+                        "CREATE",
+                        "Tạo hóa đơn mới trong hệ thống"
+                );
+            });
             return ResponseEntity.status(org.springframework.http.HttpStatus.CREATED).body(createdHoaDon);
         } catch (RuntimeException e) {
             return ResponseEntity.status(org.springframework.http.HttpStatus.BAD_REQUEST).body(e.getMessage());
@@ -285,12 +291,14 @@ public class HoaDonController {
             }
             
             HoaDonDTO updatedHoaDon = hoaDonService.updateHoaDon(id, hoaDonDTO);
-            hoaDonActivityService.logActivity(
-                    updatedHoaDon.getId(),
-                    updatedHoaDon.getMaHoaDon(),
-                    "UPDATE",
-                    "Cập nhật thông tin hóa đơn"
-            );
+            // Log activity với HoaDon entity
+            hoaDonRepository.findById(updatedHoaDon.getId()).ifPresent(invoice -> {
+                hoaDonActivityService.logActivity(
+                        invoice,
+                        "UPDATE",
+                        "Cập nhật thông tin hóa đơn"
+                );
+            });
             System.out.println("✅ Invoice updated successfully:");
             System.out.println("   - New status: " + updatedHoaDon.getTrangThai());
             System.out.println("   - New ghiChu: " + updatedHoaDon.getGhiChu());
@@ -406,12 +414,14 @@ public class HoaDonController {
             HoaDonDTO updatedHoaDon = hoaDonService.updateTrangThaiHoaDon(id, trangThaiToUpdate);
             System.out.println("✅ Update successful, new status: " + updatedHoaDon.getTrangThai());
             System.out.println("==========================================");
-            hoaDonActivityService.logActivity(
-                    updatedHoaDon.getId(),
-                    updatedHoaDon.getMaHoaDon(),
-                    "STATUS_CHANGE",
-                    "Cập nhật trạng thái thành " + updatedHoaDon.getTrangThai()
-            );
+            // Log activity với HoaDon entity
+            hoaDonRepository.findById(updatedHoaDon.getId()).ifPresent(invoice -> {
+                hoaDonActivityService.logActivity(
+                        invoice,
+                        "STATUS_CHANGE",
+                        "Cập nhật trạng thái thành " + updatedHoaDon.getTrangThai()
+                );
+            });
             return ResponseEntity.ok(updatedHoaDon);
         } catch (jakarta.persistence.EntityNotFoundException e) {
             System.err.println("❌ Entity not found: " + e.getMessage());
@@ -439,15 +449,32 @@ public class HoaDonController {
     @PreAuthorize("hasAnyRole('ADMIN','STAFF')")
     public ResponseEntity<Map<String, Object>> getHoaDonActivities(
             @RequestParam(required = false) Long hoaDonId,
-            @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "20") int size) {
-        Page<HoaDonActivityDTO> activityPage = hoaDonActivityService.getActivities(hoaDonId, page, size);
-        Map<String, Object> response = new HashMap<>();
-        response.put("content", activityPage.getContent());
-        response.put("totalElements", activityPage.getTotalElements());
-        response.put("totalPages", activityPage.getTotalPages());
-        response.put("currentPage", activityPage.getNumber());
-        response.put("size", activityPage.getSize());
-        return ResponseEntity.ok(response);
+            @RequestParam(required = false, defaultValue = "0") Integer page,
+            @RequestParam(required = false, defaultValue = "20") Integer size) {
+        try {
+            // Xử lý page và size với giá trị mặc định
+            int pageNumber = (page != null && page >= 0) ? page : 0;
+            int pageSize = (size != null && size > 0) ? size : 20;
+            
+            // Validate hoaDonId nếu có
+            if (hoaDonId != null && hoaDonId <= 0) {
+                return ResponseEntity.badRequest()
+                    .body(Map.of("error", "hoaDonId phải là số dương"));
+            }
+            
+            Page<HoaDonActivityDTO> activityPage = hoaDonActivityService.getActivities(hoaDonId, pageNumber, pageSize);
+            Map<String, Object> response = new HashMap<>();
+            response.put("content", activityPage.getContent());
+            response.put("totalElements", activityPage.getTotalElements());
+            response.put("totalPages", activityPage.getTotalPages());
+            response.put("currentPage", activityPage.getNumber());
+            response.put("size", activityPage.getSize());
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            Map<String, Object> errorResponse = new HashMap<>();
+            errorResponse.put("error", "Lỗi khi lấy lịch sử thay đổi: " + e.getMessage());
+            return ResponseEntity.status(org.springframework.http.HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(errorResponse);
+        }
     }
 }

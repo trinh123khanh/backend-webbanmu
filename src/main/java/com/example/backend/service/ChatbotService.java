@@ -133,19 +133,42 @@ public class ChatbotService {
     }
 
     /**
-     * Xử lý tìm kiếm sản phẩm
+     * Xử lý tìm kiếm sản phẩm với bộ lọc theo giá và tên
      */
     private String handleProductSearch(String message) {
         try {
             // Trích xuất keyword từ câu hỏi
             String keyword = extractProductKeyword(message);
             
-            Pageable pageable = PageRequest.of(0, 10);
+            // Trích xuất giá từ câu hỏi nếu có
+            BigDecimal priceFilter = extractPriceFromMessage(message);
+            
+            Pageable pageable = PageRequest.of(0, 20); // Tăng số lượng để lọc tốt hơn
             Page<SanPhamResponse> products = sanPhamService.search(keyword, true, pageable);
             List<SanPhamResponse> results = products.getContent();
 
+            // Lọc theo giá nếu có
+            if (priceFilter != null && priceFilter.compareTo(BigDecimal.ZERO) > 0) {
+                results = results.stream()
+                        .filter(p -> p.getGiaBan() != null && p.getGiaBan().compareTo(priceFilter) <= 0)
+                        .collect(Collectors.toList());
+            }
+
             if (results.isEmpty()) {
-                return String.format("Xin lỗi, tôi không tìm thấy sản phẩm nào với từ khóa '%s'. Bạn có thể mô tả rõ hơn hoặc thử từ khóa khác không?", keyword);
+                String noResultMessage = "Xin lỗi, tôi không tìm thấy sản phẩm nào";
+                if (keyword != null && !keyword.trim().isEmpty() && !keyword.equals("")) {
+                    noResultMessage += String.format(" với từ khóa '%s'", keyword);
+                }
+                if (priceFilter != null && priceFilter.compareTo(BigDecimal.ZERO) > 0) {
+                    noResultMessage += String.format(" dưới %s VNĐ", formatPrice(priceFilter));
+                }
+                noResultMessage += ". Bạn có thể thử từ khóa khác hoặc điều chỉnh bộ lọc không?";
+                return noResultMessage;
+            }
+
+            // Giới hạn số lượng kết quả hiển thị
+            if (results.size() > 10) {
+                results = results.stream().limit(10).collect(Collectors.toList());
             }
 
             StringBuilder reply = new StringBuilder();
@@ -162,7 +185,11 @@ public class ChatbotService {
                     reply.append(String.format("Mô tả: %s\n", product.getMoTa()));
                 }
             } else {
-                reply.append(String.format("Tôi tìm thấy %d sản phẩm:\n\n", results.size()));
+                reply.append(String.format("Tôi tìm thấy %d sản phẩm", results.size()));
+                if (priceFilter != null && priceFilter.compareTo(BigDecimal.ZERO) > 0) {
+                    reply.append(String.format(" dưới %s VNĐ", formatPrice(priceFilter)));
+                }
+                reply.append(":\n\n");
                 for (SanPhamResponse product : results) {
                     reply.append(String.format("• %s - %s VNĐ", product.getTenSanPham(), formatPrice(product.getGiaBan())));
                     if (product.getSoLuongTon() != null && product.getSoLuongTon() > 0) {
@@ -367,47 +394,75 @@ public class ChatbotService {
             "tìm", "tim", "find", "search", "có", "co", "have", "của", "cua",
             "sản phẩm", "san pham", "product", "mũ", "mu", "helmet",
             "giá", "gia", "price", "bao nhiêu", "bao nhieu", "how much",
-            "cho", "tôi", "toi", "me", "bạn", "ban", "you"
+            "cho", "tôi", "toi", "me", "bạn", "ban", "you", "với", "voi", "with",
+            "dưới", "duoi", "under", "trên", "tren", "above", "khoảng", "khoang", "about",
+            "vnđ", "vnd", "đồng", "dong", "k", "nghìn", "nghin", "triệu", "trieu"
         };
 
-        String keyword = message;
+        String keyword = message.toLowerCase(Locale.ROOT);
         for (String stopWord : stopWords) {
-            keyword = keyword.replace(stopWord, " ").trim();
+            keyword = keyword.replaceAll("\\b" + stopWord + "\\b", " ").trim();
         }
 
-        // Lấy từ đầu tiên có ý nghĩa
+        // Lấy tất cả các từ có ý nghĩa (dài hơn 2 ký tự)
         String[] words = keyword.split("\\s+");
+        StringBuilder result = new StringBuilder();
         for (String word : words) {
-            if (word.length() > 2) {
-                return word;
+            // Bỏ qua số và từ quá ngắn
+            if (word.length() > 2 && !word.matches("\\d+")) {
+                if (result.length() > 0) {
+                    result.append(" ");
+                }
+                result.append(word);
             }
         }
 
-        return keyword.trim();
+        String finalKeyword = result.toString().trim();
+        // Nếu không tìm thấy keyword, trả về null để search tất cả
+        return finalKeyword.isEmpty() ? null : finalKeyword;
     }
 
     /**
-     * Trích xuất giá từ câu hỏi
+     * Trích xuất giá từ câu hỏi (hỗ trợ nhiều format: 500k, 500000, 500.000, v.v.)
      */
     private BigDecimal extractPriceFromMessage(String message) {
-        // Tìm số trong câu hỏi
-        String[] words = message.split("\\s+");
-        for (String word : words) {
+        String lowerMessage = message.toLowerCase(Locale.ROOT);
+        
+        // Pattern để tìm số với các format khác nhau
+        java.util.regex.Pattern pattern = java.util.regex.Pattern.compile(
+            "(\\d+(?:[.,]\\d+)*)\\s*(k|nghìn|nghin|triệu|trieu|vnđ|vnd|đồng|dong)?"
+        );
+        java.util.regex.Matcher matcher = pattern.matcher(lowerMessage);
+        
+        BigDecimal maxPrice = null;
+        while (matcher.find()) {
             try {
-                // Loại bỏ dấu chấm, phẩy
-                String cleanWord = word.replaceAll("[.,]", "");
-                if (cleanWord.matches("\\d+")) {
-                    BigDecimal price = new BigDecimal(cleanWord);
-                    // Nếu giá quá nhỏ (có thể là số khác), bỏ qua
-                    if (price.compareTo(new BigDecimal("1000")) >= 0) {
-                        return price;
+                String numberStr = matcher.group(1).replaceAll("[.,]", "");
+                String unit = matcher.group(2);
+                
+                BigDecimal price = new BigDecimal(numberStr);
+                
+                // Xử lý đơn vị
+                if (unit != null) {
+                    if (unit.contains("k") || unit.contains("nghìn") || unit.contains("nghin")) {
+                        price = price.multiply(new BigDecimal("1000"));
+                    } else if (unit.contains("triệu") || unit.contains("trieu")) {
+                        price = price.multiply(new BigDecimal("1000000"));
+                    }
+                }
+                
+                // Chỉ lấy giá hợp lệ (>= 1000 VNĐ)
+                if (price.compareTo(new BigDecimal("1000")) >= 0) {
+                    if (maxPrice == null || price.compareTo(maxPrice) > 0) {
+                        maxPrice = price;
                     }
                 }
             } catch (Exception e) {
                 // Bỏ qua
             }
         }
-        return null;
+        
+        return maxPrice;
     }
 
     /**
