@@ -23,6 +23,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -114,7 +115,7 @@ public class HoaDonChoService {
     @Transactional
     public HoaDonChoResponse createHoaDonCho(HoaDonChoRequest request) {
         // Kiểm tra số lượng hóa đơn chờ hiện tại (tối đa 5)
-        final int MAX_PENDING_INVOICES = 5;
+        final int MAX_PENDING_INVOICES = 10;
         long countPending = hoaDonChoRepository.countByTrangThai("DANG_CHO");
         if (countPending >= MAX_PENDING_INVOICES) {
             throw new RuntimeException(
@@ -166,50 +167,42 @@ public class HoaDonChoService {
         ChiTietSanPham chiTietSanPham = chiTietSanPhamRepository.findById(itemRequest.getChiTietSanPhamId())
                 .orElseThrow(() -> new EntityNotFoundException("Không tìm thấy chi tiết sản phẩm với ID: " + itemRequest.getChiTietSanPhamId()));
 
-        // Check if item already exists in cart
-        var existingItem = gioHangChoRepository.findByHoaDonChoIdAndChiTietSanPhamId(hoaDonChoId, itemRequest.getChiTietSanPhamId());
-        
         int quantityToAdd = itemRequest.getSoLuong() != null ? itemRequest.getSoLuong() : 1;
-        
-        // Check available stock
-        int currentStock = 0;
-        try {
-            currentStock = Integer.parseInt(chiTietSanPham.getSoLuongTon());
-        } catch (NumberFormatException e) {
-            log.warn("Invalid stock quantity format for ChiTietSanPham id: {}", chiTietSanPham.getId());
-        }
-        
-        int quantityInCart = existingItem.map(GioHangCho::getSoLuong).orElse(0);
-        int newQuantity = quantityInCart + quantityToAdd;
-        
-        if (newQuantity > currentStock) {
+
+        BigDecimal requestedPrice = resolveDonGia(itemRequest, chiTietSanPham);
+
+        List<GioHangCho> existingItems = gioHangChoRepository
+                .findAllByHoaDonChoIdAndChiTietSanPhamId(hoaDonChoId, itemRequest.getChiTietSanPhamId());
+
+        int totalReservedQuantity = existingItems.stream()
+                .map(GioHangCho::getSoLuong)
+                .filter(q -> q != null && q > 0)
+                .mapToInt(Integer::intValue)
+                .sum();
+
+        int currentStock = parseSoLuongTon(chiTietSanPham);
+        int stockAvailable = currentStock - totalReservedQuantity;
+        if (quantityToAdd > stockAvailable) {
             throw new RuntimeException(
-                String.format("Số lượng sản phẩm không đủ. Hiện tại còn %d sản phẩm trong kho.", currentStock)
+                String.format("Số lượng sản phẩm không đủ. Hiện tại còn %d sản phẩm trong kho.", Math.max(stockAvailable, 0))
             );
         }
-        
+
+        Optional<GioHangCho> existingItemSamePrice = existingItems.stream()
+                .filter(item -> isSamePrice(item.getDonGia(), requestedPrice))
+                .findFirst();
+
         GioHangCho gioHangCho;
-        if (existingItem.isPresent()) {
-            // Update quantity if item exists
-            gioHangCho = existingItem.get();
-            gioHangCho.setSoLuong(newQuantity);
+        if (existingItemSamePrice.isPresent()) {
+            gioHangCho = existingItemSamePrice.get();
+            gioHangCho.setSoLuong(gioHangCho.getSoLuong() + quantityToAdd);
         } else {
-            // Create new cart item
             gioHangCho = new GioHangCho();
             gioHangCho.setHoaDonCho(hoaDonCho);
             gioHangCho.setChiTietSanPham(chiTietSanPham);
             gioHangCho.setTenSanPham(itemRequest.getTenSanPham());
             gioHangCho.setSoLuong(quantityToAdd);
-            // Parse giaBan from String to BigDecimal
-            BigDecimal donGia = itemRequest.getDonGia();
-            if (donGia == null && chiTietSanPham.getGiaBan() != null) {
-                try {
-                    donGia = new BigDecimal(chiTietSanPham.getGiaBan());
-                } catch (NumberFormatException e) {
-                    donGia = BigDecimal.ZERO;
-                }
-            }
-            gioHangCho.setDonGia(donGia != null ? donGia : BigDecimal.ZERO);
+            gioHangCho.setDonGia(requestedPrice);
             gioHangCho.setGiamGia(itemRequest.getGiamGia() != null ? itemRequest.getGiamGia() : BigDecimal.ZERO);
         }
         
@@ -231,6 +224,37 @@ public class HoaDonChoService {
 
         // Reload with fresh data using fetch join
         return toResponse(hoaDonChoRepository.findByIdWithGioHangCho(hoaDonChoId).orElseThrow());
+    }
+
+    private int parseSoLuongTon(ChiTietSanPham chiTietSanPham) {
+        int currentStock = 0;
+        try {
+            currentStock = Integer.parseInt(chiTietSanPham.getSoLuongTon());
+        } catch (NumberFormatException e) {
+            log.warn("Invalid stock quantity format for ChiTietSanPham id: {}", chiTietSanPham.getId());
+        }
+        return currentStock;
+    }
+
+    private boolean isSamePrice(BigDecimal price1, BigDecimal price2) {
+        if (price1 == null || price2 == null) {
+            return false;
+        }
+        return price1.compareTo(price2) == 0;
+    }
+
+    private BigDecimal resolveDonGia(GioHangChoItemRequest itemRequest, ChiTietSanPham chiTietSanPham) {
+        if (itemRequest.getDonGia() != null) {
+            return itemRequest.getDonGia();
+        }
+        if (chiTietSanPham.getGiaBan() != null) {
+            try {
+                return new BigDecimal(chiTietSanPham.getGiaBan());
+            } catch (NumberFormatException e) {
+                log.warn("Invalid giaBan format for ChiTietSanPham id: {}", chiTietSanPham.getId());
+            }
+        }
+        return BigDecimal.ZERO;
     }
 
     @Transactional

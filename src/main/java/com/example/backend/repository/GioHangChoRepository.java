@@ -17,6 +17,8 @@ public interface GioHangChoRepository extends JpaRepository<GioHangCho, Long> {
     
     Optional<GioHangCho> findByHoaDonChoIdAndChiTietSanPhamId(Long hoaDonChoId, Long chiTietSanPhamId);
     
+    List<GioHangCho> findAllByHoaDonChoIdAndChiTietSanPhamId(Long hoaDonChoId, Long chiTietSanPhamId);
+    
     void deleteByHoaDonChoId(Long hoaDonChoId);
     
     @Modifying(clearAutomatically = true)
