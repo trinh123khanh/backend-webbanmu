@@ -19,6 +19,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 import java.time.LocalDateTime;
+import java.util.Optional;
 
 /**
  * Service quản lý lịch sử thay đổi hóa đơn
@@ -82,9 +83,10 @@ public class HoaDonActivityService {
      */
     private HoaDonActivity buildActivity(HoaDon invoice, String action, String description, 
                                          String oldData, String newData, ActivityActor actor) {
+        // Nếu invoice có ID nhưng không tồn tại trong DB (ví dụ: đã bị xóa), 
+        // chỉ lưu ID và mã hóa đơn, không set relationship
         HoaDonActivity.HoaDonActivityBuilder builder = HoaDonActivity.builder()
-                .hoaDon(invoice)
-                .maHoaDon(invoice.getMaHoaDon())
+                .maHoaDon(invoice.getMaHoaDon() != null ? invoice.getMaHoaDon() : "")
                 .action(action)
                 .description(description)
                 .performedBy(actor.username())
@@ -92,6 +94,15 @@ public class HoaDonActivityService {
                 .performedAt(LocalDateTime.now())
                 .oldData(oldData)
                 .newData(newData);
+
+        // Chỉ set hoaDon relationship nếu invoice có ID và tồn tại trong DB
+        if (invoice.getId() != null) {
+            Optional<HoaDon> existingInvoice = hoaDonRepository.findById(invoice.getId());
+            if (existingInvoice.isPresent()) {
+                builder.hoaDon(existingInvoice.get());
+            }
+            // Nếu không tồn tại (đã bị xóa), không set relationship nhưng vẫn lưu ID trong maHoaDon
+        }
 
         // Set User relationship nếu có
         User user = null;
@@ -115,14 +126,21 @@ public class HoaDonActivityService {
      */
     @Transactional(readOnly = true)
     public Page<HoaDonActivityDTO> getActivities(Long hoaDonId, int page, int size) {
-        Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "performedAt"));
-        Page<HoaDonActivity> activityPage;
-        if (hoaDonId != null) {
-            activityPage = activityRepository.findByHoaDonIdOrderByPerformedAtDesc(hoaDonId, pageable);
-        } else {
-            activityPage = activityRepository.findAllOrderByPerformedAtDesc(pageable);
+        try {
+            Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "performedAt"));
+            Page<HoaDonActivity> activityPage;
+            if (hoaDonId != null) {
+                activityPage = activityRepository.findByHoaDonIdOrderByPerformedAtDesc(hoaDonId, pageable);
+            } else {
+                activityPage = activityRepository.findAllOrderByPerformedAtDesc(pageable);
+            }
+            return activityPage.map(this::toDTO);
+        } catch (Exception e) {
+            System.err.println("❌ Error in HoaDonActivityService.getActivities: " + e.getMessage());
+            e.printStackTrace();
+            // Trả về empty page nếu có lỗi
+            return Page.empty(PageRequest.of(page, size));
         }
-        return activityPage.map(this::toDTO);
     }
 
     /**

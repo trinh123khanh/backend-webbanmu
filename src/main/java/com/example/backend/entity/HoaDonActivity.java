@@ -30,9 +30,10 @@ public class HoaDonActivity {
 
     /**
      * Foreign key relationship với bảng hoa_don
+     * nullable = true để cho phép lưu activity cho hóa đơn đã bị xóa
      */
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "hoa_don_id", nullable = false, foreignKey = @ForeignKey(name = "fk_hoa_don_activity_hoa_don"))
+    @JoinColumn(name = "hoa_don_id", nullable = true, foreignKey = @ForeignKey(name = "fk_hoa_don_activity_hoa_don"))
     private HoaDon hoaDon;
 
     /**

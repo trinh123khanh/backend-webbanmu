@@ -19,6 +19,9 @@ import com.example.backend.repository.HinhThucThanhToanRepository;
 import com.example.backend.repository.PhuongThucThanhToanRepository;
 import com.example.backend.repository.HoaDonChiTietRepository;
 import com.example.backend.repository.ThongTinDonHangRepository;
+import com.example.backend.service.HoaDonActivityService;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import jakarta.persistence.EntityNotFoundException;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
@@ -50,6 +53,8 @@ public class HoaDonService {
     private final PhuongThucThanhToanRepository phuongThucThanhToanRepository;
     private final HoaDonChiTietRepository hoaDonChiTietRepository;
     private final ThongTinDonHangRepository thongTinDonHangRepository;
+    private final HoaDonActivityService hoaDonActivityService;
+    private final ObjectMapper objectMapper;
     
     @PersistenceContext
     private EntityManager entityManager;
@@ -62,7 +67,9 @@ public class HoaDonService {
                          HinhThucThanhToanRepository hinhThucThanhToanRepository,
                          PhuongThucThanhToanRepository phuongThucThanhToanRepository,
                          HoaDonChiTietRepository hoaDonChiTietRepository,
-                         ThongTinDonHangRepository thongTinDonHangRepository) {
+                         ThongTinDonHangRepository thongTinDonHangRepository,
+                         HoaDonActivityService hoaDonActivityService,
+                         ObjectMapper objectMapper) {
         this.hoaDonRepository = hoaDonRepository;
         this.khachHangRepository = khachHangRepository;
         this.nhanVienRepository = nhanVienRepository;
@@ -72,6 +79,8 @@ public class HoaDonService {
         this.phuongThucThanhToanRepository = phuongThucThanhToanRepository;
         this.hoaDonChiTietRepository = hoaDonChiTietRepository;
         this.thongTinDonHangRepository = thongTinDonHangRepository;
+        this.hoaDonActivityService = hoaDonActivityService;
+        this.objectMapper = objectMapper != null ? objectMapper : new ObjectMapper();
     }
 
     public HoaDonDTO toDTO(HoaDon h) {
@@ -495,6 +504,22 @@ public class HoaDonService {
         HoaDon saved = hoaDonRepository.save(h);
         hoaDonRepository.flush(); // Force flush để đảm bảo danhSachChiTiet được lưu ngay
         
+        // Log activity: CREATE
+        try {
+            String newDataJson = serializeHoaDonToJson(saved);
+            hoaDonActivityService.logActivity(
+                saved,
+                "CREATE",
+                String.format("Tạo hóa đơn mới: %s - Tổng tiền: %s VNĐ", 
+                    saved.getMaHoaDon(), 
+                    saved.getThanhTien() != null ? saved.getThanhTien().toString() : "0"),
+                null,
+                newDataJson
+            );
+        } catch (Exception e) {
+            System.err.println("⚠️ Failed to log CREATE activity: " + e.getMessage());
+        }
+        
         // Verify danhSachChiTiet đã được lưu
         if (saved.getDanhSachChiTiet() != null) {
             System.out.println("✅ Saved invoice with " + saved.getDanhSachChiTiet().size() + " danhSachChiTiet items");
@@ -630,6 +655,14 @@ public class HoaDonService {
         HoaDon h = getHoaDonById(id)
                 .orElseThrow(() -> new EntityNotFoundException("Không tìm thấy hóa đơn"));
         
+        // Lưu dữ liệu cũ để log
+        String oldDataJson = null;
+        try {
+            oldDataJson = serializeHoaDonToJson(h);
+        } catch (Exception e) {
+            System.err.println("⚠️ Failed to serialize old data: " + e.getMessage());
+        }
+        
         updateEntityFromDTO(h, dto);
         
         // Xử lý danh sách chi tiết sản phẩm nếu có
@@ -702,6 +735,20 @@ public class HoaDonService {
         // Lưu hóa đơn
         HoaDon saved = hoaDonRepository.save(h);
         
+        // Log activity: UPDATE
+        try {
+            String newDataJson = serializeHoaDonToJson(saved);
+            hoaDonActivityService.logActivity(
+                saved,
+                "UPDATE",
+                String.format("Cập nhật thông tin hóa đơn: %s", saved.getMaHoaDon()),
+                oldDataJson,
+                newDataJson
+            );
+        } catch (Exception e) {
+            System.err.println("⚠️ Failed to log UPDATE activity: " + e.getMessage());
+        }
+        
         // Xử lý phương thức thanh toán nếu có
         // Xóa các phương thức thanh toán cũ trước
         List<PhuongThucThanhToan> existingPttt = phuongThucThanhToanRepository.findByHoaDonId(saved.getId());
@@ -752,7 +799,37 @@ public class HoaDonService {
     public void deleteHoaDon(Long id) {
         HoaDon h = hoaDonRepository.findById(id)
                 .orElseThrow(() -> new EntityNotFoundException("Không tìm thấy hóa đơn"));
+        
+        // Lưu dữ liệu cũ để log trước khi xóa
+        String oldDataJson = null;
+        try {
+            oldDataJson = serializeHoaDonToJson(h);
+        } catch (Exception e) {
+            System.err.println("⚠️ Failed to serialize data before delete: " + e.getMessage());
+        }
+        
+        String maHoaDon = h.getMaHoaDon();
+        Long hoaDonId = h.getId();
+        
         hoaDonRepository.delete(h);
+        
+        // Log activity: DELETE
+        try {
+            // Sử dụng logActivity với oldData để lưu thông tin hóa đơn đã xóa
+            // Tạo một HoaDon tạm để log (không lưu vào DB)
+            HoaDon tempHoaDon = new HoaDon();
+            tempHoaDon.setId(hoaDonId);
+            tempHoaDon.setMaHoaDon(maHoaDon);
+            hoaDonActivityService.logActivity(
+                tempHoaDon,
+                "DELETE",
+                String.format("Xóa hóa đơn: %s", maHoaDon),
+                oldDataJson,
+                null
+            );
+        } catch (Exception e) {
+            System.err.println("⚠️ Failed to log DELETE activity: " + e.getMessage());
+        }
     }
 
     /**
@@ -839,6 +916,21 @@ public class HoaDonService {
                 HoaDon reloadedHoaDon = reloaded.get();
                 int reloadedSize = (reloadedHoaDon.getDanhSachChiTiet() != null ? reloadedHoaDon.getDanhSachChiTiet().size() : 0);
                 System.out.println("✅ Reloaded invoice - danhSachChiTiet size: " + reloadedSize);
+                
+                // Log activity: STATUS_CHANGE
+                try {
+                    String oldDataJson = serializeHoaDonToJson(hoaDon); // Dữ liệu cũ (trước khi update)
+                    String newDataJson = serializeHoaDonToJson(reloadedHoaDon); // Dữ liệu mới (sau khi update)
+                    hoaDonActivityService.logActivity(
+                        reloadedHoaDon,
+                        "STATUS_CHANGE",
+                        String.format("Cập nhật trạng thái từ %s sang %s", oldTrangThai, newTrangThai),
+                        oldDataJson,
+                        newDataJson
+                    );
+                } catch (Exception e) {
+                    System.err.println("⚠️ Failed to log STATUS_CHANGE activity: " + e.getMessage());
+                }
                 
                 // Verify lại trong reloaded entity
                 if (reloadedSize == 0 && danhSachChiTietSizeBefore > 0) {
@@ -1239,6 +1331,64 @@ public class HoaDonService {
             return HoaDon.TrangThaiHoaDon.valueOf(trangThai);
         } catch (IllegalArgumentException e) {
             throw new RuntimeException("Trạng thái không hợp lệ: " + trangThai, e);
+        }
+    }
+
+    /**
+     * Serialize HoaDon entity thành JSON string để lưu vào oldData/newData
+     */
+    private String serializeHoaDonToJson(HoaDon hoaDon) {
+        if (hoaDon == null) {
+            return null;
+        }
+        try {
+            ObjectNode jsonNode = objectMapper.createObjectNode();
+            
+            // Thông tin cơ bản
+            jsonNode.put("id", hoaDon.getId() != null ? hoaDon.getId() : 0);
+            jsonNode.put("maHoaDon", hoaDon.getMaHoaDon() != null ? hoaDon.getMaHoaDon() : "");
+            jsonNode.put("trangThai", hoaDon.getTrangThai() != null ? hoaDon.getTrangThai().name() : "");
+            jsonNode.put("tongTien", hoaDon.getTongTien() != null ? hoaDon.getTongTien().toString() : "0");
+            jsonNode.put("tienGiamGia", hoaDon.getTienGiamGia() != null ? hoaDon.getTienGiamGia().toString() : "0");
+            jsonNode.put("thanhTien", hoaDon.getThanhTien() != null ? hoaDon.getThanhTien().toString() : "0");
+            jsonNode.put("ghiChu", hoaDon.getGhiChu() != null ? hoaDon.getGhiChu() : "");
+            jsonNode.put("soLuongSanPham", hoaDon.getSoLuongSanPham() != null ? hoaDon.getSoLuongSanPham() : 0);
+            
+            // Thông tin khách hàng
+            if (hoaDon.getKhachHang() != null) {
+                jsonNode.put("khachHangId", hoaDon.getKhachHang().getId() != null ? hoaDon.getKhachHang().getId() : 0);
+                jsonNode.put("tenKhachHang", hoaDon.getKhachHang().getTenKhachHang() != null ? hoaDon.getKhachHang().getTenKhachHang() : "");
+            }
+            
+            // Thông tin nhân viên
+            if (hoaDon.getNhanVien() != null) {
+                jsonNode.put("nhanVienId", hoaDon.getNhanVien().getId() != null ? hoaDon.getNhanVien().getId() : 0);
+                jsonNode.put("tenNhanVien", hoaDon.getNhanVien().getHoTen() != null ? hoaDon.getNhanVien().getHoTen() : "");
+            }
+            
+            // Thông tin ngày tháng
+            if (hoaDon.getNgayTao() != null) {
+                jsonNode.put("ngayTao", hoaDon.getNgayTao().toString());
+            }
+            if (hoaDon.getNgayThanhToan() != null) {
+                jsonNode.put("ngayThanhToan", hoaDon.getNgayThanhToan().toString());
+            }
+            
+            // Số lượng chi tiết
+            int chiTietCount = 0;
+            if (hoaDon.getDanhSachChiTiet() != null) {
+                chiTietCount = hoaDon.getDanhSachChiTiet().size();
+            }
+            jsonNode.put("soLuongChiTiet", chiTietCount);
+            
+            return objectMapper.writeValueAsString(jsonNode);
+        } catch (Exception e) {
+            System.err.println("⚠️ Error serializing HoaDon to JSON: " + e.getMessage());
+            // Fallback: return simple string representation
+            return String.format("{\"id\":%d,\"maHoaDon\":\"%s\",\"trangThai\":\"%s\"}",
+                hoaDon.getId() != null ? hoaDon.getId() : 0,
+                hoaDon.getMaHoaDon() != null ? hoaDon.getMaHoaDon() : "",
+                hoaDon.getTrangThai() != null ? hoaDon.getTrangThai().name() : "");
         }
     }
 }

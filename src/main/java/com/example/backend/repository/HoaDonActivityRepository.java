@@ -11,8 +11,9 @@ public interface HoaDonActivityRepository extends JpaRepository<HoaDonActivity, 
 
     /**
      * Tìm tất cả activities theo hoaDonId, sắp xếp theo thời gian giảm dần
+     * Xử lý cả trường hợp hoaDon null (đã bị xóa)
      */
-    @Query("SELECT a FROM HoaDonActivity a WHERE a.hoaDon.id = :hoaDonId ORDER BY a.performedAt DESC")
+    @Query("SELECT a FROM HoaDonActivity a WHERE (a.hoaDon IS NOT NULL AND a.hoaDon.id = :hoaDonId) ORDER BY a.performedAt DESC")
     Page<HoaDonActivity> findByHoaDonIdOrderByPerformedAtDesc(@Param("hoaDonId") Long hoaDonId, Pageable pageable);
 
     /**
