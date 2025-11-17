@@ -174,17 +174,10 @@ public class HoaDonChoService {
         List<GioHangCho> existingItems = gioHangChoRepository
                 .findAllByHoaDonChoIdAndChiTietSanPhamId(hoaDonChoId, itemRequest.getChiTietSanPhamId());
 
-        int totalReservedQuantity = existingItems.stream()
-                .map(GioHangCho::getSoLuong)
-                .filter(q -> q != null && q > 0)
-                .mapToInt(Integer::intValue)
-                .sum();
-
         int currentStock = parseSoLuongTon(chiTietSanPham);
-        int stockAvailable = currentStock - totalReservedQuantity;
-        if (quantityToAdd > stockAvailable) {
+        if (quantityToAdd > currentStock) {
             throw new RuntimeException(
-                String.format("Số lượng sản phẩm không đủ. Hiện tại còn %d sản phẩm trong kho.", Math.max(stockAvailable, 0))
+                String.format("Số lượng sản phẩm không đủ. Hiện tại còn %d sản phẩm trong kho.", Math.max(currentStock, 0))
             );
         }
 
@@ -205,6 +198,9 @@ public class HoaDonChoService {
             gioHangCho.setDonGia(requestedPrice);
             gioHangCho.setGiamGia(itemRequest.getGiamGia() != null ? itemRequest.getGiamGia() : BigDecimal.ZERO);
         }
+        // Deduct stock immediately
+        int updatedStock = currentStock - quantityToAdd;
+        updateProductStock(chiTietSanPham, updatedStock);
         
         // Calculate thanhTien
         BigDecimal total = gioHangCho.getDonGia().multiply(BigDecimal.valueOf(gioHangCho.getSoLuong()));
@@ -257,6 +253,11 @@ public class HoaDonChoService {
         return BigDecimal.ZERO;
     }
 
+    private void updateProductStock(ChiTietSanPham chiTietSanPham, int newStock) {
+        chiTietSanPham.setSoLuongTon(String.valueOf(Math.max(newStock, 0)));
+        chiTietSanPhamRepository.save(chiTietSanPham);
+    }
+
     @Transactional
     public HoaDonChoResponse updateCartItemQuantity(Long hoaDonChoId, Long gioHangChoId, Integer soLuong) {
         GioHangCho gioHangCho = gioHangChoRepository.findById(gioHangChoId)
@@ -284,6 +285,12 @@ public class HoaDonChoService {
             throw new RuntimeException(
                 String.format("Số lượng sản phẩm không đủ. Hiện tại còn %d sản phẩm trong kho.", currentStock)
             );
+        }
+
+        if (quantityDifference > 0) {
+            updateProductStock(chiTietSanPham, currentStock - quantityDifference);
+        } else if (quantityDifference < 0) {
+            updateProductStock(chiTietSanPham, currentStock + Math.abs(quantityDifference));
         }
 
         // Update cart quantity
@@ -338,10 +345,11 @@ public class HoaDonChoService {
             log.info("Fallback to JPA delete successful.");
         }
 
-        // QUAN TRỌNG: KHÔNG hoàn lại số lượng khi xóa khỏi giỏ hàng
-        // Vì số lượng chưa bị trừ khi thêm vào giỏ hàng
-        // Số lượng chỉ được trừ khi tạo hoá đơn từ giỏ hàng hoặc khi hoá đơn được xác nhận
-        log.info("✅ Removed item from cart. ChiTietSanPham id: {}, quantity removed: {} (Stock was not deducted when added to cart, so no need to restore)", 
+        // Hoàn lại số lượng vì đã trừ khi thêm vào giỏ hàng
+        int currentStock = parseSoLuongTon(chiTietSanPham);
+        updateProductStock(chiTietSanPham, currentStock + quantityRemoved);
+
+        log.info("✅ Removed item from cart. ChiTietSanPham id: {}, quantity removed: {} (Stock restored)", 
                 chiTietSanPham.getId(), quantityRemoved);
 
         // Clear entity manager to force fresh load from database
