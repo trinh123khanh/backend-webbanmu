@@ -62,7 +62,20 @@ public class HoaDonActivityService {
             return;
         }
         ActivityActor actor = getCurrentActor();
-        HoaDonActivity activity = buildActivity(invoice, action, description, oldData, newData, actor);
+        HoaDonActivity activity = buildActivity(invoice, action, description, oldData, newData, actor, null, null);
+        activityRepository.save(activity);
+    }
+
+    /**
+     * Log activity với HoaDon entity, dữ liệu cũ/mới, IP và User Agent
+     */
+    @Transactional
+    public void logActivity(HoaDon invoice, String action, String description, String oldData, String newData, String ipAddress, String userAgent) {
+        if (invoice == null) {
+            return;
+        }
+        ActivityActor actor = getCurrentActor();
+        HoaDonActivity activity = buildActivity(invoice, action, description, oldData, newData, actor, ipAddress, userAgent);
         activityRepository.save(activity);
     }
 
@@ -82,7 +95,8 @@ public class HoaDonActivityService {
      * Build HoaDonActivity entity từ các thông tin
      */
     private HoaDonActivity buildActivity(HoaDon invoice, String action, String description, 
-                                         String oldData, String newData, ActivityActor actor) {
+                                         String oldData, String newData, ActivityActor actor, 
+                                         String ipAddress, String userAgent) {
         // Nếu invoice có ID nhưng không tồn tại trong DB (ví dụ: đã bị xóa), 
         // chỉ lưu ID và mã hóa đơn, không set relationship
         HoaDonActivity.HoaDonActivityBuilder builder = HoaDonActivity.builder()
@@ -93,7 +107,9 @@ public class HoaDonActivityService {
                 .performedByName(actor.displayName())
                 .performedAt(LocalDateTime.now())
                 .oldData(oldData)
-                .newData(newData);
+                .newData(newData)
+                .ipAddress(ipAddress)
+                .userAgent(userAgent);
 
         // Chỉ set hoaDon relationship nếu invoice có ID và tồn tại trong DB
         if (invoice.getId() != null) {
@@ -139,6 +155,37 @@ public class HoaDonActivityService {
             System.err.println("❌ Error in HoaDonActivityService.getActivities: " + e.getMessage());
             e.printStackTrace();
             // Trả về empty page nếu có lỗi
+            return Page.empty(PageRequest.of(page, size));
+        }
+    }
+
+    /**
+     * Lấy activity theo ID
+     */
+    @Transactional(readOnly = true)
+    public Optional<HoaDonActivityDTO> getActivityById(Long id) {
+        try {
+            return activityRepository.findById(id)
+                .map(this::toDTO);
+        } catch (Exception e) {
+            System.err.println("❌ Error in getActivityById: " + e.getMessage());
+            e.printStackTrace();
+            return Optional.empty();
+        }
+    }
+
+    /**
+     * Lấy danh sách activities theo action type
+     */
+    @Transactional(readOnly = true)
+    public Page<HoaDonActivityDTO> getActivitiesByAction(String action, int page, int size) {
+        try {
+            Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "performedAt"));
+            Page<HoaDonActivity> activityPage = activityRepository.findByActionOrderByPerformedAtDesc(action, pageable);
+            return activityPage.map(this::toDTO);
+        } catch (Exception e) {
+            System.err.println("❌ Error in getActivitiesByAction: " + e.getMessage());
+            e.printStackTrace();
             return Page.empty(PageRequest.of(page, size));
         }
     }

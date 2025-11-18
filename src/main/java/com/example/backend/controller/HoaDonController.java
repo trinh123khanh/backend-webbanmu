@@ -1,6 +1,5 @@
 package com.example.backend.controller;
 
-import com.example.backend.dto.HoaDonActivityDTO;
 import com.example.backend.dto.HoaDonDTO;
 import com.example.backend.entity.HoaDon;
 import com.example.backend.entity.KhachHang;
@@ -8,7 +7,6 @@ import com.example.backend.entity.User;
 import com.example.backend.repository.KhachHangRepository;
 import com.example.backend.repository.UserRepository;
 import com.example.backend.service.HoaDonService;
-import com.example.backend.service.HoaDonActivityService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
@@ -24,23 +22,22 @@ import java.util.Map;
 import java.util.HashMap;
 
 @RestController
+@RequestMapping("/api/hoa-don")
 @CrossOrigin(originPatterns = {"http://localhost:*", "http://127.0.0.1:*"})
 public class HoaDonController {
 
     private final HoaDonService hoaDonService;
     private final UserRepository userRepository;
     private final KhachHangRepository khachHangRepository;
-    private final HoaDonActivityService hoaDonActivityService;
 
     public HoaDonController(HoaDonService hoaDonService,
                             UserRepository userRepository,
-                            KhachHangRepository khachHangRepository,
-                            HoaDonActivityService hoaDonActivityService) {
+                            KhachHangRepository khachHangRepository) {
         this.hoaDonService = hoaDonService;
         this.userRepository = userRepository;
         this.khachHangRepository = khachHangRepository;
-        this.hoaDonActivityService = hoaDonActivityService;
     }
+
 
     // ===== ADMIN ENDPOINTS - CRUD tất cả hóa đơn =====
     @GetMapping("/api/admin/invoices/page")
@@ -171,7 +168,7 @@ public class HoaDonController {
     }
 
     // ===== BACKWARD COMPATIBILITY - Giữ lại các endpoint cũ =====
-    @GetMapping("/api/hoa-don/page")
+    @GetMapping("/page")
     public ResponseEntity<Map<String, Object>> getAllHoaDonPaginated(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "5") int size,
@@ -221,7 +218,7 @@ public class HoaDonController {
         }
     }
     
-    @GetMapping("/api/hoa-don/{id:\\d+}")
+    @GetMapping("/{id:\\d+}")
     public ResponseEntity<HoaDonDTO> getHoaDonById(@PathVariable Long id) {
         return hoaDonService.getHoaDonById(id)
                 .map(hoaDonService::toDTO)
@@ -230,7 +227,7 @@ public class HoaDonController {
     }
 
     // Tạo hóa đơn mới
-    @PostMapping("/api/hoa-don")
+    @PostMapping
     public ResponseEntity<?> createHoaDon(@RequestBody HoaDonDTO hoaDonDTO) {
         try {
             // Validate dữ liệu đầu vào
@@ -257,7 +254,7 @@ public class HoaDonController {
     }
 
     // Cập nhật hóa đơn
-    @PutMapping("/api/hoa-don/{id:\\d+}")
+    @PutMapping("/{id:\\d+}")
     public ResponseEntity<?> updateHoaDon(@PathVariable Long id, @RequestBody HoaDonDTO hoaDonDTO) {
         try {
             System.out.println("🔍 ========== PUT /api/hoa-don/" + id + " ==========");
@@ -347,7 +344,7 @@ public class HoaDonController {
     // Cập nhật trạng thái hóa đơn
     // Best Practice: PATCH request nên dùng @RequestBody (RFC 5789)
     // Ưu điểm: Dễ mở rộng (có thể thêm reason, note), dễ debug, consistent với REST standards
-    @PatchMapping(value = "/api/hoa-don/{id:\\d+}/trang-thai", consumes = "application/json", produces = "application/json")
+    @PatchMapping(value = "/{id:\\d+}/trang-thai", consumes = "application/json", produces = "application/json")
     public ResponseEntity<?> updateTrangThaiHoaDon(
             @PathVariable Long id,
             @RequestBody(required = false) Map<String, String> requestBody) {
@@ -415,74 +412,8 @@ public class HoaDonController {
         }
     }
 
-    @GetMapping("/api/hoa-don/test")
+    @GetMapping("/test")
     public ResponseEntity<String> test() {
         return ResponseEntity.ok("API hoạt động bình thường!");
-    }
-
-    @GetMapping("/api/hoa-don/activities")
-    @PreAuthorize("hasAnyRole('ADMIN','STAFF')")
-    public ResponseEntity<Map<String, Object>> getHoaDonActivities(
-            @RequestParam(required = false) String hoaDonId,
-            @RequestParam(required = false, defaultValue = "0") String page,
-            @RequestParam(required = false, defaultValue = "20") String size) {
-        try {
-            // Parse hoaDonId từ String sang Long
-            Long hoaDonIdLong = null;
-            if (hoaDonId != null && !hoaDonId.trim().isEmpty()) {
-                try {
-                    hoaDonIdLong = Long.parseLong(hoaDonId.trim());
-                    if (hoaDonIdLong <= 0) {
-                        return ResponseEntity.badRequest()
-                            .body(Map.of("error", "hoaDonId phải là số dương"));
-                    }
-                } catch (NumberFormatException e) {
-                    return ResponseEntity.badRequest()
-                        .body(Map.of("error", "hoaDonId không hợp lệ: " + hoaDonId));
-                }
-            }
-            
-            // Parse page và size từ String sang int
-            int pageNumber = 0;
-            try {
-                pageNumber = Integer.parseInt(page != null ? page.trim() : "0");
-                if (pageNumber < 0) {
-                    pageNumber = 0;
-                }
-            } catch (NumberFormatException e) {
-                pageNumber = 0;
-            }
-            
-            int pageSize = 20;
-            try {
-                pageSize = Integer.parseInt(size != null ? size.trim() : "20");
-                if (pageSize <= 0) {
-                    pageSize = 20;
-                }
-                // Giới hạn pageSize tối đa
-                if (pageSize > 100) {
-                    pageSize = 100;
-                }
-            } catch (NumberFormatException e) {
-                pageSize = 20;
-            }
-            
-            Page<HoaDonActivityDTO> activityPage = hoaDonActivityService.getActivities(hoaDonIdLong, pageNumber, pageSize);
-            Map<String, Object> response = new HashMap<>();
-            response.put("content", activityPage.getContent());
-            response.put("totalElements", activityPage.getTotalElements());
-            response.put("totalPages", activityPage.getTotalPages());
-            response.put("currentPage", activityPage.getNumber());
-            response.put("size", activityPage.getSize());
-            return ResponseEntity.ok(response);
-        } catch (Exception e) {
-            System.err.println("❌ Error in getHoaDonActivities: " + e.getMessage());
-            e.printStackTrace();
-            Map<String, Object> errorResponse = new HashMap<>();
-            errorResponse.put("error", "Lỗi khi lấy lịch sử thay đổi: " + e.getMessage());
-            errorResponse.put("details", e.getClass().getSimpleName());
-            return ResponseEntity.status(org.springframework.http.HttpStatus.INTERNAL_SERVER_ERROR)
-                .body(errorResponse);
-        }
     }
 }

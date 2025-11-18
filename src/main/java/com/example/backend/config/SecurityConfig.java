@@ -102,6 +102,9 @@ public class SecurityConfig {
                 .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/hoa-don-cho/**").permitAll()
                 .requestMatchers(org.springframework.http.HttpMethod.POST, "/api/hoa-don-cho/**").permitAll()
                 
+                // Lịch sử thay đổi hóa đơn - yêu cầu ADMIN hoặc STAFF
+                .requestMatchers("/api/hoa-don-activity/**").hasAnyRole("ADMIN", "STAFF")
+                
                 // Backward compatibility - endpoints cũ cho phép ADMIN và STAFF (PUT, PATCH, DELETE)
                 // GET và POST đã được cho phép ở trên, chỉ cần bảo vệ các method khác
                 .requestMatchers(org.springframework.http.HttpMethod.PUT, "/api/hoa-don/**").hasAnyRole("ADMIN", "STAFF")
