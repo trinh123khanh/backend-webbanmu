@@ -19,11 +19,9 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 import java.time.LocalDateTime;
+
 import java.util.Optional;
 
-/**
- * Service quản lý lịch sử thay đổi hóa đơn
- */
 @Service
 public class HoaDonActivityService {
 
@@ -50,6 +48,7 @@ public class HoaDonActivityService {
         if (invoice == null) {
             return;
         }
+
         logActivity(invoice, action, description, null, null);
     }
 
@@ -101,6 +100,7 @@ public class HoaDonActivityService {
         // chỉ lưu ID và mã hóa đơn, không set relationship
         HoaDonActivity.HoaDonActivityBuilder builder = HoaDonActivity.builder()
                 .maHoaDon(invoice.getMaHoaDon() != null ? invoice.getMaHoaDon() : "")
+
                 .action(action)
                 .description(description)
                 .performedBy(actor.username())
@@ -198,6 +198,7 @@ public class HoaDonActivityService {
         return HoaDonActivityDTO.builder()
                 .id(activity.getId())
                 .hoaDonId(hoaDonId)
+
                 .maHoaDon(activity.getMaHoaDon())
                 .action(activity.getAction())
                 .description(activity.getDescription())
@@ -214,6 +215,7 @@ public class HoaDonActivityService {
     /**
      * Lấy thông tin người thực hiện hành động từ SecurityContext
      */
+
     private ActivityActor getCurrentActor() {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         if (auth == null || !auth.isAuthenticated()) {

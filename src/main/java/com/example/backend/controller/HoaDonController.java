@@ -1,5 +1,6 @@
 package com.example.backend.controller;
 
+import com.example.backend.dto.HoaDonActivityDTO;
 import com.example.backend.dto.HoaDonDTO;
 import com.example.backend.entity.HoaDon;
 import com.example.backend.entity.KhachHang;
@@ -7,6 +8,7 @@ import com.example.backend.entity.User;
 import com.example.backend.repository.KhachHangRepository;
 import com.example.backend.repository.UserRepository;
 import com.example.backend.service.HoaDonService;
+import com.example.backend.service.HoaDonActivityService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
@@ -29,8 +31,9 @@ public class HoaDonController {
     private final HoaDonService hoaDonService;
     private final UserRepository userRepository;
     private final KhachHangRepository khachHangRepository;
+    private final HoaDonActivityService hoaDonActivityService;
 
-    public HoaDonController(HoaDonService hoaDonService,
+   public HoaDonController(HoaDonService hoaDonService,
                             UserRepository userRepository,
                             KhachHangRepository khachHangRepository) {
         this.hoaDonService = hoaDonService;
@@ -218,7 +221,7 @@ public class HoaDonController {
         }
     }
     
-    @GetMapping("/{id:\\d+}")
+ @GetMapping("/{id:\\d+}")
     public ResponseEntity<HoaDonDTO> getHoaDonById(@PathVariable Long id) {
         return hoaDonService.getHoaDonById(id)
                 .map(hoaDonService::toDTO)
@@ -243,7 +246,7 @@ public class HoaDonController {
             }
             
             HoaDonDTO createdHoaDon = hoaDonService.createHoaDon(hoaDonDTO);
-            // Activity đã được log tự động trong HoaDonService.createHoaDon()
+
             return ResponseEntity.status(org.springframework.http.HttpStatus.CREATED).body(createdHoaDon);
         } catch (RuntimeException e) {
             return ResponseEntity.status(org.springframework.http.HttpStatus.BAD_REQUEST).body(e.getMessage());
@@ -277,7 +280,7 @@ public class HoaDonController {
             }
             
             HoaDonDTO updatedHoaDon = hoaDonService.updateHoaDon(id, hoaDonDTO);
-            // Activity đã được log tự động trong HoaDonService.updateHoaDon()
+          
             System.out.println("✅ Invoice updated successfully:");
             System.out.println("   - New status: " + updatedHoaDon.getTrangThai());
             System.out.println("   - New ghiChu: " + updatedHoaDon.getGhiChu());
@@ -345,6 +348,7 @@ public class HoaDonController {
     // Best Practice: PATCH request nên dùng @RequestBody (RFC 5789)
     // Ưu điểm: Dễ mở rộng (có thể thêm reason, note), dễ debug, consistent với REST standards
     @PatchMapping(value = "/{id:\\d+}/trang-thai", consumes = "application/json", produces = "application/json")
+
     public ResponseEntity<?> updateTrangThaiHoaDon(
             @PathVariable Long id,
             @RequestBody(required = false) Map<String, String> requestBody) {
@@ -415,5 +419,21 @@ public class HoaDonController {
     @GetMapping("/test")
     public ResponseEntity<String> test() {
         return ResponseEntity.ok("API hoạt động bình thường!");
+    }
+
+    @GetMapping("/api/hoa-don/activities")
+    @PreAuthorize("hasAnyRole('ADMIN','STAFF')")
+    public ResponseEntity<Map<String, Object>> getHoaDonActivities(
+            @RequestParam(required = false) Long hoaDonId,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size) {
+        Page<HoaDonActivityDTO> activityPage = hoaDonActivityService.getActivities(hoaDonId, page, size);
+        Map<String, Object> response = new HashMap<>();
+        response.put("content", activityPage.getContent());
+        response.put("totalElements", activityPage.getTotalElements());
+        response.put("totalPages", activityPage.getTotalPages());
+        response.put("currentPage", activityPage.getNumber());
+        response.put("size", activityPage.getSize());
+        return ResponseEntity.ok(response);
     }
 }

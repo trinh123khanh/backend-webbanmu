@@ -4,6 +4,7 @@ import com.example.backend.entity.HoaDonActivity;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -39,5 +40,6 @@ public interface HoaDonActivityRepository extends JpaRepository<HoaDonActivity, 
      */
     @Query("SELECT a FROM HoaDonActivity a WHERE a.user.id = :userId ORDER BY a.performedAt DESC")
     Page<HoaDonActivity> findByUserIdOrderByPerformedAtDesc(@Param("userId") Long userId, Pageable pageable);
+
 }
 

@@ -213,8 +213,8 @@ public class StatisticsController {
     }
     
     /**
-     * Lấy thống kê theo khoảng thời gian (ngày, tuần, tháng, năm)
-     * @param period Loại khoảng thời gian: "day", "week", "month", "year"
+     * Lấy thống kê theo khoảng thời gian (ngày, tuần, quý, tháng, năm)
+     * @param period Loại khoảng thời gian: "day", "week", "quarter", "month", "year"
      * @return PeriodStatisticsDTO chứa doanh thu, số sản phẩm đã bán, số đơn hàng
      */
     @GetMapping("/period")

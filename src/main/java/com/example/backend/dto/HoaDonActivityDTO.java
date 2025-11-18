@@ -14,6 +14,7 @@ import java.time.LocalDateTime;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
+
 public class HoaDonActivityDTO {
     private Long id;
     private Long hoaDonId;
@@ -27,5 +28,6 @@ public class HoaDonActivityDTO {
     private String newData;
     private String ipAddress;
     private String userAgent;
+
 }
 

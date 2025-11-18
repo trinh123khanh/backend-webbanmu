@@ -8,10 +8,6 @@ import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
 
-/**
- * Entity lưu lịch sử thay đổi của hóa đơn
- * Mapping với bảng hoa_don và users để theo dõi ai đã thực hiện thay đổi
- */
 @Data
 @Builder
 @NoArgsConstructor
@@ -109,5 +105,6 @@ public class HoaDonActivity {
      */
     @Column(name = "user_agent", length = 500)
     private String userAgent;
+
 }
 

@@ -190,8 +190,8 @@ public class StatisticsService {
     }
     
     /**
-     * Lấy thống kê theo khoảng thời gian (ngày, tuần, tháng, năm)
-     * @param period Loại khoảng thời gian: "day", "week", "month", "year"
+     * Lấy thống kê theo khoảng thời gian (ngày, tuần, quý, tháng, năm)
+     * @param period Loại khoảng thời gian: "day", "week", "quarter", "month", "year"
      * @return PeriodStatisticsDTO chứa doanh thu, số sản phẩm đã bán, số đơn hàng
      */
     public PeriodStatisticsDTO getPeriodStatistics(String period) {
@@ -439,13 +439,46 @@ public class StatisticsService {
                 startDate = today.minusDays(today.getDayOfWeek().getValue() - 1).atStartOfDay();
                 endDate = LocalDateTime.now();
                 break;
+            case "quarter":
+                // Tính quý hiện tại: Q1 (1-3), Q2 (4-6), Q3 (7-9), Q4 (10-12)
+                int currentMonth = today.getMonthValue();
+                int currentYear = today.getYear();
+                int quarterStartMonth;
+                int quarterEndMonth;
+                
+                if (currentMonth >= 1 && currentMonth <= 3) {
+                    // Q1: Tháng 1-3
+                    quarterStartMonth = 1;
+                    quarterEndMonth = 3;
+                } else if (currentMonth >= 4 && currentMonth <= 6) {
+                    // Q2: Tháng 4-6
+                    quarterStartMonth = 4;
+                    quarterEndMonth = 6;
+                } else if (currentMonth >= 7 && currentMonth <= 9) {
+                    // Q3: Tháng 7-9
+                    quarterStartMonth = 7;
+                    quarterEndMonth = 9;
+                } else {
+                    // Q4: Tháng 10-12
+                    quarterStartMonth = 10;
+                    quarterEndMonth = 12;
+                }
+                
+                startDate = LocalDate.of(currentYear, quarterStartMonth, 1).atStartOfDay();
+                // Ngày kết thúc quý: ngày đầu tiên của tháng tiếp theo quý
+                if (quarterEndMonth == 12) {
+                    endDate = LocalDate.of(currentYear + 1, 1, 1).atStartOfDay();
+                } else {
+                    endDate = LocalDate.of(currentYear, quarterEndMonth + 1, 1).atStartOfDay();
+                }
+                break;
             case "year":
                 startDate = LocalDate.of(2025, 1, 1).atStartOfDay();
                 endDate = LocalDate.of(2026, 1, 1).atStartOfDay();
                 break;
             case "month":
             default:
-                if (period != null && !List.of("day", "today", "week", "month", "year").contains(period.toLowerCase())) {
+                if (period != null && !List.of("day", "today", "week", "quarter", "month", "year").contains(period.toLowerCase())) {
                     System.err.println("⚠️ [StatisticsService] Invalid period: " + period + ", defaulting to month");
                 }
                 startDate = LocalDate.of(2025, 11, 1).atStartOfDay();
