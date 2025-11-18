@@ -24,6 +24,7 @@ import java.util.Map;
 import java.util.HashMap;
 
 @RestController
+@RequestMapping("/api/hoa-don")
 @CrossOrigin(originPatterns = {"http://localhost:*", "http://127.0.0.1:*"})
 public class HoaDonController {
 
@@ -32,15 +33,14 @@ public class HoaDonController {
     private final KhachHangRepository khachHangRepository;
     private final HoaDonActivityService hoaDonActivityService;
 
-    public HoaDonController(HoaDonService hoaDonService,
+   public HoaDonController(HoaDonService hoaDonService,
                             UserRepository userRepository,
-                            KhachHangRepository khachHangRepository,
-                            HoaDonActivityService hoaDonActivityService) {
+                            KhachHangRepository khachHangRepository) {
         this.hoaDonService = hoaDonService;
         this.userRepository = userRepository;
         this.khachHangRepository = khachHangRepository;
-        this.hoaDonActivityService = hoaDonActivityService;
     }
+
 
     // ===== ADMIN ENDPOINTS - CRUD tất cả hóa đơn =====
     @GetMapping("/api/admin/invoices/page")
@@ -171,7 +171,7 @@ public class HoaDonController {
     }
 
     // ===== BACKWARD COMPATIBILITY - Giữ lại các endpoint cũ =====
-    @GetMapping("/api/hoa-don/page")
+    @GetMapping("/page")
     public ResponseEntity<Map<String, Object>> getAllHoaDonPaginated(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "5") int size,
@@ -221,7 +221,7 @@ public class HoaDonController {
         }
     }
     
-    @GetMapping("/api/hoa-don/{id:\\d+}")
+ @GetMapping("/{id:\\d+}")
     public ResponseEntity<HoaDonDTO> getHoaDonById(@PathVariable Long id) {
         return hoaDonService.getHoaDonById(id)
                 .map(hoaDonService::toDTO)
@@ -230,7 +230,7 @@ public class HoaDonController {
     }
 
     // Tạo hóa đơn mới
-    @PostMapping("/api/hoa-don")
+    @PostMapping
     public ResponseEntity<?> createHoaDon(@RequestBody HoaDonDTO hoaDonDTO) {
         try {
             // Validate dữ liệu đầu vào
@@ -246,12 +246,7 @@ public class HoaDonController {
             }
             
             HoaDonDTO createdHoaDon = hoaDonService.createHoaDon(hoaDonDTO);
-            hoaDonActivityService.logActivity(
-                    createdHoaDon.getId(),
-                    createdHoaDon.getMaHoaDon(),
-                    "CREATE",
-                    "Tạo hóa đơn mới trong hệ thống"
-            );
+
             return ResponseEntity.status(org.springframework.http.HttpStatus.CREATED).body(createdHoaDon);
         } catch (RuntimeException e) {
             return ResponseEntity.status(org.springframework.http.HttpStatus.BAD_REQUEST).body(e.getMessage());
@@ -262,7 +257,7 @@ public class HoaDonController {
     }
 
     // Cập nhật hóa đơn
-    @PutMapping("/api/hoa-don/{id:\\d+}")
+    @PutMapping("/{id:\\d+}")
     public ResponseEntity<?> updateHoaDon(@PathVariable Long id, @RequestBody HoaDonDTO hoaDonDTO) {
         try {
             System.out.println("🔍 ========== PUT /api/hoa-don/" + id + " ==========");
@@ -285,12 +280,7 @@ public class HoaDonController {
             }
             
             HoaDonDTO updatedHoaDon = hoaDonService.updateHoaDon(id, hoaDonDTO);
-            hoaDonActivityService.logActivity(
-                    updatedHoaDon.getId(),
-                    updatedHoaDon.getMaHoaDon(),
-                    "UPDATE",
-                    "Cập nhật thông tin hóa đơn"
-            );
+          
             System.out.println("✅ Invoice updated successfully:");
             System.out.println("   - New status: " + updatedHoaDon.getTrangThai());
             System.out.println("   - New ghiChu: " + updatedHoaDon.getGhiChu());
@@ -357,7 +347,8 @@ public class HoaDonController {
     // Cập nhật trạng thái hóa đơn
     // Best Practice: PATCH request nên dùng @RequestBody (RFC 5789)
     // Ưu điểm: Dễ mở rộng (có thể thêm reason, note), dễ debug, consistent với REST standards
-    @PatchMapping(value = "/api/hoa-don/{id:\\d+}/trang-thai", consumes = "application/json", produces = "application/json")
+    @PatchMapping(value = "/{id:\\d+}/trang-thai", consumes = "application/json", produces = "application/json")
+
     public ResponseEntity<?> updateTrangThaiHoaDon(
             @PathVariable Long id,
             @RequestBody(required = false) Map<String, String> requestBody) {
@@ -406,12 +397,7 @@ public class HoaDonController {
             HoaDonDTO updatedHoaDon = hoaDonService.updateTrangThaiHoaDon(id, trangThaiToUpdate);
             System.out.println("✅ Update successful, new status: " + updatedHoaDon.getTrangThai());
             System.out.println("==========================================");
-            hoaDonActivityService.logActivity(
-                    updatedHoaDon.getId(),
-                    updatedHoaDon.getMaHoaDon(),
-                    "STATUS_CHANGE",
-                    "Cập nhật trạng thái thành " + updatedHoaDon.getTrangThai()
-            );
+            // Activity đã được log tự động trong HoaDonService.updateTrangThaiHoaDon()
             return ResponseEntity.ok(updatedHoaDon);
         } catch (jakarta.persistence.EntityNotFoundException e) {
             System.err.println("❌ Entity not found: " + e.getMessage());
@@ -430,7 +416,7 @@ public class HoaDonController {
         }
     }
 
-    @GetMapping("/api/hoa-don/test")
+    @GetMapping("/test")
     public ResponseEntity<String> test() {
         return ResponseEntity.ok("API hoạt động bình thường!");
     }

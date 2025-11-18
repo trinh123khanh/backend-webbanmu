@@ -47,4 +47,8 @@ public interface NhanVienRepository extends JpaRepository<NhanVien, Long> {
     @Query("SELECT n FROM NhanVien n WHERE n.ngayVaoLam BETWEEN :startDate AND :endDate")
     List<NhanVien> findByNgayVaoLamRange(@Param("startDate") LocalDate startDate, 
                                          @Param("endDate") LocalDate endDate);
+    
+    // Tìm nhân viên theo user_id
+    @Query("SELECT n FROM NhanVien n WHERE n.user.id = :userId")
+    Optional<NhanVien> findByUserId(@Param("userId") Long userId);
 }

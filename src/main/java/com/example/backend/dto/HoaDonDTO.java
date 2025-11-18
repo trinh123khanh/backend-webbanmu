@@ -41,10 +41,5 @@ public class HoaDonDTO {
     private String viTriBanHang; // "Online" hoặc "Tại quầy" - dựa trên nhanVienId (null = Online)
     private List<HoaDonChiTietDTO> danhSachChiTiet; // Danh sách chi tiết sản phẩm trong hóa đơn
 
-    
-    // Constructors, getters, and setters
-
-
-
 
 }
