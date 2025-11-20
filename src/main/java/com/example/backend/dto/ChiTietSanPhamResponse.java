@@ -15,6 +15,7 @@ public class ChiTietSanPhamResponse {
     private String giaBan;
     private String soLuongTon;
     private Boolean trangThai;
+    private String anhSanPham;
 
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
@@ -42,4 +43,6 @@ public class ChiTietSanPhamResponse {
     public void setSoLuongTon(String soLuongTon) { this.soLuongTon = soLuongTon; }
     public Boolean getTrangThai() { return trangThai; }
     public void setTrangThai(Boolean trangThai) { this.trangThai = trangThai; }
+    public String getAnhSanPham() { return anhSanPham; }
+    public void setAnhSanPham(String anhSanPham) { this.anhSanPham = anhSanPham; }
 }

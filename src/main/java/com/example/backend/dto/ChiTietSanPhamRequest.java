@@ -13,6 +13,7 @@ public class ChiTietSanPhamRequest {
     private String giaBan;
     private String soLuongTon;
     private Boolean trangThai;
+    private String anhSanPham;
 
     public Long getSanPhamId() { return sanPhamId; }
     public void setSanPhamId(Long sanPhamId) { this.sanPhamId = sanPhamId; }
@@ -51,6 +52,11 @@ public class ChiTietSanPhamRequest {
 
     public Boolean getTrangThai() { return trangThai; }
     public void setTrangThai(Boolean trangThai) { this.trangThai = trangThai; }
+
+    public String getAnhSanPham() { return anhSanPham; }
+    public void setAnhSanPham(String anhSanPham) { this.anhSanPham = anhSanPham; }
+    @JsonSetter("anhSanPham")
+    public void setAnhSanPhamFromAny(Object v) { this.anhSanPham = v != null ? v.toString() : null; }
 
     // Helpers chuyển đổi an toàn từ Number/String sang kiểu mong muốn
     private Long toLong(Object v) {

@@ -71,8 +71,7 @@ public class ChiTietSanPhamServiceImpl implements ChiTietSanPhamService {
 
     @Override
     public List<ChiTietSanPhamResponse> getBySanPhamId(Long sanPhamId) {
-        return repository.findAll().stream()
-            .filter(c -> c.getSanPham() != null && c.getSanPham().getId().equals(sanPhamId))
+        return repository.findBySanPhamId(sanPhamId).stream()
             .map(this::map)
             .collect(Collectors.toList());
     }
@@ -95,6 +94,7 @@ public class ChiTietSanPhamServiceImpl implements ChiTietSanPhamService {
         entity.setGiaBan(req.getGiaBan());
         entity.setSoLuongTon(req.getSoLuongTon());
         entity.setTrangThai(Boolean.TRUE.equals(req.getTrangThai()));
+        entity.setAnhSanPham(req.getAnhSanPham());
     }
 
     private ChiTietSanPhamResponse map(ChiTietSanPham e) {
@@ -118,6 +118,7 @@ public class ChiTietSanPhamServiceImpl implements ChiTietSanPhamService {
         r.setGiaBan(e.getGiaBan());
         r.setSoLuongTon(e.getSoLuongTon());
         r.setTrangThai(e.getTrangThai());
+        r.setAnhSanPham(e.getAnhSanPham());
         return r;
     }
 }

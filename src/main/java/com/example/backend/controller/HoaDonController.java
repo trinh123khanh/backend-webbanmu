@@ -35,10 +35,12 @@ public class HoaDonController {
 
    public HoaDonController(HoaDonService hoaDonService,
                             UserRepository userRepository,
-                            KhachHangRepository khachHangRepository) {
+                            KhachHangRepository khachHangRepository,
+                            HoaDonActivityService hoaDonActivityService) {
         this.hoaDonService = hoaDonService;
         this.userRepository = userRepository;
         this.khachHangRepository = khachHangRepository;
+        this.hoaDonActivityService = hoaDonActivityService;
     }
 
 

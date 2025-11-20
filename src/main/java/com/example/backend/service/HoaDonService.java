@@ -19,7 +19,6 @@ import com.example.backend.repository.HinhThucThanhToanRepository;
 import com.example.backend.repository.PhuongThucThanhToanRepository;
 import com.example.backend.repository.HoaDonChiTietRepository;
 import com.example.backend.repository.ThongTinDonHangRepository;
-import com.example.backend.service.HoaDonActivityService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import jakarta.persistence.EntityNotFoundException;
@@ -228,8 +227,13 @@ public class HoaDonService {
             if (chiTietSP.getSanPham() != null) {
                 var sanPham = chiTietSP.getSanPham();
                 builder.tenSanPham(sanPham.getTenSanPham())
-                       .maSanPham(sanPham.getMaSanPham())
-                       .anhSanPham(sanPham.getAnhSanPham());
+                       .maSanPham(sanPham.getMaSanPham());
+                String anhBienThe = chiTietSP.getAnhSanPham();
+                if (StringUtils.hasText(anhBienThe)) {
+                    builder.anhSanPham(anhBienThe);
+                } else {
+                    builder.anhSanPham(sanPham.getAnhSanPham());
+                }
                 
                 // Lấy nhà sản xuất
                 if (sanPham.getNhaSanXuat() != null) {

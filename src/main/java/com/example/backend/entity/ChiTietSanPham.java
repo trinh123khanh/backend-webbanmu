@@ -33,4 +33,8 @@ public class ChiTietSanPham {
     private String giaBan;
     
     private Boolean trangThai;
+
+    @Lob
+    @Column(name = "anh_san_pham", columnDefinition = "TEXT")
+    private String anhSanPham;
 }
