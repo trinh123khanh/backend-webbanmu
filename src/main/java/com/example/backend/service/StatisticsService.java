@@ -7,12 +7,16 @@ import com.example.backend.dto.OrderStatusStatisticsDTO;
 import com.example.backend.dto.ChannelStatisticsDTO;
 import com.example.backend.dto.BrandStatisticsDTO;
 import com.example.backend.dto.LowStockProductDTO;
+import com.example.backend.dto.DetailedStatisticsDTO;
+import com.example.backend.dto.PeriodDetailDTO;
 import com.example.backend.entity.HoaDon;
 import com.example.backend.entity.HoaDonChiTiet;
 import com.example.backend.entity.SanPham;
+import com.example.backend.entity.KhachHang;
 import com.example.backend.repository.HoaDonChiTietRepository;
 import com.example.backend.repository.HoaDonRepository;
 import com.example.backend.repository.SanPhamRepository;
+import com.example.backend.repository.KhachHangRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -31,13 +35,16 @@ public class StatisticsService {
     private final HoaDonChiTietRepository hoaDonChiTietRepository;
     private final HoaDonRepository hoaDonRepository;
     private final SanPhamRepository sanPhamRepository;
+    private final KhachHangRepository khachHangRepository;
     
     public StatisticsService(HoaDonChiTietRepository hoaDonChiTietRepository,
                            HoaDonRepository hoaDonRepository,
-                           SanPhamRepository sanPhamRepository) {
+                           SanPhamRepository sanPhamRepository,
+                           KhachHangRepository khachHangRepository) {
         this.hoaDonChiTietRepository = hoaDonChiTietRepository;
         this.hoaDonRepository = hoaDonRepository;
         this.sanPhamRepository = sanPhamRepository;
+        this.khachHangRepository = khachHangRepository;
     }
     
     /**
@@ -429,6 +436,10 @@ public class StatisticsService {
         LocalDateTime startDate;
         LocalDateTime endDate;
         
+        // Khai báo biến dùng chung
+        int currentMonth = today.getMonthValue();
+        int currentYear = today.getYear();
+        
         switch (period == null ? "month" : period.toLowerCase()) {
             case "day":
             case "today":
@@ -441,8 +452,6 @@ public class StatisticsService {
                 break;
             case "quarter":
                 // Tính quý hiện tại: Q1 (1-3), Q2 (4-6), Q3 (7-9), Q4 (10-12)
-                int currentMonth = today.getMonthValue();
-                int currentYear = today.getYear();
                 int quarterStartMonth;
                 int quarterEndMonth;
                 
@@ -473,16 +482,22 @@ public class StatisticsService {
                 }
                 break;
             case "year":
-                startDate = LocalDate.of(2025, 1, 1).atStartOfDay();
-                endDate = LocalDate.of(2026, 1, 1).atStartOfDay();
+                // Năm hiện tại: từ 1/1 năm hiện tại đến 1/1 năm sau
+                startDate = LocalDate.of(currentYear, 1, 1).atStartOfDay();
+                endDate = LocalDate.of(currentYear + 1, 1, 1).atStartOfDay();
                 break;
             case "month":
             default:
                 if (period != null && !List.of("day", "today", "week", "quarter", "month", "year").contains(period.toLowerCase())) {
                     System.err.println("⚠️ [StatisticsService] Invalid period: " + period + ", defaulting to month");
                 }
-                startDate = LocalDate.of(2025, 11, 1).atStartOfDay();
-                endDate = LocalDate.of(2025, 12, 1).atStartOfDay();
+                // Tháng hiện tại: từ ngày 1 tháng hiện tại đến ngày 1 tháng sau
+                startDate = LocalDate.of(currentYear, currentMonth, 1).atStartOfDay();
+                if (currentMonth == 12) {
+                    endDate = LocalDate.of(currentYear + 1, 1, 1).atStartOfDay();
+                } else {
+                    endDate = LocalDate.of(currentYear, currentMonth + 1, 1).atStartOfDay();
+                }
                 break;
         }
         
@@ -896,6 +911,633 @@ public class StatisticsService {
         System.out.println("========================================");
         
         return lowStockProducts;
+    }
+    
+    /**
+     * Tính toán dữ liệu chi tiết cho từng period con (quý/tháng/tuần)
+     * @param period Loại period chính: "day", "week", "month", "quarter", "year"
+     * @param overallStartDate Ngày bắt đầu của period chính
+     * @param overallEndDate Ngày kết thúc của period chính
+     * @return Danh sách PeriodDetailDTO với dữ liệu thực tế cho từng period con
+     */
+    private List<PeriodDetailDTO> calculatePeriodDetails(String period, LocalDateTime overallStartDate, LocalDateTime overallEndDate) {
+        List<PeriodDetailDTO> result = new ArrayList<>();
+        
+        if (period == null) {
+            period = "month";
+        }
+        
+        switch (period.toLowerCase()) {
+            case "day":
+            case "today":
+                // Hôm nay: chỉ có 1 period
+                PeriodDetailDTO dayDetail = calculatePeriodStatistics(
+                    overallStartDate, 
+                    overallEndDate, 
+                    "Ngày " + overallStartDate.getDayOfMonth() + "/" + overallStartDate.getMonthValue()
+                );
+                result.add(dayDetail);
+                break;
+                
+            case "week":
+                // Tuần: hiển thị 7 ngày trong tuần
+                LocalDate weekStart = overallStartDate.toLocalDate();
+                for (int i = 0; i < 7; i++) {
+                    LocalDate day = weekStart.plusDays(i);
+                    LocalDateTime dayStart = day.atStartOfDay();
+                    LocalDateTime dayEnd = day.plusDays(1).atStartOfDay();
+                    if (dayEnd.isAfter(overallEndDate)) {
+                        dayEnd = overallEndDate;
+                    }
+                    
+                    PeriodDetailDTO dayDetail2 = calculatePeriodStatistics(
+                        dayStart, 
+                        dayEnd, 
+                        "Ngày " + day.getDayOfMonth() + "/" + day.getMonthValue()
+                    );
+                    result.add(dayDetail2);
+                }
+                break;
+                
+            case "month":
+                // Tháng: hiển thị các tuần trong tháng
+                LocalDate monthStart = overallStartDate.toLocalDate();
+                LocalDate monthEnd = overallEndDate.toLocalDate();
+                LocalDate currentWeekStart = monthStart.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY));
+                int weekNumber = 1;
+                
+                while (!currentWeekStart.isAfter(monthEnd)) {
+                    LocalDate weekEnd = currentWeekStart.plusDays(6);
+                    if (weekEnd.isAfter(monthEnd)) {
+                        weekEnd = monthEnd;
+                    }
+                    
+                    LocalDateTime weekStartDateTime = currentWeekStart.atStartOfDay();
+                    LocalDateTime weekEndDateTime = weekEnd.plusDays(1).atStartOfDay();
+                    if (weekEndDateTime.isAfter(overallEndDate)) {
+                        weekEndDateTime = overallEndDate;
+                    }
+                    
+                    PeriodDetailDTO weekDetail = calculatePeriodStatistics(
+                        weekStartDateTime, 
+                        weekEndDateTime, 
+                        "Tuần " + weekNumber
+                    );
+                    result.add(weekDetail);
+                    
+                    currentWeekStart = currentWeekStart.plusWeeks(1);
+                    weekNumber++;
+                    
+                    if (currentWeekStart.isAfter(monthEnd)) {
+                        break;
+                    }
+                }
+                break;
+                
+            case "quarter":
+                // Quý: hiển thị 3 tháng trong quý
+                LocalDate quarterStart = overallStartDate.toLocalDate();
+                int startMonth = quarterStart.getMonthValue();
+                
+                for (int i = 0; i < 3; i++) {
+                    int month = startMonth + i;
+                    int year = quarterStart.getYear();
+                    
+                    LocalDate monthStartDate = LocalDate.of(year, month, 1);
+                    LocalDate monthEndDate = monthStartDate.with(TemporalAdjusters.lastDayOfMonth());
+                    
+                    LocalDateTime monthStartDateTime = monthStartDate.atStartOfDay();
+                    LocalDateTime monthEndDateTime = monthEndDate.plusDays(1).atStartOfDay();
+                    if (monthEndDateTime.isAfter(overallEndDate)) {
+                        monthEndDateTime = overallEndDate;
+                    }
+                    
+                    PeriodDetailDTO monthDetail = calculatePeriodStatistics(
+                        monthStartDateTime, 
+                        monthEndDateTime, 
+                        "Tháng " + month
+                    );
+                    result.add(monthDetail);
+                }
+                break;
+                
+            case "year":
+                // Năm: hiển thị 4 quý
+                LocalDate yearStart = overallStartDate.toLocalDate();
+                int currentYear = yearStart.getYear();
+                
+                for (int quarter = 1; quarter <= 4; quarter++) {
+                    int quarterStartMonth = (quarter - 1) * 3 + 1;
+                    int quarterEndMonth = quarter * 3;
+                    
+                    LocalDate qStart = LocalDate.of(currentYear, quarterStartMonth, 1);
+                    LocalDate qEnd = LocalDate.of(currentYear, quarterEndMonth, 1)
+                        .with(TemporalAdjusters.lastDayOfMonth());
+                    
+                    LocalDateTime qStartDateTime = qStart.atStartOfDay();
+                    LocalDateTime qEndDateTime = qEnd.plusDays(1).atStartOfDay();
+                    if (qEndDateTime.isAfter(overallEndDate)) {
+                        qEndDateTime = overallEndDate;
+                    }
+                    
+                    PeriodDetailDTO quarterDetail = calculatePeriodStatistics(
+                        qStartDateTime, 
+                        qEndDateTime, 
+                        "Quý " + quarter
+                    );
+                    result.add(quarterDetail);
+                }
+                break;
+                
+            default:
+                // Default: month
+                break;
+        }
+        
+        return result;
+    }
+    
+    /**
+     * Tính toán thống kê cho một period cụ thể
+     * @param startDate Ngày bắt đầu
+     * @param endDate Ngày kết thúc
+     * @param periodLabel Nhãn period (ví dụ: "Quý 1", "Tháng 11", "Tuần 1")
+     * @return PeriodDetailDTO chứa thống kê của period
+     */
+    private PeriodDetailDTO calculatePeriodStatistics(LocalDateTime startDate, LocalDateTime endDate, String periodLabel) {
+        // Lấy tất cả hóa đơn trong period này
+        List<HoaDon> hoaDonList = hoaDonRepository.findByNgayTaoBetween(startDate, endDate);
+        
+        int tongDonHang = hoaDonList.size();
+        int donOffline = 0;
+        int donOnline = 0;
+        int donThanhCong = 0;
+        int donThatBai = 0;
+        int soSanPhamDaBan = 0;
+        int luotGiamGia = 0;
+        BigDecimal tong = BigDecimal.ZERO;
+        BigDecimal tienGiam = BigDecimal.ZERO;
+        BigDecimal thucThu = BigDecimal.ZERO;
+        BigDecimal thuThucTe = BigDecimal.ZERO;
+        BigDecimal duNo = BigDecimal.ZERO;
+        
+        Set<Long> khachHangTrongPeriod = new HashSet<>();
+        LocalDate startLocalDate = startDate.toLocalDate();
+        LocalDate endLocalDate = endDate.toLocalDate();
+        
+        for (HoaDon hoaDon : hoaDonList) {
+            // Đơn offline/online
+            if (hoaDon.getNhanVien() != null) {
+                donOffline++;
+            } else {
+                donOnline++;
+            }
+            
+            // Đơn thành công/thất bại
+            if (hoaDon.getTrangThai() == HoaDon.TrangThaiHoaDon.DA_HUY) {
+                donThatBai++;
+            } else {
+                donThanhCong++;
+            }
+            
+            // Thực thu: Tổng thành tiền của TẤT CẢ các hóa đơn
+            if (hoaDon.getThanhTien() != null) {
+                thucThu = thucThu.add(hoaDon.getThanhTien());
+            }
+            
+            // Thu Thực tế: Tổng thành tiền của các hóa đơn DA_GIAO_HANG
+            if (hoaDon.getTrangThai() == HoaDon.TrangThaiHoaDon.DA_GIAO_HANG && hoaDon.getThanhTien() != null) {
+                thuThucTe = thuThucTe.add(hoaDon.getThanhTien());
+            }
+            
+            // Dư nợ: Tổng thành tiền của các hóa đơn CHO_XAC_NHAN, DA_XAC_NHAN, DANG_GIAO_HANG
+            if ((hoaDon.getTrangThai() == HoaDon.TrangThaiHoaDon.CHO_XAC_NHAN ||
+                 hoaDon.getTrangThai() == HoaDon.TrangThaiHoaDon.DA_XAC_NHAN || 
+                 hoaDon.getTrangThai() == HoaDon.TrangThaiHoaDon.DANG_GIAO_HANG) && 
+                hoaDon.getThanhTien() != null) {
+                duNo = duNo.add(hoaDon.getThanhTien());
+            }
+            
+            // Sản phẩm đã bán (chỉ tính đơn không hủy)
+            if (hoaDon.getTrangThai() != HoaDon.TrangThaiHoaDon.DA_HUY) {
+                if (hoaDon.getSoLuongSanPham() != null) {
+                    soSanPhamDaBan += hoaDon.getSoLuongSanPham();
+                }
+                
+                // Lượt giảm giá
+                if (hoaDon.getTienGiamGia() != null && hoaDon.getTienGiamGia().compareTo(BigDecimal.ZERO) > 0) {
+                    luotGiamGia++;
+                }
+                
+                // Tổng (tongTien)
+                if (hoaDon.getTongTien() != null) {
+                    tong = tong.add(hoaDon.getTongTien());
+                }
+                
+                // Tiền giảm (tienGiamGia)
+                if (hoaDon.getTienGiamGia() != null) {
+                    tienGiam = tienGiam.add(hoaDon.getTienGiamGia());
+                }
+                
+                // Lưu khách hàng
+                if (hoaDon.getKhachHang() != null) {
+                    khachHangTrongPeriod.add(hoaDon.getKhachHang().getId());
+                }
+            }
+        }
+        
+        // Tính khách hàng mới và quay lại
+        int khachHangMoi = 0;
+        int khachHangQuayLai = 0;
+        
+        List<KhachHang> khachHangMoiList = khachHangRepository.findAll().stream()
+                .filter(k -> k.getNgayTao() != null && 
+                            !k.getNgayTao().isBefore(startLocalDate) && 
+                            !k.getNgayTao().isAfter(endLocalDate))
+                .collect(Collectors.toList());
+        khachHangMoi = khachHangMoiList.size();
+        
+        for (Long khachHangId : khachHangTrongPeriod) {
+            Optional<KhachHang> khachHangOpt = khachHangRepository.findById(khachHangId);
+            if (khachHangOpt.isPresent()) {
+                KhachHang khachHang = khachHangOpt.get();
+                if (khachHang.getNgayTao() != null && khachHang.getNgayTao().isBefore(startLocalDate)) {
+                    khachHangQuayLai++;
+                }
+            }
+        }
+        
+        // Tính tăng trưởng (tạm thời để "0.0%")
+        String tangTruong = "0.0%";
+        
+        return PeriodDetailDTO.builder()
+                .period(periodLabel)
+                .tongDonHang(tongDonHang)
+                .donOffline(donOffline)
+                .donOnline(donOnline)
+                .donThanhCong(donThanhCong)
+                .donThatBai(donThatBai)
+                .soSanPhamDaBan(soSanPhamDaBan)
+                .khachHangMoi(khachHangMoi)
+                .khachHangQuayLai(khachHangQuayLai)
+                .luotGiamGia(luotGiamGia)
+                .tong(tong)
+                .tienGiam(tienGiam)
+                .thucThu(thucThu)
+                .thuThucTe(thuThucTe)
+                .duNo(duNo)
+                .tangTruong(tangTruong)
+                .build();
+    }
+    
+    /**
+     * Lấy thống kê chi tiết theo khoảng thời gian với logic mới
+     * @param period Loại khoảng thời gian: "day", "week", "month", "quarter", "year"
+     * @return DetailedStatisticsDTO chứa tất cả các thống kê chi tiết
+     */
+    public DetailedStatisticsDTO getDetailedStatistics(String period) {
+        System.out.println("========================================");
+        System.out.println("📊 [StatisticsService] Getting detailed statistics for: " + period);
+        System.out.println("========================================");
+        
+        DateRange dateRange = resolvePeriodDateRange(period);
+        LocalDateTime startDate = dateRange.getStart();
+        LocalDateTime endDate = dateRange.getEnd();
+        
+        System.out.println("📅 [StatisticsService] Date range: " + startDate + " to " + endDate);
+        
+        // Lấy tất cả hóa đơn trong khoảng thời gian (bao gồm cả đơn hủy để tính đơn thất bại)
+        List<HoaDon> allHoaDonList = hoaDonRepository.findByNgayTaoBetween(startDate, endDate);
+        System.out.println("📦 [StatisticsService] Found " + allHoaDonList.size() + " invoices in period (all statuses)");
+        
+        // Tính toán các chỉ số
+        int tongDonHang = allHoaDonList.size();
+        int donOffline = 0;
+        int donOnline = 0;
+        int donThanhCong = 0;
+        int donThatBai = 0;
+        int soSanPhamDaBan = 0;
+        int luotGiamGia = 0;
+        BigDecimal tong = BigDecimal.ZERO;
+        BigDecimal tienGiam = BigDecimal.ZERO;
+        BigDecimal thucThu = BigDecimal.ZERO; // Tổng thành tiền của TẤT CẢ các hóa đơn
+        BigDecimal thuThucTe = BigDecimal.ZERO; // Tổng thành tiền của các hóa đơn DA_GIAO_HANG (đã hoàn thành)
+        BigDecimal duNo = BigDecimal.ZERO;
+        
+        // Set để lưu khách hàng đã mua trong khoảng thời gian này
+        Set<Long> khachHangTrongPeriod = new HashSet<>();
+        
+        for (HoaDon hoaDon : allHoaDonList) {
+            // Đơn offline/online
+            if (hoaDon.getNhanVien() != null) {
+                donOffline++;
+            } else {
+                donOnline++;
+            }
+            
+            // Đơn thành công/thất bại
+            // Đơn thành công = tất cả đơn trừ đơn hủy
+            if (hoaDon.getTrangThai() == HoaDon.TrangThaiHoaDon.DA_HUY) {
+                donThatBai++;
+            } else {
+                // Đơn thành công = đơn không hủy
+                donThanhCong++;
+            }
+            
+            // Thực thu: Tổng thành tiền của TẤT CẢ các hóa đơn (không phân biệt trạng thái)
+            if (hoaDon.getThanhTien() != null) {
+                thucThu = thucThu.add(hoaDon.getThanhTien());
+            }
+            
+            // Thu Thực tế: Tổng thành tiền của các hóa đơn có trạng thái DA_GIAO_HANG (đã hoàn thành)
+            if (hoaDon.getTrangThai() == HoaDon.TrangThaiHoaDon.DA_GIAO_HANG && hoaDon.getThanhTien() != null) {
+                thuThucTe = thuThucTe.add(hoaDon.getThanhTien());
+            }
+            
+            // Dư nợ: Tổng thành tiền của các hóa đơn CHO_XAC_NHAN, DA_XAC_NHAN, DANG_GIAO_HANG
+            if ((hoaDon.getTrangThai() == HoaDon.TrangThaiHoaDon.CHO_XAC_NHAN ||
+                 hoaDon.getTrangThai() == HoaDon.TrangThaiHoaDon.DA_XAC_NHAN || 
+                 hoaDon.getTrangThai() == HoaDon.TrangThaiHoaDon.DANG_GIAO_HANG) && 
+                hoaDon.getThanhTien() != null) {
+                duNo = duNo.add(hoaDon.getThanhTien());
+            }
+            
+            // Sản phẩm đã bán (chỉ tính đơn không hủy)
+            if (hoaDon.getTrangThai() != HoaDon.TrangThaiHoaDon.DA_HUY) {
+                if (hoaDon.getSoLuongSanPham() != null) {
+                    soSanPhamDaBan += hoaDon.getSoLuongSanPham();
+                }
+                
+                // Lượt giảm giá (đếm số hóa đơn có tienGiamGia > 0)
+                if (hoaDon.getTienGiamGia() != null && hoaDon.getTienGiamGia().compareTo(BigDecimal.ZERO) > 0) {
+                    luotGiamGia++;
+                }
+                
+                // Tổng (tongTien)
+                if (hoaDon.getTongTien() != null) {
+                    tong = tong.add(hoaDon.getTongTien());
+                }
+                
+                // Tiền giảm (tienGiamGia)
+                if (hoaDon.getTienGiamGia() != null) {
+                    tienGiam = tienGiam.add(hoaDon.getTienGiamGia());
+                }
+                
+                // Lưu khách hàng đã mua trong khoảng thời gian này
+                if (hoaDon.getKhachHang() != null) {
+                    khachHangTrongPeriod.add(hoaDon.getKhachHang().getId());
+                }
+            }
+        }
+        
+        // Tính khách hàng mới và khách hàng quay lại
+        int khachHangMoi = 0;
+        int khachHangQuayLai = 0;
+        int tongSoKhachHang = khachHangTrongPeriod.size(); // Tổng số khách hàng của các hóa đơn (không trùng lặp)
+        
+        // Lấy tất cả khách hàng được tạo trong khoảng thời gian này
+        List<KhachHang> khachHangMoiList = khachHangRepository.findAll().stream()
+                .filter(k -> k.getNgayTao() != null && 
+                            !k.getNgayTao().isBefore(startDate.toLocalDate()) && 
+                            !k.getNgayTao().isAfter(endDate.toLocalDate()))
+                .collect(Collectors.toList());
+        khachHangMoi = khachHangMoiList.size();
+        
+        // Khách hàng quay lại: khách hàng đã tạo trước khoảng thời gian này nhưng có mua trong khoảng thời gian này
+        for (Long khachHangId : khachHangTrongPeriod) {
+            Optional<KhachHang> khachHangOpt = khachHangRepository.findById(khachHangId);
+            if (khachHangOpt.isPresent()) {
+                KhachHang khachHang = khachHangOpt.get();
+                if (khachHang.getNgayTao() != null && khachHang.getNgayTao().isBefore(startDate.toLocalDate())) {
+                    khachHangQuayLai++;
+                }
+            }
+        }
+        
+        System.out.println("📊 [StatisticsService] Detailed statistics calculated:");
+        System.out.println("   - Tổng đơn hàng: " + tongDonHang);
+        System.out.println("   - Đơn offline: " + donOffline);
+        System.out.println("   - Đơn online: " + donOnline);
+        System.out.println("   - Đơn thành công: " + donThanhCong);
+        System.out.println("   - Đơn thất bại: " + donThatBai);
+        System.out.println("   - Sản phẩm đã bán: " + soSanPhamDaBan);
+        System.out.println("   - Tổng số khách hàng của các hóa đơn: " + tongSoKhachHang);
+        System.out.println("   - Khách hàng mới: " + khachHangMoi);
+        System.out.println("   - Khách hàng quay lại: " + khachHangQuayLai);
+        System.out.println("   - Lượt giảm giá: " + luotGiamGia);
+        System.out.println("   - Tổng: " + tong);
+        System.out.println("   - Tiền giảm: " + tienGiam);
+        System.out.println("   - Thực thu (tổng tất cả): " + thucThu);
+        System.out.println("   - Thu Thực tế (đã hoàn thành): " + thuThucTe);
+        System.out.println("   - Dư nợ: " + duNo);
+        System.out.println("========================================");
+        
+        // Tạo danh sách chi tiết theo period với dữ liệu thực tế
+        List<PeriodDetailDTO> chiTietTheoPeriod = calculatePeriodDetails(period, startDate, endDate);
+        
+        return DetailedStatisticsDTO.builder()
+                .tongDonHang(tongDonHang)
+                .donOffline(donOffline)
+                .donOnline(donOnline)
+                .donThanhCong(donThanhCong)
+                .donThatBai(donThatBai)
+                .soSanPhamDaBan(soSanPhamDaBan)
+                .khachHangMoi(khachHangMoi)
+                .khachHangQuayLai(khachHangQuayLai)
+                .tongSoKhachHang(tongSoKhachHang)
+                .luotGiamGia(luotGiamGia)
+                .tong(tong)
+                .tienGiam(tienGiam)
+                .thucThu(thucThu)
+                .thuThucTe(thuThucTe)
+                .duNo(duNo)
+                .chiTietTheoPeriod(chiTietTheoPeriod)
+                .build();
+    }
+    
+    /**
+     * Lấy thống kê chi tiết theo khoảng thời gian tùy chỉnh
+     * @param startDate Ngày bắt đầu
+     * @param endDate Ngày kết thúc
+     * @return DetailedStatisticsDTO chứa tất cả các thống kê chi tiết
+     */
+    public DetailedStatisticsDTO getDetailedStatisticsByDateRange(LocalDate startDate, LocalDate endDate) {
+        System.out.println("========================================");
+        System.out.println("📊 [StatisticsService] Getting detailed statistics by date range: " + startDate + " to " + endDate);
+        System.out.println("========================================");
+        
+        LocalDateTime startDateTime = startDate.atStartOfDay();
+        LocalDateTime endDateTime = endDate.atTime(23, 59, 59);
+        
+        // Lấy tất cả hóa đơn trong khoảng thời gian
+        List<HoaDon> allHoaDonList = hoaDonRepository.findByNgayTaoBetween(startDateTime, endDateTime);
+        
+        // Tính toán tương tự như getDetailedStatistics
+        int tongDonHang = allHoaDonList.size();
+        int donOffline = 0;
+        int donOnline = 0;
+        int donThanhCong = 0;
+        int donThatBai = 0;
+        int soSanPhamDaBan = 0;
+        int luotGiamGia = 0;
+        BigDecimal tong = BigDecimal.ZERO;
+        BigDecimal tienGiam = BigDecimal.ZERO;
+        BigDecimal thucThu = BigDecimal.ZERO; // Tổng thành tiền của TẤT CẢ các hóa đơn
+        BigDecimal thuThucTe = BigDecimal.ZERO; // Tổng thành tiền của các hóa đơn DA_GIAO_HANG (đã hoàn thành)
+        BigDecimal duNo = BigDecimal.ZERO;
+        
+        Set<Long> khachHangTrongPeriod = new HashSet<>();
+        
+        for (HoaDon hoaDon : allHoaDonList) {
+            if (hoaDon.getNhanVien() != null) {
+                donOffline++;
+            } else {
+                donOnline++;
+            }
+            
+            // Đơn thành công/thất bại
+            // Đơn thành công = tất cả đơn trừ đơn hủy
+            if (hoaDon.getTrangThai() == HoaDon.TrangThaiHoaDon.DA_HUY) {
+                donThatBai++;
+            } else {
+                // Đơn thành công = đơn không hủy
+                donThanhCong++;
+            }
+            
+            // Thực thu: Tổng thành tiền của TẤT CẢ các hóa đơn (không phân biệt trạng thái)
+            if (hoaDon.getThanhTien() != null) {
+                thucThu = thucThu.add(hoaDon.getThanhTien());
+            }
+            
+            // Thu Thực tế: Tổng thành tiền của các hóa đơn có trạng thái DA_GIAO_HANG (đã hoàn thành)
+            if (hoaDon.getTrangThai() == HoaDon.TrangThaiHoaDon.DA_GIAO_HANG && hoaDon.getThanhTien() != null) {
+                thuThucTe = thuThucTe.add(hoaDon.getThanhTien());
+            }
+            
+            // Dư nợ: Tổng thành tiền của các hóa đơn CHO_XAC_NHAN, DA_XAC_NHAN, DANG_GIAO_HANG
+            if ((hoaDon.getTrangThai() == HoaDon.TrangThaiHoaDon.CHO_XAC_NHAN ||
+                 hoaDon.getTrangThai() == HoaDon.TrangThaiHoaDon.DA_XAC_NHAN || 
+                 hoaDon.getTrangThai() == HoaDon.TrangThaiHoaDon.DANG_GIAO_HANG) && 
+                hoaDon.getThanhTien() != null) {
+                duNo = duNo.add(hoaDon.getThanhTien());
+            }
+            
+            if (hoaDon.getTrangThai() != HoaDon.TrangThaiHoaDon.DA_HUY) {
+                if (hoaDon.getSoLuongSanPham() != null) {
+                    soSanPhamDaBan += hoaDon.getSoLuongSanPham();
+                }
+                
+                if (hoaDon.getTienGiamGia() != null && hoaDon.getTienGiamGia().compareTo(BigDecimal.ZERO) > 0) {
+                    luotGiamGia++;
+                }
+                
+                if (hoaDon.getTongTien() != null) {
+                    tong = tong.add(hoaDon.getTongTien());
+                }
+                
+                if (hoaDon.getTienGiamGia() != null) {
+                    tienGiam = tienGiam.add(hoaDon.getTienGiamGia());
+                }
+                
+                if (hoaDon.getKhachHang() != null) {
+                    khachHangTrongPeriod.add(hoaDon.getKhachHang().getId());
+                }
+            }
+        }
+        
+        // Tính khách hàng mới và quay lại
+        int tongSoKhachHang = khachHangTrongPeriod.size(); // Tổng số khách hàng của các hóa đơn (không trùng lặp)
+        
+        List<KhachHang> khachHangMoiList = khachHangRepository.findAll().stream()
+                .filter(k -> k.getNgayTao() != null && 
+                            !k.getNgayTao().isBefore(startDate) && 
+                            !k.getNgayTao().isAfter(endDate))
+                .collect(Collectors.toList());
+        int khachHangMoi = khachHangMoiList.size();
+        
+        int khachHangQuayLai = 0;
+        for (Long khachHangId : khachHangTrongPeriod) {
+            Optional<KhachHang> khachHangOpt = khachHangRepository.findById(khachHangId);
+            if (khachHangOpt.isPresent()) {
+                KhachHang khachHang = khachHangOpt.get();
+                if (khachHang.getNgayTao() != null && khachHang.getNgayTao().isBefore(startDate)) {
+                    khachHangQuayLai++;
+                }
+            }
+        }
+        
+        // Tính toán chi tiết theo period cho custom date range
+        // Nếu <= 30 ngày: hiển thị theo ngày, nếu > 30 ngày: hiển thị theo tháng
+        List<PeriodDetailDTO> chiTietTheoPeriod = new ArrayList<>();
+        long daysBetween = java.time.temporal.ChronoUnit.DAYS.between(startDate, endDate);
+        
+        if (daysBetween <= 30) {
+            // Hiển thị theo ngày
+            LocalDate currentDate = startDate;
+            int dayNumber = 1;
+            while (!currentDate.isAfter(endDate)) {
+                LocalDateTime dayStart = currentDate.atStartOfDay();
+                LocalDateTime dayEnd = currentDate.plusDays(1).atStartOfDay();
+                if (dayEnd.isAfter(endDateTime)) {
+                    dayEnd = endDateTime;
+                }
+                
+                PeriodDetailDTO dayDetail = calculatePeriodStatistics(
+                    dayStart, 
+                    dayEnd, 
+                    "Ngày " + currentDate.getDayOfMonth() + "/" + currentDate.getMonthValue()
+                );
+                chiTietTheoPeriod.add(dayDetail);
+                
+                currentDate = currentDate.plusDays(1);
+                dayNumber++;
+            }
+        } else {
+            // Hiển thị theo tháng
+            LocalDate currentMonthStart = LocalDate.of(startDate.getYear(), startDate.getMonthValue(), 1);
+            LocalDate endMonthStart = LocalDate.of(endDate.getYear(), endDate.getMonthValue(), 1);
+            
+            while (!currentMonthStart.isAfter(endMonthStart)) {
+                LocalDate monthEnd = currentMonthStart.with(TemporalAdjusters.lastDayOfMonth());
+                if (monthEnd.isAfter(endDate)) {
+                    monthEnd = endDate;
+                }
+                
+                LocalDateTime monthStartDateTime = currentMonthStart.atStartOfDay();
+                LocalDateTime monthEndDateTime = monthEnd.plusDays(1).atStartOfDay();
+                if (monthEndDateTime.isAfter(endDateTime)) {
+                    monthEndDateTime = endDateTime;
+                }
+                
+                PeriodDetailDTO monthDetail = calculatePeriodStatistics(
+                    monthStartDateTime, 
+                    monthEndDateTime, 
+                    "Tháng " + currentMonthStart.getMonthValue() + "/" + currentMonthStart.getYear()
+                );
+                chiTietTheoPeriod.add(monthDetail);
+                
+                currentMonthStart = currentMonthStart.plusMonths(1);
+            }
+        }
+        
+        return DetailedStatisticsDTO.builder()
+                .tongDonHang(tongDonHang)
+                .donOffline(donOffline)
+                .donOnline(donOnline)
+                .donThanhCong(donThanhCong)
+                .donThatBai(donThatBai)
+                .soSanPhamDaBan(soSanPhamDaBan)
+                .khachHangMoi(khachHangMoi)
+                .khachHangQuayLai(khachHangQuayLai)
+                .tongSoKhachHang(tongSoKhachHang)
+                .luotGiamGia(luotGiamGia)
+                .tong(tong)
+                .tienGiam(tienGiam)
+                .thucThu(thucThu)
+                .thuThucTe(thuThucTe)
+                .duNo(duNo)
+                .chiTietTheoPeriod(chiTietTheoPeriod)
+                .build();
     }
 }
 
