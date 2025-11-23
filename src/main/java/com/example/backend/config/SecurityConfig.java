@@ -68,6 +68,9 @@ public class SecurityConfig {
                 // Đặt rule cụ thể TRƯỚC rule chung để đảm bảo ưu tiên
                 .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/statistics/best-selling-products").permitAll()
                 .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/statistics/best-selling-products/**").permitAll()
+                // Statistics detailed endpoints - cho phép public GET để hiển thị báo cáo thống kê
+                .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/statistics/detailed").permitAll()
+                .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/statistics/detailed/**").permitAll()
                 // Statistics endpoints khác - ADMIN và STAFF
                 .requestMatchers("/api/statistics/**").hasAnyRole("ADMIN", "STAFF")
                 

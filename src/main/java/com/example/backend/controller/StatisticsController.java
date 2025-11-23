@@ -7,6 +7,7 @@ import com.example.backend.dto.OrderStatusStatisticsDTO;
 import com.example.backend.dto.ChannelStatisticsDTO;
 import com.example.backend.dto.BrandStatisticsDTO;
 import com.example.backend.dto.LowStockProductDTO;
+import com.example.backend.dto.DetailedStatisticsDTO;
 import com.example.backend.entity.HoaDonChiTiet;
 import com.example.backend.repository.HoaDonChiTietRepository;
 import com.example.backend.service.StatisticsService;
@@ -538,6 +539,89 @@ public class StatisticsController {
             errorResponse.put("error", "Lỗi khi lấy danh sách sản phẩm sắp hết hàng: " + e.getMessage());
             errorResponse.put("message", e.getMessage());
             errorResponse.put("data", List.of());
+            return ResponseEntity.status(500).body(errorResponse);
+        }
+    }
+    
+    /**
+     * Lấy thống kê chi tiết theo khoảng thời gian với logic mới
+     * @param period Loại khoảng thời gian: "day", "week", "month", "quarter", "year"
+     * @return DetailedStatisticsDTO chứa tất cả các thống kê chi tiết
+     */
+    @GetMapping("/detailed")
+    public ResponseEntity<?> getDetailedStatistics(
+            @RequestParam(defaultValue = "month") String period) {
+        try {
+            System.out.println("========================================");
+            System.out.println("📥 [StatisticsController] Received GET request: /api/statistics/detailed?period=" + period);
+            System.out.println("========================================");
+            
+            DetailedStatisticsDTO statistics = statisticsService.getDetailedStatistics(period);
+            
+            System.out.println("✅ [StatisticsController] Successfully returning detailed statistics");
+            System.out.println("========================================");
+            
+            return ResponseEntity.ok(statistics);
+        } catch (Exception e) {
+            System.err.println("========================================");
+            System.err.println("❌ [StatisticsController] ERROR occurred:");
+            System.err.println("   Message: " + e.getMessage());
+            System.err.println("   Cause: " + (e.getCause() != null ? e.getCause().getMessage() : "N/A"));
+            System.err.println("========================================");
+            e.printStackTrace();
+            
+            Map<String, Object> errorResponse = new HashMap<>();
+            errorResponse.put("error", "Lỗi khi lấy thống kê chi tiết: " + e.getMessage());
+            errorResponse.put("message", e.getMessage());
+            return ResponseEntity.status(500).body(errorResponse);
+        }
+    }
+    
+    /**
+     * Lấy thống kê chi tiết theo khoảng thời gian tùy chỉnh
+     * @param startDate Ngày bắt đầu (format: yyyy-MM-dd)
+     * @param endDate Ngày kết thúc (format: yyyy-MM-dd)
+     * @return DetailedStatisticsDTO chứa tất cả các thống kê chi tiết
+     */
+    @GetMapping("/detailed/date-range")
+    public ResponseEntity<?> getDetailedStatisticsByDateRange(
+            @RequestParam String startDate,
+            @RequestParam String endDate) {
+        try {
+            System.out.println("========================================");
+            System.out.println("📥 [StatisticsController] Received GET request: /api/statistics/detailed/date-range?startDate=" + startDate + "&endDate=" + endDate);
+            System.out.println("========================================");
+            
+            LocalDate start = LocalDate.parse(startDate);
+            LocalDate end = LocalDate.parse(endDate);
+            
+            if (start.isAfter(end)) {
+                Map<String, Object> errorResponse = new HashMap<>();
+                errorResponse.put("error", "Ngày bắt đầu phải nhỏ hơn hoặc bằng ngày kết thúc");
+                return ResponseEntity.badRequest().body(errorResponse);
+            }
+            
+            DetailedStatisticsDTO statistics = statisticsService.getDetailedStatisticsByDateRange(start, end);
+            
+            System.out.println("✅ [StatisticsController] Successfully returning detailed statistics by date range");
+            System.out.println("========================================");
+            
+            return ResponseEntity.ok(statistics);
+        } catch (java.time.format.DateTimeParseException e) {
+            Map<String, Object> errorResponse = new HashMap<>();
+            errorResponse.put("error", "Định dạng ngày không hợp lệ. Vui lòng sử dụng format: yyyy-MM-dd");
+            return ResponseEntity.badRequest().body(errorResponse);
+        } catch (Exception e) {
+            System.err.println("========================================");
+            System.err.println("❌ [StatisticsController] ERROR occurred:");
+            System.err.println("   Message: " + e.getMessage());
+            System.err.println("   Cause: " + (e.getCause() != null ? e.getCause().getMessage() : "N/A"));
+            System.err.println("========================================");
+            e.printStackTrace();
+            
+            Map<String, Object> errorResponse = new HashMap<>();
+            errorResponse.put("error", "Lỗi khi lấy thống kê chi tiết theo khoảng ngày: " + e.getMessage());
+            errorResponse.put("message", e.getMessage());
             return ResponseEntity.status(500).body(errorResponse);
         }
     }
