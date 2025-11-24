@@ -315,8 +315,10 @@ public class HoaDonService {
         String email = sanitize(dto.getEmailKhachHang());
         String phone = sanitize(dto.getSoDienThoaiKhachHang());
 
-        if (!StringUtils.hasText(name) || !StringUtils.hasText(phone) || !StringUtils.hasText(email)) {
-            throw new IllegalArgumentException("Thông tin khách hàng chưa đầy đủ. Vui lòng cung cấp họ tên, số điện thoại và email.");
+        // Cho phép tạo hóa đơn tại quầy mà không cần thông tin khách hàng
+        // Nếu không có thông tin khách hàng, trả về null
+        if (!StringUtils.hasText(name) && !StringUtils.hasText(phone) && !StringUtils.hasText(email)) {
+            return null;
         }
 
         Optional<KhachHang> existing = Optional.empty();
@@ -340,12 +342,28 @@ public class HoaDonService {
             return khachHangRepository.save(khachHang);
         }
 
+        // Chỉ tạo khách hàng mới nếu có ít nhất một thông tin (name, email, hoặc phone)
+        // Nếu không có thông tin nào, trả về null (cho phép hóa đơn tại quầy không cần khách hàng)
+        if (!StringUtils.hasText(name) && !StringUtils.hasText(email) && !StringUtils.hasText(phone)) {
+            return null;
+        }
+
         KhachHang newKhachHang = new KhachHang();
         newKhachHang.setMaKhachHang(generateUniqueCustomerCode());
-        newKhachHang.setTenKhachHang(name);
-        newKhachHang.setEmail(email);
-        newKhachHang.setSoDienThoai(phone);
-        newKhachHang.setDiaChi(sanitize(dto.getDiaChiChiTiet()));
+        // Chỉ set các field có giá trị
+        if (StringUtils.hasText(name)) {
+            newKhachHang.setTenKhachHang(name);
+        }
+        if (StringUtils.hasText(email)) {
+            newKhachHang.setEmail(email);
+        }
+        if (StringUtils.hasText(phone)) {
+            newKhachHang.setSoDienThoai(phone);
+        }
+        String address = sanitize(dto.getDiaChiChiTiet());
+        if (StringUtils.hasText(address)) {
+            newKhachHang.setDiaChi(address);
+        }
         newKhachHang.setTrangThai(true);
         newKhachHang.setNgayTao(LocalDate.now());
         newKhachHang.setSoLanMua(0);
