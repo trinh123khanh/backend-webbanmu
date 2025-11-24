@@ -24,4 +24,10 @@ public class ChiTietDotGiamGia {
     private BigDecimal phanTramGiam;
     
     private Boolean trangThai;
+         
+
+      
+
+
+    
 }
