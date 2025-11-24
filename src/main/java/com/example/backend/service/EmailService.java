@@ -5,8 +5,11 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.mail.SimpleMailMessage;
 import org.springframework.mail.javamail.JavaMailSender;
+import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
+
+import jakarta.mail.internet.MimeMessage;
 
 @Service
 @RequiredArgsConstructor
@@ -212,6 +215,33 @@ public class EmailService {
         } catch (Exception e) {
             log.error("❌ Lỗi khi gửi email thông tin tài khoản tới {}: {}", email, e.getMessage(), e);
             // Không throw exception để không ảnh hưởng đến logic tạo nhân viên
+        }
+    }
+
+    /**
+     * Gửi email báo cáo thống kê với nội dung HTML
+     */
+    @Async
+    public void sendStatisticsReport(String toEmail, String subject, String htmlContent) {
+        if (!emailEnabled) {
+            log.info("Email service is disabled. Skipping statistics report email.");
+            return;
+        }
+
+        try {
+            MimeMessage message = mailSender.createMimeMessage();
+            MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
+            
+            helper.setFrom(fromEmail);
+            helper.setTo(toEmail);
+            helper.setSubject(subject);
+            helper.setText(htmlContent, true); // true = HTML content
+            
+            mailSender.send(message);
+            
+            log.info("✅ Statistics report email sent successfully to: {} (Subject: {})", toEmail, subject);
+        } catch (Exception e) {
+            log.error("❌ Lỗi khi gửi email báo cáo thống kê tới {}: {}", toEmail, e.getMessage(), e);
         }
     }
 }

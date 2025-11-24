@@ -71,6 +71,10 @@ public class SecurityConfig {
                 // Statistics endpoints khác - ADMIN và STAFF
                 .requestMatchers("/api/statistics/**").hasAnyRole("ADMIN", "STAFF")
                 
+                // Report endpoints - cho phép ADMIN và STAFF gửi báo cáo
+                .requestMatchers("/api/reports/**").hasAnyRole("ADMIN", "STAFF")
+                .requestMatchers("/api/report-test/**").hasAnyRole("ADMIN", "STAFF")
+                
                 // Admin endpoints - chỉ ADMIN
                 .requestMatchers("/api/admin/**").hasRole("ADMIN")
                 

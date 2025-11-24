@@ -229,7 +229,9 @@ public class StatisticsService {
         System.out.println("📦 [StatisticsService] Found " + hoaDonList.size() + " invoices in period (excluding cancelled)");
         
         // Tính toán thống kê
-        BigDecimal doanhThu = BigDecimal.ZERO;
+        BigDecimal doanhThu = BigDecimal.ZERO; // Tổng thanhTien (Thực Thu)
+        BigDecimal tongTien = BigDecimal.ZERO; // Tổng tongTien (Tổng trước giảm giá)
+        BigDecimal tienGiamGia = BigDecimal.ZERO; // Tổng tienGiamGia (Tiền Giảm)
         BigDecimal actualRevenue = BigDecimal.ZERO; // Doanh thu thực tế (đã thanh toán)
         Integer sanPhamDaBan = 0;
         Integer donHang = hoaDonList.size();
@@ -237,7 +239,7 @@ public class StatisticsService {
 
 
         for (HoaDon hoaDon : hoaDonList) {
-            // Tính tổng thanhTien
+            // Tính tổng thanhTien (Thực Thu = tổng thành tiền của tất cả hóa đơn)
             if (hoaDon.getThanhTien() != null) {
                 doanhThu = doanhThu.add(hoaDon.getThanhTien());
                 System.out.println("   💰 Adding invoice #" + hoaDon.getId() + 
@@ -247,13 +249,33 @@ public class StatisticsService {
                 System.out.println("   ⚠️ Invoice #" + hoaDon.getId() + " has null thanhTien");
             }
             
-            // Kiểm tra xem hóa đơn đã thanh toán chưa (trạng thái DA_GIAO_HANG = Đã thanh toán)
-            boolean isPaid = hoaDon.getTrangThai() == HoaDon.TrangThaiHoaDon.DA_GIAO_HANG;
+            // Tính tổng tongTien (Tổng trước giảm giá)
+            if (hoaDon.getTongTien() != null) {
+                tongTien = tongTien.add(hoaDon.getTongTien());
+            }
             
-            // Nếu đã thanh toán, cộng vào actualRevenue
-            if (isPaid && hoaDon.getThanhTien() != null) {
-                actualRevenue = actualRevenue.add(hoaDon.getThanhTien());
-                System.out.println("   ✅ Invoice #" + hoaDon.getId() + " is paid (DA_GIAO_HANG), adding to actualRevenue");
+            // Tính tổng tienGiamGia (Tiền Giảm)
+            if (hoaDon.getTienGiamGia() != null) {
+                tienGiamGia = tienGiamGia.add(hoaDon.getTienGiamGia());
+            }
+            
+            // Thu thực tế: tổng thành tiền của các hóa đơn có trạng thái DA_GIAO_HANG (đã giao hàng/hoàn thành)
+            // Dư nợ: tổng thành tiền của các hóa đơn có trạng thái CHO_XAC_NHAN, DA_XAC_NHAN, DANG_GIAO_HANG
+            HoaDon.TrangThaiHoaDon status = hoaDon.getTrangThai();
+            boolean isCompleted = status == HoaDon.TrangThaiHoaDon.DA_GIAO_HANG;
+            boolean isDebt = status == HoaDon.TrangThaiHoaDon.CHO_XAC_NHAN 
+                          || status == HoaDon.TrangThaiHoaDon.DA_XAC_NHAN 
+                          || status == HoaDon.TrangThaiHoaDon.DANG_GIAO_HANG;
+            
+            if (hoaDon.getThanhTien() != null) {
+                if (isCompleted) {
+                    // Thu thực tế: đã hoàn thành (DA_GIAO_HANG)
+                    actualRevenue = actualRevenue.add(hoaDon.getThanhTien());
+                    System.out.println("   ✅ Invoice #" + hoaDon.getId() + " is completed (DA_GIAO_HANG), adding to actualRevenue");
+                } else if (isDebt) {
+                    // Dư nợ sẽ được tính sau = doanhThu - actualRevenue
+                    System.out.println("   📋 Invoice #" + hoaDon.getId() + " is debt status: " + status);
+                }
             }
             
             // Tính tổng soLuongSanPham
@@ -267,11 +289,14 @@ public class StatisticsService {
             }
         }
         
-        // Tính công nợ = doanh thu - thực tế
+        // Tính công nợ = doanh thu - thu thực tế
+        // Đảm bảo: Dư nợ + Thu thực tế = Thực thu
         BigDecimal debtRevenue = doanhThu.subtract(actualRevenue);
         
         System.out.println("📊 [StatisticsService] Statistics calculated:");
-        System.out.println("   - Doanh thu: " + doanhThu);
+        System.out.println("   - Tổng tiền (tongTien): " + tongTien);
+        System.out.println("   - Tiền giảm giá: " + tienGiamGia);
+        System.out.println("   - Doanh thu (thanhTien/Thực Thu): " + doanhThu);
         System.out.println("   - Thực tế (đã thanh toán): " + actualRevenue);
         System.out.println("   - Công nợ: " + debtRevenue);
         System.out.println("   - Sản phẩm đã bán: " + sanPhamDaBan);
@@ -280,6 +305,8 @@ public class StatisticsService {
         
         return PeriodStatisticsDTO.builder()
                 .doanhThu(doanhThu)
+                .tongTien(tongTien)
+                .tienGiamGia(tienGiamGia)
                 .sanPhamDaBan(sanPhamDaBan)
                 .donHang(donHang)
                 .period(period)
@@ -311,22 +338,36 @@ public class StatisticsService {
         System.out.println("📦 [StatisticsService] Found " + hoaDonList.size() + " invoices in date range (excluding cancelled)");
         
         // Tính toán thống kê
-        BigDecimal doanhThu = BigDecimal.ZERO;
+        BigDecimal doanhThu = BigDecimal.ZERO; // Tổng thanhTien (Thực Thu)
+        BigDecimal tongTien = BigDecimal.ZERO; // Tổng tongTien (Tổng trước giảm giá)
+        BigDecimal tienGiamGia = BigDecimal.ZERO; // Tổng tienGiamGia (Tiền Giảm)
         BigDecimal actualRevenue = BigDecimal.ZERO; // Doanh thu thực tế (đã thanh toán)
         Integer sanPhamDaBan = 0;
         Integer donHang = hoaDonList.size();
         
         for (HoaDon hoaDon : hoaDonList) {
-            // Tính tổng thanhTien
+            // Tính tổng thanhTien (Thực Thu = tổng thành tiền của tất cả hóa đơn)
             if (hoaDon.getThanhTien() != null) {
                 doanhThu = doanhThu.add(hoaDon.getThanhTien());
             }
             
-            // Kiểm tra xem hóa đơn đã thanh toán chưa (trạng thái DA_GIAO_HANG = Đã thanh toán)
-            boolean isPaid = hoaDon.getTrangThai() == HoaDon.TrangThaiHoaDon.DA_GIAO_HANG;
+            // Tính tổng tongTien (Tổng trước giảm giá)
+            if (hoaDon.getTongTien() != null) {
+                tongTien = tongTien.add(hoaDon.getTongTien());
+            }
             
-            // Nếu đã thanh toán, cộng vào actualRevenue
-            if (isPaid && hoaDon.getThanhTien() != null) {
+            // Tính tổng tienGiamGia (Tiền Giảm)
+            if (hoaDon.getTienGiamGia() != null) {
+                tienGiamGia = tienGiamGia.add(hoaDon.getTienGiamGia());
+            }
+            
+            // Thu thực tế: tổng thành tiền của các hóa đơn có trạng thái DA_GIAO_HANG (đã giao hàng/hoàn thành)
+            // Dư nợ: tổng thành tiền của các hóa đơn có trạng thái CHO_XAC_NHAN, DA_XAC_NHAN, DANG_GIAO_HANG
+            HoaDon.TrangThaiHoaDon status = hoaDon.getTrangThai();
+            boolean isCompleted = status == HoaDon.TrangThaiHoaDon.DA_GIAO_HANG;
+            
+            if (isCompleted && hoaDon.getThanhTien() != null) {
+                // Thu thực tế: đã hoàn thành (DA_GIAO_HANG)
                 actualRevenue = actualRevenue.add(hoaDon.getThanhTien());
             }
             
@@ -336,11 +377,14 @@ public class StatisticsService {
             }
         }
         
-        // Tính công nợ = doanh thu - thực tế
+        // Tính công nợ = doanh thu - thu thực tế
+        // Đảm bảo: Dư nợ + Thu thực tế = Thực thu
         BigDecimal debtRevenue = doanhThu.subtract(actualRevenue);
         
         System.out.println("📊 [StatisticsService] Statistics calculated:");
-        System.out.println("   - Doanh thu: " + doanhThu);
+        System.out.println("   - Tổng tiền (tongTien): " + tongTien);
+        System.out.println("   - Tiền giảm giá: " + tienGiamGia);
+        System.out.println("   - Doanh thu (thanhTien/Thực Thu): " + doanhThu);
         System.out.println("   - Thực tế (đã thanh toán): " + actualRevenue);
         System.out.println("   - Công nợ: " + debtRevenue);
         System.out.println("   - Sản phẩm đã bán: " + sanPhamDaBan);
@@ -349,6 +393,8 @@ public class StatisticsService {
         
         return PeriodStatisticsDTO.builder()
                 .doanhThu(doanhThu)
+                .tongTien(tongTien)
+                .tienGiamGia(tienGiamGia)
                 .sanPhamDaBan(sanPhamDaBan)
                 .donHang(donHang)
                 .period("custom") // Đánh dấu là custom date range

@@ -12,7 +12,9 @@ import java.math.BigDecimal;
 @NoArgsConstructor
 @AllArgsConstructor
 public class PeriodStatisticsDTO {
-    private BigDecimal doanhThu;        // Tổng thanhTien
+    private BigDecimal doanhThu;        // Tổng thanhTien (Thực Thu)
+    private BigDecimal tongTien;        // Tổng tongTien (Tổng trước giảm giá)
+    private BigDecimal tienGiamGia;     // Tổng tienGiamGia (Tiền Giảm)
     private Integer sanPhamDaBan;        // Tổng soLuongSanPham
     private Integer donHang;             // Số lượng đơn hàng
     private String period;    
