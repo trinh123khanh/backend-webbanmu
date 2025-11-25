@@ -52,6 +52,7 @@ public class HoaDonService {
     private final HoaDonChiTietRepository hoaDonChiTietRepository;
     private final ThongTinDonHangRepository thongTinDonHangRepository;
     private final HoaDonActivityService hoaDonActivityService;
+    private final EmailService emailService;
     private final ObjectMapper objectMapper;
     
     @PersistenceContext
@@ -67,6 +68,7 @@ public class HoaDonService {
                          HoaDonChiTietRepository hoaDonChiTietRepository,
                          ThongTinDonHangRepository thongTinDonHangRepository,
                          HoaDonActivityService hoaDonActivityService,
+                         EmailService emailService,
                          ObjectMapper objectMapper) {
         this.hoaDonRepository = hoaDonRepository;
         this.khachHangRepository = khachHangRepository;
@@ -78,6 +80,7 @@ public class HoaDonService {
         this.hoaDonChiTietRepository = hoaDonChiTietRepository;
         this.thongTinDonHangRepository = thongTinDonHangRepository;
         this.hoaDonActivityService = hoaDonActivityService;
+        this.emailService = emailService;
         this.objectMapper = objectMapper != null ? objectMapper : new ObjectMapper();
     }
 
@@ -443,27 +446,42 @@ public class HoaDonService {
             
             for (HoaDonChiTietDTO chiTietDTO : dto.getDanhSachChiTiet()) {
                 if (chiTietDTO.getChiTietSanPhamId() == null) {
+                    System.err.println("⚠️ Skipping chiTiet with null chiTietSanPhamId");
                     continue; // Bỏ qua nếu không có chiTietSanPhamId
                 }
                 
+                System.out.println("🔍 Processing chiTietSanPhamId: " + chiTietDTO.getChiTietSanPhamId() + ", soLuong: " + chiTietDTO.getSoLuong());
+                
                 ChiTietSanPham chiTietSanPham = chiTietSanPhamRepository.findById(chiTietDTO.getChiTietSanPhamId())
-                        .orElseThrow(() -> new RuntimeException("Không tìm thấy chi tiết sản phẩm với ID: " + chiTietDTO.getChiTietSanPhamId()));
+                        .orElseThrow(() -> {
+                            String errorMsg = "Không tìm thấy chi tiết sản phẩm với ID: " + chiTietDTO.getChiTietSanPhamId();
+                            System.err.println("❌ " + errorMsg);
+                            return new RuntimeException(errorMsg);
+                        });
                 
                 // QUAN TRỌNG: Kiểm tra tồn kho trước khi tạo hóa đơn
                 int requestedQuantity = chiTietDTO.getSoLuong() != null ? chiTietDTO.getSoLuong() : 0;
                 int currentStock = 0;
                 try {
-                    currentStock = Integer.parseInt(chiTietSanPham.getSoLuongTon());
+                    if (chiTietSanPham.getSoLuongTon() != null && !chiTietSanPham.getSoLuongTon().trim().isEmpty()) {
+                        currentStock = Integer.parseInt(chiTietSanPham.getSoLuongTon());
+                    } else {
+                        System.err.println("⚠️ soLuongTon is null or empty for ChiTietSanPham id: " + chiTietSanPham.getId() + ", defaulting to 0");
+                        currentStock = 0;
+                    }
                 } catch (NumberFormatException e) {
-                    System.err.println("Invalid stock quantity format for ChiTietSanPham id: " + chiTietSanPham.getId());
+                    System.err.println("❌ Invalid stock quantity format for ChiTietSanPham id: " + chiTietSanPham.getId() + ", value: " + chiTietSanPham.getSoLuongTon());
+                    currentStock = 0;
                 }
                 
+                System.out.println("📦 Stock check - ChiTietSanPham ID: " + chiTietSanPham.getId() + ", currentStock: " + currentStock + ", requested: " + requestedQuantity);
+                
                 if (requestedQuantity > currentStock) {
-                    throw new RuntimeException(
-                        String.format("Sản phẩm \"%s\" chỉ còn %d sản phẩm trong kho (bạn yêu cầu %d).", 
+                    String errorMsg = String.format("Sản phẩm \"%s\" chỉ còn %d sản phẩm trong kho (bạn yêu cầu %d).", 
                             chiTietDTO.getTenSanPham() != null ? chiTietDTO.getTenSanPham() : "N/A",
-                            currentStock, requestedQuantity)
-                    );
+                            currentStock, requestedQuantity);
+                    System.err.println("❌ " + errorMsg);
+                    throw new RuntimeException(errorMsg);
                 }
                 
                 // Tính lại giá từ backend (có thể đã thay đổi)
@@ -664,10 +682,23 @@ public class HoaDonService {
                 System.err.println("❌ WARNING: Reloaded invoice has empty danhSachChiTiet! Invoice ID: " + reloadedHoaDon.getId());
             }
         }
+        
+        HoaDonDTO resultDTO;
         if (reloaded.isPresent()) {
-            return toDTO(reloaded.get());
+            resultDTO = toDTO(reloaded.get());
+        } else {
+            resultDTO = toDTO(saved);
         }
-        return toDTO(saved);
+        
+        // Gửi email thông báo hóa đơn cho khách hàng
+        try {
+            sendInvoiceEmailNotification(resultDTO, reloaded.isPresent() ? reloaded.get() : saved);
+        } catch (Exception e) {
+            System.err.println("⚠️ Failed to send invoice email notification: " + e.getMessage());
+            // Không throw exception để không ảnh hưởng đến việc tạo hóa đơn
+        }
+        
+        return resultDTO;
     }
 
     @Transactional
@@ -951,6 +982,14 @@ public class HoaDonService {
                     );
                 } catch (Exception e) {
                     System.err.println("⚠️ Failed to log STATUS_CHANGE activity: " + e.getMessage());
+                }
+                
+                // Gửi email thông báo thay đổi trạng thái cho khách hàng
+                try {
+                    sendInvoiceStatusChangeEmail(reloadedHoaDon, oldTrangThai.toString(), newTrangThai.toString());
+                } catch (Exception e) {
+                    System.err.println("⚠️ Failed to send status change email notification: " + e.getMessage());
+                    // Không throw exception để không ảnh hưởng đến việc cập nhật trạng thái
                 }
                 
                 // Verify lại trong reloaded entity
@@ -1286,16 +1325,23 @@ public class HoaDonService {
     }
 
     public Page<HoaDon> getHoaDonByKhachHangId(Long khachHangId, Pageable pageable) {
-        // Đếm tổng số bản ghi
+        // QUAN TRỌNG: Chỉ lấy đơn hàng đã thanh toán (đã được xác nhận trở lên, không phải CHO_XAC_NHAN và không phải DA_HUY/HUY)
+        // Đơn hàng đã thanh toán = trạng thái không phải CHO_XAC_NHAN và không phải DA_HUY/HUY
+        // Đếm tổng số bản ghi đã thanh toán
         jakarta.persistence.TypedQuery<Long> countQuery = entityManager.createQuery(
             "SELECT COUNT(DISTINCT h) FROM HoaDon h " +
-            "WHERE h.khachHang.id = :khachHangId",
+            "WHERE h.khachHang.id = :khachHangId " +
+            "AND h.trangThai != 'CHO_XAC_NHAN' " +
+            "AND h.trangThai != 'DA_HUY' " +
+            "AND h.trangThai != 'HUY'",
             Long.class
         );
         countQuery.setParameter("khachHangId", khachHangId);
         long totalElements = countQuery.getSingleResult();
         
-        // Query với join fetch để load các relationships
+        System.out.println("📋 getHoaDonByKhachHangId - Total paid orders for customer " + khachHangId + ": " + totalElements);
+        
+        // Query với join fetch để load các relationships - chỉ lấy đơn hàng đã thanh toán
         jakarta.persistence.TypedQuery<HoaDon> query = entityManager.createQuery(
             "SELECT DISTINCT h FROM HoaDon h " +
             "LEFT JOIN FETCH h.khachHang " +
@@ -1307,6 +1353,9 @@ public class HoaDonService {
             "LEFT JOIN FETCH ct.mauSac " +
             "LEFT JOIN FETCH ct.kichThuoc " +
             "WHERE h.khachHang.id = :khachHangId " +
+            "AND h.trangThai != 'CHO_XAC_NHAN' " +
+            "AND h.trangThai != 'DA_HUY' " +
+            "AND h.trangThai != 'HUY' " +
             "ORDER BY h.ngayTao DESC",
             HoaDon.class
         );
@@ -1410,6 +1459,150 @@ public class HoaDonService {
                 hoaDon.getId() != null ? hoaDon.getId() : 0,
                 hoaDon.getMaHoaDon() != null ? hoaDon.getMaHoaDon() : "",
                 hoaDon.getTrangThai() != null ? hoaDon.getTrangThai().name() : "");
+        }
+    }
+
+    /**
+     * Gửi email thông báo hóa đơn cho khách hàng khi tạo hóa đơn
+     */
+    private void sendInvoiceEmailNotification(HoaDonDTO dto, HoaDon entity) {
+        try {
+            // Lấy thông tin khách hàng - ưu tiên từ entity, sau đó từ DTO
+            String customerEmail = null;
+            String customerName = null;
+            
+            // Ưu tiên lấy từ entity (đã được load đầy đủ từ DB)
+            if (entity.getKhachHang() != null) {
+                customerEmail = entity.getKhachHang().getEmail();
+                customerName = entity.getKhachHang().getTenKhachHang();
+            }
+            
+            // Nếu không có từ entity, lấy từ DTO
+            if ((customerEmail == null || customerEmail.trim().isEmpty()) && dto.getEmailKhachHang() != null) {
+                customerEmail = dto.getEmailKhachHang();
+            }
+            if ((customerName == null || customerName.trim().isEmpty()) && dto.getTenKhachHang() != null) {
+                customerName = dto.getTenKhachHang();
+            }
+            
+            System.out.println("📧 Preparing to send invoice email notification:");
+            System.out.println("   - Customer Email: " + customerEmail);
+            System.out.println("   - Customer Name: " + customerName);
+            System.out.println("   - Invoice Code: " + dto.getMaHoaDon());
+            
+            if (customerEmail == null || customerEmail.trim().isEmpty()) {
+                System.out.println("⚠️ Customer email is empty, skipping email notification");
+                System.out.println("   - Entity has customer: " + (entity.getKhachHang() != null));
+                if (entity.getKhachHang() != null) {
+                    System.out.println("   - Entity customer email: " + entity.getKhachHang().getEmail());
+                }
+                System.out.println("   - DTO email: " + dto.getEmailKhachHang());
+                return;
+            }
+            
+            // Tạo danh sách sản phẩm
+            List<EmailService.InvoiceItemInfo> danhSachSanPham = new ArrayList<>();
+            if (entity.getDanhSachChiTiet() != null && !entity.getDanhSachChiTiet().isEmpty()) {
+                for (HoaDonChiTiet chiTiet : entity.getDanhSachChiTiet()) {
+                    String tenSanPham = "N/A";
+                    if (chiTiet.getChiTietSanPham() != null && chiTiet.getChiTietSanPham().getSanPham() != null) {
+                        tenSanPham = chiTiet.getChiTietSanPham().getSanPham().getTenSanPham();
+                    }
+                    
+                    EmailService.InvoiceItemInfo item = new EmailService.InvoiceItemInfo(
+                        tenSanPham,
+                        chiTiet.getSoLuong(),
+                        chiTiet.getDonGia(),
+                        chiTiet.getThanhTien()
+                    );
+                    danhSachSanPham.add(item);
+                }
+            }
+            
+            // Tạo địa chỉ giao hàng đầy đủ từ các thành phần
+            StringBuilder diaChiBuilder = new StringBuilder();
+            if (dto.getDiaChiChiTiet() != null && !dto.getDiaChiChiTiet().trim().isEmpty()) {
+                diaChiBuilder.append(dto.getDiaChiChiTiet());
+            }
+            if (dto.getPhuongXa() != null && !dto.getPhuongXa().trim().isEmpty()) {
+                if (diaChiBuilder.length() > 0) diaChiBuilder.append(", ");
+                diaChiBuilder.append(dto.getPhuongXa());
+            }
+            if (dto.getQuanHuyen() != null && !dto.getQuanHuyen().trim().isEmpty()) {
+                if (diaChiBuilder.length() > 0) diaChiBuilder.append(", ");
+                diaChiBuilder.append(dto.getQuanHuyen());
+            }
+            if (dto.getTinhThanh() != null && !dto.getTinhThanh().trim().isEmpty()) {
+                if (diaChiBuilder.length() > 0) diaChiBuilder.append(", ");
+                diaChiBuilder.append(dto.getTinhThanh());
+            }
+            String diaChiGiaoHang = diaChiBuilder.length() > 0 ? diaChiBuilder.toString() : 
+                (dto.getDiaChiKhachHang() != null ? dto.getDiaChiKhachHang() : "N/A");
+            
+            // Gửi email
+            emailService.sendInvoiceNotification(
+                customerEmail,
+                customerName,
+                dto.getMaHoaDon(),
+                dto.getTrangThai(),
+                dto.getTongTien(),
+                dto.getThanhTien(),
+                dto.getNgayTao(),
+                diaChiGiaoHang,
+                danhSachSanPham
+            );
+            
+            System.out.println("✅ Invoice email notification sent to: " + customerEmail);
+        } catch (Exception e) {
+            System.err.println("❌ Error sending invoice email notification: " + e.getMessage());
+            e.printStackTrace();
+        }
+    }
+
+    /**
+     * Gửi email thông báo thay đổi trạng thái hóa đơn cho khách hàng
+     */
+    private void sendInvoiceStatusChangeEmail(HoaDon hoaDon, String oldStatus, String newStatus) {
+        try {
+            System.out.println("📧 Preparing to send status change email notification:");
+            System.out.println("   - Invoice Code: " + hoaDon.getMaHoaDon());
+            System.out.println("   - Old Status: " + oldStatus);
+            System.out.println("   - New Status: " + newStatus);
+            
+            // Lấy thông tin khách hàng
+            if (hoaDon.getKhachHang() == null) {
+                System.out.println("⚠️ Invoice has no customer, skipping status change email");
+                return;
+            }
+            
+            String customerEmail = hoaDon.getKhachHang().getEmail();
+            String customerName = hoaDon.getKhachHang().getTenKhachHang();
+            
+            System.out.println("   - Customer Email: " + customerEmail);
+            System.out.println("   - Customer Name: " + customerName);
+            
+            if (customerEmail == null || customerEmail.trim().isEmpty()) {
+                System.out.println("⚠️ Customer email is empty, skipping status change email");
+                System.out.println("   - Customer ID: " + hoaDon.getKhachHang().getId());
+                System.out.println("   - Customer Name: " + customerName);
+                return;
+            }
+            
+            // Gửi email
+            System.out.println("📤 Sending status change email to: " + customerEmail);
+            emailService.sendInvoiceStatusChangeNotification(
+                customerEmail,
+                customerName,
+                hoaDon.getMaHoaDon(),
+                oldStatus,
+                newStatus,
+                hoaDon.getThanhTien()
+            );
+            
+            System.out.println("✅ Status change email notification sent successfully to: " + customerEmail);
+        } catch (Exception e) {
+            System.err.println("❌ Error sending status change email notification: " + e.getMessage());
+            e.printStackTrace();
         }
     }
 }

@@ -88,13 +88,16 @@ public class SecurityConfig {
                 .requestMatchers("/api/san-pham/**").hasAnyRole("ADMIN", "STAFF")
                 .requestMatchers("/api/admin/products/**").hasAnyRole("ADMIN", "STAFF")
                 
-                // Customer endpoints - CUSTOMER, hoặc public nếu cần
+                // Customer endpoints - cho phép authenticated users (không nhất thiết phải có role CUSTOMER)
                 .requestMatchers("/api/customer/profile/**").hasRole("CUSTOMER")
-                .requestMatchers("/api/customer/orders/**").hasRole("CUSTOMER")
+                .requestMatchers("/api/customer/orders").authenticated() // Cho phép bất kỳ user đã đăng nhập
+                .requestMatchers("/api/customer/orders/**").authenticated() // Cho phép bất kỳ user đã đăng nhập
                 
 
                 // Khách hàng lấy thông tin cá nhân từ JWT token - yêu cầu authentication
                 .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/khach-hang/me").authenticated()
+                // Cho phép GET khách hàng theo ID (để hiển thị thông tin trong header)
+                .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/khach-hang/**").authenticated()
                 
 
                 // CHO PHÉP tạo hóa đơn mà không cần authentication (để khách hàng có thể đặt hàng)
@@ -105,9 +108,11 @@ public class SecurityConfig {
                 // Đặt TRƯỚC rule chung để ưu tiên
                 .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/hoa-don/**").permitAll()
                 
-                // CHO PHÉP truy cập giỏ hàng chờ (hoa-don-cho) để checkout
+                // CHO PHÉP truy cập giỏ hàng chờ (hoa-don-cho) để checkout và quản lý giỏ hàng
                 .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/hoa-don-cho/**").permitAll()
                 .requestMatchers(org.springframework.http.HttpMethod.POST, "/api/hoa-don-cho/**").permitAll()
+                .requestMatchers(org.springframework.http.HttpMethod.PUT, "/api/hoa-don-cho/**").permitAll()
+                .requestMatchers(org.springframework.http.HttpMethod.DELETE, "/api/hoa-don-cho/**").permitAll()
                 
                 // Lịch sử thay đổi hóa đơn - yêu cầu ADMIN hoặc STAFF
                 .requestMatchers("/api/hoa-don-activity/**").hasAnyRole("ADMIN", "STAFF")

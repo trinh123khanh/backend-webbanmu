@@ -244,4 +244,208 @@ public class EmailService {
             log.error("❌ Lỗi khi gửi email báo cáo thống kê tới {}: {}", toEmail, e.getMessage(), e);
         }
     }
+
+    /**
+     * Gửi email thông báo hóa đơn cho khách hàng
+     */
+    @Async
+    public void sendInvoiceNotification(String customerEmail, String customerName, String maHoaDon,
+                                       String trangThai, java.math.BigDecimal tongTien, 
+                                       java.math.BigDecimal thanhTien, java.time.LocalDateTime ngayTao,
+                                       String diaChiGiaoHang, java.util.List<InvoiceItemInfo> danhSachSanPham) {
+        if (!emailEnabled) {
+            log.info("Email service is disabled. Skipping invoice notification email.");
+            return;
+        }
+
+        if (customerEmail == null || customerEmail.trim().isEmpty()) {
+            log.warn("Email khách hàng trống, không thể gửi thông báo hóa đơn");
+            return;
+        }
+
+        try {
+            // Format ngày tháng
+            java.time.format.DateTimeFormatter dateTimeFormatter = 
+                java.time.format.DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm");
+            String ngayTaoText = ngayTao != null ? ngayTao.format(dateTimeFormatter) : "N/A";
+            
+            // Format tiền
+            String tongTienText = String.format("%,.0f VNĐ", tongTien != null ? tongTien.doubleValue() : 0);
+            String thanhTienText = String.format("%,.0f VNĐ", thanhTien != null ? thanhTien.doubleValue() : 0);
+            
+            // Map trạng thái
+            String trangThaiText = getStatusLabel(trangThai);
+            
+            // Tạo danh sách sản phẩm
+            StringBuilder sanPhamList = new StringBuilder();
+            if (danhSachSanPham != null && !danhSachSanPham.isEmpty()) {
+                for (int i = 0; i < danhSachSanPham.size(); i++) {
+                    InvoiceItemInfo item = danhSachSanPham.get(i);
+                    String itemText = String.format(
+                        "%d. %s - Số lượng: %d - Giá: %,.0f VNĐ - Thành tiền: %,.0f VNĐ",
+                        i + 1,
+                        item.getTenSanPham() != null ? item.getTenSanPham() : "N/A",
+                        item.getSoLuong() != null ? item.getSoLuong() : 0,
+                        item.getDonGia() != null ? item.getDonGia().doubleValue() : 0,
+                        item.getThanhTien() != null ? item.getThanhTien().doubleValue() : 0
+                    );
+                    sanPhamList.append(itemText).append("\n");
+                }
+            } else {
+                sanPhamList.append("Không có sản phẩm");
+            }
+            
+            // Tạo nội dung email
+            String emailContent = String.format(
+                "Xin chào %s,\n\n" +
+                "Cảm ơn bạn đã đặt hàng tại TDK Store!\n\n" +
+                "📋 THÔNG TIN HÓA ĐƠN:\n" +
+                "- Mã hóa đơn: %s\n" +
+                "- Trạng thái: %s\n" +
+                "- Ngày tạo: %s\n" +
+                "- Tổng tiền: %s\n" +
+                "- Thành tiền: %s\n" +
+                "- Địa chỉ giao hàng: %s\n\n" +
+                "🛍️ DANH SÁCH SẢN PHẨM:\n%s\n" +
+                "Chúng tôi sẽ xử lý đơn hàng của bạn trong thời gian sớm nhất.\n\n" +
+                "Nếu có bất kỳ thắc mắc nào, vui lòng liên hệ với chúng tôi.\n\n" +
+                "Trân trọng,\n" +
+                "TDK Store - Bán mũ bảo hiểm",
+                customerName != null ? customerName : "Khách hàng",
+                maHoaDon != null ? maHoaDon : "N/A",
+                trangThaiText,
+                ngayTaoText,
+                tongTienText,
+                thanhTienText,
+                diaChiGiaoHang != null ? diaChiGiaoHang : "N/A",
+                sanPhamList.toString()
+            );
+
+            SimpleMailMessage message = new SimpleMailMessage();
+            message.setFrom(fromEmail);
+            message.setTo(customerEmail);
+            message.setSubject("📦 Thông báo hóa đơn " + maHoaDon + " - TDK Store");
+            message.setText(emailContent);
+            mailSender.send(message);
+
+            log.info("✅ Invoice notification email sent successfully to: {} (Invoice: {})", customerEmail, maHoaDon);
+
+        } catch (Exception e) {
+            log.error("❌ Lỗi khi gửi email thông báo hóa đơn tới {}: {}", customerEmail, e.getMessage(), e);
+            // Không throw exception để không ảnh hưởng đến logic chính
+        }
+    }
+
+    /**
+     * Gửi email thông báo thay đổi trạng thái hóa đơn
+     */
+    @Async
+    public void sendInvoiceStatusChangeNotification(String customerEmail, String customerName, 
+                                                   String maHoaDon, String oldStatus, String newStatus,
+                                                   java.math.BigDecimal thanhTien) {
+        if (!emailEnabled) {
+            log.info("Email service is disabled. Skipping invoice status change notification.");
+            return;
+        }
+
+        if (customerEmail == null || customerEmail.trim().isEmpty()) {
+            log.warn("Email khách hàng trống, không thể gửi thông báo thay đổi trạng thái");
+            return;
+        }
+
+        try {
+            String oldStatusText = getStatusLabel(oldStatus);
+            String newStatusText = getStatusLabel(newStatus);
+            String thanhTienText = String.format("%,.0f VNĐ", thanhTien != null ? thanhTien.doubleValue() : 0);
+            
+            String emailContent = String.format(
+                "Xin chào %s,\n\n" +
+                "Hóa đơn của bạn đã được cập nhật trạng thái.\n\n" +
+                "📋 THÔNG TIN HÓA ĐƠN:\n" +
+                "- Mã hóa đơn: %s\n" +
+                "- Trạng thái cũ: %s\n" +
+                "- Trạng thái mới: %s\n" +
+                "- Thành tiền: %s\n\n" +
+                "%s\n\n" +
+                "Nếu có bất kỳ thắc mắc nào, vui lòng liên hệ với chúng tôi.\n\n" +
+                "Trân trọng,\n" +
+                "TDK Store - Bán mũ bảo hiểm",
+                customerName != null ? customerName : "Khách hàng",
+                maHoaDon != null ? maHoaDon : "N/A",
+                oldStatusText,
+                newStatusText,
+                thanhTienText,
+                getStatusChangeMessage(newStatus)
+            );
+
+            SimpleMailMessage message = new SimpleMailMessage();
+            message.setFrom(fromEmail);
+            message.setTo(customerEmail);
+            message.setSubject("🔄 Cập nhật trạng thái hóa đơn " + maHoaDon + " - TDK Store");
+            message.setText(emailContent);
+            mailSender.send(message);
+
+            log.info("✅ Invoice status change notification sent successfully to: {} (Invoice: {}, Status: {} -> {})", 
+                customerEmail, maHoaDon, oldStatus, newStatus);
+
+        } catch (Exception e) {
+            log.error("❌ Lỗi khi gửi email thông báo thay đổi trạng thái tới {}: {}", customerEmail, e.getMessage(), e);
+        }
+    }
+
+    private String getStatusLabel(String status) {
+        if (status == null) return "N/A";
+        switch (status) {
+            case "CHO_XAC_NHAN": return "Chờ xác nhận";
+            case "DA_XAC_NHAN": return "Đã xác nhận - Chờ vận chuyển";
+            case "DANG_GIAO_HANG": return "Đang giao hàng";
+            case "DA_GIAO_HANG": return "Đã giao hàng";
+            case "DA_HUY": case "HUY": return "Đã hủy";
+            default: return status;
+        }
+    }
+
+    private String getStatusChangeMessage(String newStatus) {
+        if (newStatus == null) return "";
+        switch (newStatus) {
+            case "DA_XAC_NHAN":
+                return "Đơn hàng của bạn đã được xác nhận và đang được chuẩn bị để giao hàng. Chúng tôi sẽ thông báo khi đơn hàng được gửi đi.";
+            case "DANG_GIAO_HANG":
+                return "Đơn hàng của bạn đang được vận chuyển. Vui lòng chuẩn bị nhận hàng.";
+            case "DA_GIAO_HANG":
+                return "Đơn hàng của bạn đã được giao thành công. Cảm ơn bạn đã mua sắm tại TDK Store!";
+            case "DA_HUY": case "HUY":
+                return "Đơn hàng của bạn đã bị hủy. Nếu bạn có thắc mắc, vui lòng liên hệ với chúng tôi.";
+            default:
+                return "Trạng thái đơn hàng đã được cập nhật.";
+        }
+    }
+
+    /**
+     * Inner class để chứa thông tin sản phẩm trong hóa đơn
+     */
+    public static class InvoiceItemInfo {
+        private String tenSanPham;
+        private Integer soLuong;
+        private java.math.BigDecimal donGia;
+        private java.math.BigDecimal thanhTien;
+
+        public InvoiceItemInfo() {}
+
+        public InvoiceItemInfo(String tenSanPham, Integer soLuong, java.math.BigDecimal donGia, java.math.BigDecimal thanhTien) {
+            this.tenSanPham = tenSanPham;
+            this.soLuong = soLuong;
+            this.donGia = donGia;
+            this.thanhTien = thanhTien;
+        }
+
+        public String getTenSanPham() { return tenSanPham; }
+        public void setTenSanPham(String tenSanPham) { this.tenSanPham = tenSanPham; }
+        public Integer getSoLuong() { return soLuong; }
+        public void setSoLuong(Integer soLuong) { this.soLuong = soLuong; }
+        public java.math.BigDecimal getDonGia() { return donGia; }
+        public void setDonGia(java.math.BigDecimal donGia) { this.donGia = donGia; }
+        public java.math.BigDecimal getThanhTien() { return thanhTien; }
+        public void setThanhTien(java.math.BigDecimal thanhTien) { this.thanhTien = thanhTien; }
+    }
 }
