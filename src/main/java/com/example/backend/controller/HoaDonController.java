@@ -2,6 +2,7 @@ package com.example.backend.controller;
 
 import com.example.backend.dto.HoaDonActivityDTO;
 import com.example.backend.dto.HoaDonDTO;
+import com.example.backend.dto.HoaDonChiTietDTO;
 import com.example.backend.entity.HoaDon;
 import com.example.backend.entity.KhachHang;
 import com.example.backend.entity.User;
@@ -116,61 +117,8 @@ public class HoaDonController {
         return updateTrangThaiHoaDon(id, requestBody);
     }
 
-    // ===== CUSTOMER ENDPOINTS - Xem/hủy đơn hàng =====
-    @GetMapping("/api/customer/orders")
-    @PreAuthorize("hasRole('CUSTOMER')")
-    public ResponseEntity<Map<String, Object>> getOrdersForCustomer(
-            @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "10") int size) {
-        try {
-            // Lấy username từ authentication
-            Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-            String username = auth.getName();
-            
-            // Tìm User từ username
-            User user = userRepository.findByUsername(username)
-                    .orElseThrow(() -> new RuntimeException("User not found: " + username));
-            
-            // Tìm KhachHang từ userId
-            KhachHang khachHang = khachHangRepository.findByUserId(user.getId())
-                    .orElseThrow(() -> new RuntimeException("KhachHang not found for user: " + username));
-            
-            // Gọi service để lấy đơn hàng của khách hàng
-            Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "ngayTao"));
-            Page<HoaDon> hoaDonPage = hoaDonService.getHoaDonByKhachHangId(khachHang.getId(), pageable);
-            Page<HoaDonDTO> hoaDonDTOPage = hoaDonPage.map(hoaDonService::toDTO);
-            
-            Map<String, Object> response = new HashMap<>();
-            response.put("content", hoaDonDTOPage.getContent());
-            response.put("totalElements", hoaDonDTOPage.getTotalElements());
-            response.put("totalPages", hoaDonDTOPage.getTotalPages());
-            response.put("currentPage", hoaDonDTOPage.getNumber());
-            response.put("size", hoaDonDTOPage.getSize());
-            response.put("first", hoaDonDTOPage.isFirst());
-            response.put("last", hoaDonDTOPage.isLast());
-            response.put("numberOfElements", hoaDonDTOPage.getNumberOfElements());
-            
-            return ResponseEntity.ok(response);
-        } catch (Exception e) {
-            Map<String, Object> errorResponse = new HashMap<>();
-            errorResponse.put("error", "Lỗi khi lấy đơn hàng: " + e.getMessage());
-            errorResponse.put("content", List.of());
-            errorResponse.put("totalElements", 0);
-            errorResponse.put("totalPages", 0);
-            errorResponse.put("currentPage", page);
-            errorResponse.put("size", size);
-            return ResponseEntity.badRequest().body(errorResponse);
-        }
-    }
-
-    @PatchMapping("/api/customer/orders/{id}/cancel")
-    @PreAuthorize("hasRole('CUSTOMER')")
-    public ResponseEntity<?> cancelOrderForCustomer(@PathVariable Long id) {
-        // Chỉ cho phép hủy đơn hàng ở trạng thái CHO_XAC_NHAN
-        Map<String, String> requestBody = new HashMap<>();
-        requestBody.put("trangThai", "HUY");
-        return updateTrangThaiHoaDon(id, requestBody);
-    }
+    // ===== CUSTOMER ENDPOINTS - Đã chuyển sang CustomerOrdersController =====
+    // Endpoints đã được chuyển sang CustomerOrdersController để tránh conflict với @RequestMapping("/api/hoa-don")
 
     // ===== BACKWARD COMPATIBILITY - Giữ lại các endpoint cũ =====
     @GetMapping("/page")
@@ -235,24 +183,83 @@ public class HoaDonController {
     @PostMapping
     public ResponseEntity<?> createHoaDon(@RequestBody HoaDonDTO hoaDonDTO) {
         try {
+            System.out.println("🔍 ========== POST /api/hoa-don ==========");
+            System.out.println("📥 Received HoaDonDTO:");
+            System.out.println("   - maHoaDon: " + hoaDonDTO.getMaHoaDon());
+            System.out.println("   - khachHangId: " + hoaDonDTO.getKhachHangId());
+            System.out.println("   - tenKhachHang: " + hoaDonDTO.getTenKhachHang());
+            System.out.println("   - emailKhachHang: " + hoaDonDTO.getEmailKhachHang());
+            System.out.println("   - soDienThoaiKhachHang: " + hoaDonDTO.getSoDienThoaiKhachHang());
+            System.out.println("   - diaChiChiTiet: " + hoaDonDTO.getDiaChiChiTiet());
+            System.out.println("   - tinhThanh: " + hoaDonDTO.getTinhThanh());
+            System.out.println("   - quanHuyen: " + hoaDonDTO.getQuanHuyen());
+            System.out.println("   - phuongXa: " + hoaDonDTO.getPhuongXa());
+            System.out.println("   - tongTien: " + hoaDonDTO.getTongTien());
+            System.out.println("   - danhSachChiTiet size: " + (hoaDonDTO.getDanhSachChiTiet() != null ? hoaDonDTO.getDanhSachChiTiet().size() : "null"));
+            
             // Validate dữ liệu đầu vào
             if (hoaDonDTO.getMaHoaDon() == null || hoaDonDTO.getMaHoaDon().trim().isEmpty()) {
+                System.out.println("❌ Validation failed: Mã hóa đơn không được để trống");
                 return ResponseEntity.badRequest().body("Mã hóa đơn không được để trống");
             }
-            // CHO PHÉP khachHangId = null để test thanh toán không cần đăng nhập
-            // if (hoaDonDTO.getKhachHangId() == null) {
-            //     return ResponseEntity.badRequest().body("Khách hàng ID không được để trống");
-            // }
+            
+            // Validate thông tin khách hàng: Nếu không có khachHangId thì phải có thông tin khách hàng
+            if (hoaDonDTO.getKhachHangId() == null) {
+                if (hoaDonDTO.getTenKhachHang() == null || hoaDonDTO.getTenKhachHang().trim().isEmpty()) {
+                    System.out.println("❌ Validation failed: Tên khách hàng không được để trống");
+                    return ResponseEntity.badRequest().body("Tên khách hàng không được để trống");
+                }
+                if (hoaDonDTO.getEmailKhachHang() == null || hoaDonDTO.getEmailKhachHang().trim().isEmpty()) {
+                    System.out.println("❌ Validation failed: Email khách hàng không được để trống");
+                    return ResponseEntity.badRequest().body("Email khách hàng không được để trống");
+                }
+                if (hoaDonDTO.getSoDienThoaiKhachHang() == null || hoaDonDTO.getSoDienThoaiKhachHang().trim().isEmpty()) {
+                    System.out.println("❌ Validation failed: Số điện thoại khách hàng không được để trống");
+                    return ResponseEntity.badRequest().body("Số điện thoại khách hàng không được để trống");
+                }
+            }
+            
+            // Validate danh sách chi tiết
+            if (hoaDonDTO.getDanhSachChiTiet() == null || hoaDonDTO.getDanhSachChiTiet().isEmpty()) {
+                System.out.println("❌ Validation failed: Danh sách sản phẩm không được để trống");
+                return ResponseEntity.badRequest().body("Danh sách sản phẩm không được để trống");
+            }
+            
+            // Validate từng chi tiết
+            for (int i = 0; i < hoaDonDTO.getDanhSachChiTiet().size(); i++) {
+                HoaDonChiTietDTO chiTiet = hoaDonDTO.getDanhSachChiTiet().get(i);
+                System.out.println("   - Chi tiết " + (i + 1) + ": chiTietSanPhamId=" + chiTiet.getChiTietSanPhamId() + ", soLuong=" + chiTiet.getSoLuong());
+                if (chiTiet.getChiTietSanPhamId() == null) {
+                    System.out.println("❌ Validation failed: Chi tiết sản phẩm thứ " + (i + 1) + " thiếu ID sản phẩm");
+                    return ResponseEntity.badRequest().body("Chi tiết sản phẩm thứ " + (i + 1) + " thiếu ID sản phẩm");
+                }
+                if (chiTiet.getSoLuong() == null || chiTiet.getSoLuong() <= 0) {
+                    System.out.println("❌ Validation failed: Chi tiết sản phẩm thứ " + (i + 1) + " có số lượng không hợp lệ");
+                    return ResponseEntity.badRequest().body("Chi tiết sản phẩm thứ " + (i + 1) + " có số lượng không hợp lệ");
+                }
+            }
+            
             if (hoaDonDTO.getTongTien() == null || hoaDonDTO.getTongTien().compareTo(java.math.BigDecimal.ZERO) <= 0) {
+                System.out.println("❌ Validation failed: Tổng tiền phải lớn hơn 0");
                 return ResponseEntity.badRequest().body("Tổng tiền phải lớn hơn 0");
             }
             
+            System.out.println("✅ All validations passed. Calling hoaDonService.createHoaDon()...");
             HoaDonDTO createdHoaDon = hoaDonService.createHoaDon(hoaDonDTO);
+            System.out.println("✅ Invoice created successfully with ID: " + createdHoaDon.getId());
 
             return ResponseEntity.status(org.springframework.http.HttpStatus.CREATED).body(createdHoaDon);
+        } catch (IllegalArgumentException e) {
+            System.err.println("❌ IllegalArgumentException: " + e.getMessage());
+            e.printStackTrace();
+            return ResponseEntity.status(org.springframework.http.HttpStatus.BAD_REQUEST).body(e.getMessage());
         } catch (RuntimeException e) {
+            System.err.println("❌ RuntimeException: " + e.getMessage());
+            e.printStackTrace();
             return ResponseEntity.status(org.springframework.http.HttpStatus.BAD_REQUEST).body(e.getMessage());
         } catch (Exception e) {
+            System.err.println("❌ Exception: " + e.getMessage());
+            e.printStackTrace();
             return ResponseEntity.status(org.springframework.http.HttpStatus.INTERNAL_SERVER_ERROR)
                     .body("Lỗi server: " + e.getMessage());
         }
