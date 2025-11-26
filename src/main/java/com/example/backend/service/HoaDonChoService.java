@@ -114,49 +114,93 @@ public class HoaDonChoService {
 
     @Transactional
     public HoaDonChoResponse createHoaDonCho(HoaDonChoRequest request) {
-        // Kiểm tra số lượng hóa đơn chờ hiện tại (tối đa 5)
-        final int MAX_PENDING_INVOICES = 10;
-        long countPending = hoaDonChoRepository.countByTrangThai("DANG_CHO");
-        if (countPending >= MAX_PENDING_INVOICES) {
-            throw new RuntimeException(
-                String.format("Bạn chỉ có thể tạo tối đa %d hóa đơn chờ. Vui lòng xóa hoặc thanh toán hóa đơn chờ hiện tại trước khi tạo mới.", 
-                    MAX_PENDING_INVOICES)
-            );
-        }
-
-        HoaDonCho hoaDonCho = new HoaDonCho();
-        hoaDonCho.setMaHoaDonCho(request.getMaHoaDonCho());
-        hoaDonCho.setTenKhachHang(request.getTenKhachHang());
-        hoaDonCho.setSoDienThoaiKhachHang(request.getSoDienThoaiKhachHang());
-        hoaDonCho.setTenNhanVien(request.getTenNhanVien());
-        hoaDonCho.setGhiChu(request.getGhiChu());
-        hoaDonCho.setTrangThai(request.getTrangThai() != null ? request.getTrangThai() : "DANG_CHO");
-
-        // Set khachHang if khachHangId is provided
-        if (request.getKhachHangId() != null) {
-            KhachHang khachHang = khachHangRepository.findById(request.getKhachHangId())
-                    .orElse(null);
-            hoaDonCho.setKhachHang(khachHang);
-        }
-
-        // Set nhanVien if nhanVienId is provided
-        if (request.getNhanVienId() != null) {
-            NhanVien nhanVien = nhanVienRepository.findById(request.getNhanVienId())
-                    .orElse(null);
-            hoaDonCho.setNhanVien(nhanVien);
-        }
-
-        HoaDonCho saved = hoaDonChoRepository.save(hoaDonCho);
-
-        // Add cart items if provided
-        if (request.getDanhSachGioHang() != null && !request.getDanhSachGioHang().isEmpty()) {
-            for (GioHangChoItemRequest itemRequest : request.getDanhSachGioHang()) {
-                addItemToCart(saved.getId(), itemRequest);
+        log.info("📦 Creating HoaDonCho with maHoaDonCho: {}, khachHangId: {}", 
+                request.getMaHoaDonCho(), request.getKhachHangId());
+        
+        try {
+            // Kiểm tra số lượng hóa đơn chờ hiện tại (tối đa 10)
+            final int MAX_PENDING_INVOICES = 10;
+            long countPending = hoaDonChoRepository.countByTrangThai("DANG_CHO");
+            if (countPending >= MAX_PENDING_INVOICES) {
+                String errorMsg = String.format("Bạn chỉ có thể tạo tối đa %d hóa đơn chờ. Vui lòng xóa hoặc thanh toán hóa đơn chờ hiện tại trước khi tạo mới.", 
+                    MAX_PENDING_INVOICES);
+                log.error("❌ Cannot create cart: {}", errorMsg);
+                throw new RuntimeException(errorMsg);
             }
-        }
 
-        // Reload with fresh data using fetch join
-        return toResponse(hoaDonChoRepository.findByIdWithGioHangCho(saved.getId()).orElseThrow());
+            // Kiểm tra maHoaDonCho có trùng không
+            if (hoaDonChoRepository.findByMaHoaDonCho(request.getMaHoaDonCho()).isPresent()) {
+                String errorMsg = "Mã hóa đơn chờ đã tồn tại: " + request.getMaHoaDonCho();
+                log.error("❌ {}", errorMsg);
+                throw new RuntimeException(errorMsg);
+            }
+
+            HoaDonCho hoaDonCho = new HoaDonCho();
+            hoaDonCho.setMaHoaDonCho(request.getMaHoaDonCho());
+            hoaDonCho.setTenKhachHang(request.getTenKhachHang());
+            hoaDonCho.setSoDienThoaiKhachHang(request.getSoDienThoaiKhachHang());
+            hoaDonCho.setTenNhanVien(request.getTenNhanVien());
+            hoaDonCho.setGhiChu(request.getGhiChu());
+            hoaDonCho.setTrangThai(request.getTrangThai() != null ? request.getTrangThai() : "DANG_CHO");
+
+            // Set khachHang if khachHangId is provided
+            if (request.getKhachHangId() != null) {
+                log.debug("🔍 Looking for KhachHang with ID: {}", request.getKhachHangId());
+                KhachHang khachHang = khachHangRepository.findById(request.getKhachHangId())
+                        .orElse(null);
+                if (khachHang == null) {
+                    log.warn("⚠️ KhachHang with ID {} not found, creating cart without customer", request.getKhachHangId());
+                } else {
+                    log.debug("✅ Found KhachHang: {}", khachHang.getTenKhachHang());
+                }
+                hoaDonCho.setKhachHang(khachHang);
+            }
+
+            // Set nhanVien if nhanVienId is provided
+            // QUAN TRỌNG: Chỉ cho phép set nhanVienId từ counter sales (admin/staff)
+            // Web bán online KHÔNG được set nhanVienId (phải null)
+            if (request.getNhanVienId() != null) {
+                log.debug("🔍 Looking for NhanVien with ID: {} (Counter sales)", request.getNhanVienId());
+                NhanVien nhanVien = nhanVienRepository.findById(request.getNhanVienId())
+                        .orElse(null);
+                if (nhanVien == null) {
+                    log.warn("⚠️ NhanVien with ID {} not found", request.getNhanVienId());
+                } else {
+                    log.debug("✅ Setting NhanVien for COUNTER sales cart");
+                }
+                hoaDonCho.setNhanVien(nhanVien);
+            } else {
+                log.debug("✅ Creating ONLINE cart (nhanVienId = null)");
+            }
+
+            log.debug("💾 Saving HoaDonCho to database...");
+            HoaDonCho saved = hoaDonChoRepository.save(hoaDonCho);
+            log.info("✅ HoaDonCho created successfully with ID: {}", saved.getId());
+
+            // Add cart items if provided
+            if (request.getDanhSachGioHang() != null && !request.getDanhSachGioHang().isEmpty()) {
+                log.debug("📦 Adding {} items to cart", request.getDanhSachGioHang().size());
+                for (GioHangChoItemRequest itemRequest : request.getDanhSachGioHang()) {
+                    addItemToCart(saved.getId(), itemRequest);
+                }
+            }
+
+            // Reload with fresh data using fetch join
+            log.debug("🔄 Reloading HoaDonCho with cart items...");
+            HoaDonCho reloaded = hoaDonChoRepository.findByIdWithGioHangCho(saved.getId())
+                    .orElseThrow(() -> new EntityNotFoundException("Không tìm thấy hóa đơn chờ vừa tạo với ID: " + saved.getId()));
+            return toResponse(reloaded);
+            
+        } catch (org.springframework.dao.DataIntegrityViolationException e) {
+            log.error("❌ Data integrity violation when creating HoaDonCho", e);
+            if (e.getMessage() != null && e.getMessage().contains("ma_hoa_don_cho")) {
+                throw new RuntimeException("Mã hóa đơn chờ đã tồn tại: " + request.getMaHoaDonCho());
+            }
+            throw new RuntimeException("Lỗi dữ liệu khi tạo hóa đơn chờ: " + e.getMessage(), e);
+        } catch (Exception e) {
+            log.error("❌ Error creating HoaDonCho", e);
+            throw new RuntimeException("Lỗi khi tạo hóa đơn chờ: " + e.getMessage(), e);
+        }
     }
 
     @Transactional
@@ -174,16 +218,27 @@ public class HoaDonChoService {
         List<GioHangCho> existingItems = gioHangChoRepository
                 .findAllByHoaDonChoIdAndChiTietSanPhamId(hoaDonChoId, itemRequest.getChiTietSanPhamId());
 
-        int currentStock = parseSoLuongTon(chiTietSanPham);
-        if (quantityToAdd > currentStock) {
-            throw new RuntimeException(
-                String.format("Số lượng sản phẩm không đủ. Hiện tại còn %d sản phẩm trong kho.", Math.max(currentStock, 0))
-            );
-        }
-
         Optional<GioHangCho> existingItemSamePrice = existingItems.stream()
                 .filter(item -> isSamePrice(item.getDonGia(), requestedPrice))
                 .findFirst();
+
+        // Tính tổng số lượng sau khi thêm
+        int currentQuantityInCart = existingItems.stream()
+                .mapToInt(item -> item.getSoLuong() != null ? item.getSoLuong() : 0)
+                .sum();
+        int newQuantityAfterAdd = existingItemSamePrice.isPresent() 
+                ? currentQuantityInCart + quantityToAdd 
+                : currentQuantityInCart + quantityToAdd;
+        
+        int currentStock = parseSoLuongTon(chiTietSanPham);
+        
+        // Kiểm tra tồn kho: tổng số lượng trong giỏ sau khi thêm phải <= tồn kho hiện tại
+        if (newQuantityAfterAdd > currentStock) {
+            throw new RuntimeException(
+                String.format("Số lượng sản phẩm không đủ. Hiện tại còn %d sản phẩm trong kho, đã có %d trong giỏ hàng, muốn thêm %d.", 
+                    Math.max(currentStock, 0), currentQuantityInCart, quantityToAdd)
+            );
+        }
 
         GioHangCho gioHangCho;
         if (existingItemSamePrice.isPresent()) {
@@ -198,9 +253,13 @@ public class HoaDonChoService {
             gioHangCho.setDonGia(requestedPrice);
             gioHangCho.setGiamGia(itemRequest.getGiamGia() != null ? itemRequest.getGiamGia() : BigDecimal.ZERO);
         }
-        // Deduct stock immediately
-        int updatedStock = currentStock - quantityToAdd;
-        updateProductStock(chiTietSanPham, updatedStock);
+        
+        // QUAN TRỌNG: KHÔNG trừ số lượng khi thêm vào giỏ hàng
+        // Số lượng sẽ được trừ khi:
+        // 1. Tạo hoá đơn từ giỏ hàng (tại quầy) - khi tạo HoaDon từ HoaDonCho
+        // 2. Tạo hoá đơn từ website (checkout) - khi tạo HoaDon với status = DA_XAC_NHAN
+        // 3. Cập nhật trạng thái hoá đơn thành DA_XAC_NHAN
+        // Chỉ kiểm tra tồn kho để đảm bảo đủ hàng, nhưng không trừ ngay
         
         // Calculate thanhTien
         BigDecimal total = gioHangCho.getDonGia().multiply(BigDecimal.valueOf(gioHangCho.getSoLuong()));
@@ -209,12 +268,6 @@ public class HoaDonChoService {
         gioHangChoRepository.save(gioHangCho);
         gioHangChoRepository.flush();
 
-        // QUAN TRỌNG: KHÔNG trừ số lượng khi thêm vào giỏ hàng
-        // Số lượng sẽ được trừ khi:
-        // 1. Tạo hoá đơn từ giỏ hàng (tại quầy) - khi tạo HoaDon từ HoaDonCho
-        // 2. Tạo hoá đơn từ website (checkout) - khi tạo HoaDon với status = DA_XAC_NHAN
-        // 3. Cập nhật trạng thái hoá đơn thành DA_XAC_NHAN
-        // Chỉ kiểm tra tồn kho để đảm bảo đủ hàng, nhưng không trừ ngay
         log.info("✅ Added item to cart. ChiTietSanPham id: {}, quantity: {}, current stock: {} (Stock will be deducted when invoice is created or confirmed)", 
                 chiTietSanPham.getId(), quantityToAdd, currentStock);
 
@@ -253,11 +306,6 @@ public class HoaDonChoService {
         return BigDecimal.ZERO;
     }
 
-    private void updateProductStock(ChiTietSanPham chiTietSanPham, int newStock) {
-        chiTietSanPham.setSoLuongTon(String.valueOf(Math.max(newStock, 0)));
-        chiTietSanPhamRepository.save(chiTietSanPham);
-    }
-
     @Transactional
     public HoaDonChoResponse updateCartItemQuantity(Long hoaDonChoId, Long gioHangChoId, Integer soLuong) {
         GioHangCho gioHangCho = gioHangChoRepository.findById(gioHangChoId)
@@ -269,7 +317,6 @@ public class HoaDonChoService {
 
         int newQuantity = soLuong != null && soLuong > 0 ? soLuong : 1;
         int oldQuantity = gioHangCho.getSoLuong();
-        int quantityDifference = newQuantity - oldQuantity;
 
         // Get product and current stock
         ChiTietSanPham chiTietSanPham = gioHangCho.getChiTietSanPham();
@@ -280,18 +327,27 @@ public class HoaDonChoService {
             log.warn("Invalid stock quantity format for ChiTietSanPham id: {}", chiTietSanPham.getId());
         }
 
-        // If increasing quantity, check if stock is sufficient
-        if (quantityDifference > 0 && quantityDifference > currentStock) {
+        // QUAN TRỌNG: Tính tổng số lượng trong giỏ hàng sau khi cập nhật
+        // Cần lấy tổng số lượng của tất cả các item cùng chiTietSanPham trong giỏ hàng này
+        List<GioHangCho> allItemsSameProduct = gioHangChoRepository
+                .findAllByHoaDonChoIdAndChiTietSanPhamId(hoaDonChoId, chiTietSanPham.getId());
+        int totalQuantityInCart = allItemsSameProduct.stream()
+                .filter(item -> !item.getId().equals(gioHangChoId)) // Trừ item hiện tại
+                .mapToInt(item -> item.getSoLuong() != null ? item.getSoLuong() : 0)
+                .sum();
+        int newTotalQuantity = totalQuantityInCart + newQuantity;
+
+        // Kiểm tra tồn kho: tổng số lượng trong giỏ sau khi cập nhật phải <= tồn kho
+        if (newTotalQuantity > currentStock) {
             throw new RuntimeException(
-                String.format("Số lượng sản phẩm không đủ. Hiện tại còn %d sản phẩm trong kho.", currentStock)
+                String.format("Số lượng sản phẩm không đủ. Hiện tại còn %d sản phẩm trong kho, sẽ có %d trong giỏ hàng sau khi cập nhật.", 
+                    currentStock, newTotalQuantity)
             );
         }
 
-        if (quantityDifference > 0) {
-            updateProductStock(chiTietSanPham, currentStock - quantityDifference);
-        } else if (quantityDifference < 0) {
-            updateProductStock(chiTietSanPham, currentStock + Math.abs(quantityDifference));
-        }
+        // QUAN TRỌNG: KHÔNG trừ/cộng số lượng khi cập nhật số lượng trong giỏ hàng
+        // Số lượng sẽ được trừ khi tạo hoá đơn từ giỏ hàng hoặc khi hoá đơn được xác nhận
+        // Chỉ kiểm tra tồn kho để đảm bảo đủ hàng, nhưng không trừ ngay
 
         // Update cart quantity
         gioHangCho.setSoLuong(newQuantity);
@@ -303,9 +359,6 @@ public class HoaDonChoService {
         gioHangChoRepository.save(gioHangCho);
         gioHangChoRepository.flush();
 
-        // QUAN TRỌNG: KHÔNG trừ/cộng số lượng khi cập nhật số lượng trong giỏ hàng
-        // Số lượng sẽ được trừ khi tạo hoá đơn từ giỏ hàng hoặc khi hoá đơn được xác nhận
-        // Chỉ kiểm tra tồn kho để đảm bảo đủ hàng, nhưng không trừ ngay
         log.info("✅ Updated cart item quantity. ChiTietSanPham id: {}, quantity changed from {} to {}, current stock: {} (Stock will be deducted when invoice is created or confirmed)", 
                 chiTietSanPham.getId(), oldQuantity, newQuantity, currentStock);
 
@@ -345,11 +398,11 @@ public class HoaDonChoService {
             log.info("Fallback to JPA delete successful.");
         }
 
-        // Hoàn lại số lượng vì đã trừ khi thêm vào giỏ hàng
-        int currentStock = parseSoLuongTon(chiTietSanPham);
-        updateProductStock(chiTietSanPham, currentStock + quantityRemoved);
+        // QUAN TRỌNG: KHÔNG cộng lại số lượng khi xóa khỏi giỏ hàng
+        // Vì số lượng KHÔNG được trừ khi thêm vào giỏ hàng
+        // Số lượng chỉ được trừ khi tạo hoá đơn và hoá đơn được xác nhận (DA_XAC_NHAN)
 
-        log.info("✅ Removed item from cart. ChiTietSanPham id: {}, quantity removed: {} (Stock restored)", 
+        log.info("✅ Removed item from cart. ChiTietSanPham id: {}, quantity removed: {} (Stock was not deducted, so no need to restore)", 
                 chiTietSanPham.getId(), quantityRemoved);
 
         // Clear entity manager to force fresh load from database
@@ -426,10 +479,30 @@ public class HoaDonChoService {
                 .orElseThrow(() -> new EntityNotFoundException("Không tìm thấy hóa đơn chờ với ID: " + id));
     }
 
+    /**
+     * Lấy giỏ hàng ONLINE (nhanVienId = null) theo khách hàng
+     * Dùng cho web bán hàng online - không lấy giỏ hàng tại quầy
+     */
     public List<HoaDonChoResponse> getHoaDonChoByKhachHangId(Long khachHangId) {
-        return hoaDonChoRepository.findByKhachHangId(khachHangId).stream()
+        log.debug("🔍 Getting ONLINE carts for khachHangId: {} (nhanVienId must be null)", khachHangId);
+        List<HoaDonChoResponse> result = hoaDonChoRepository.findByKhachHangIdAndNhanVienIsNull(khachHangId).stream()
                 .map(this::toResponse)
                 .collect(Collectors.toList());
+        log.debug("✅ Found {} ONLINE carts for khachHangId: {}", result.size(), khachHangId);
+        return result;
+    }
+    
+    /**
+     * Lấy giỏ hàng TẠI QUẦY (nhanVienId != null) theo nhân viên
+     * Dùng cho counter sales
+     */
+    public List<HoaDonChoResponse> getHoaDonChoCounterByNhanVienId(Long nhanVienId) {
+        log.debug("🔍 Getting COUNTER carts for nhanVienId: {}", nhanVienId);
+        List<HoaDonChoResponse> result = hoaDonChoRepository.findByNhanVienId(nhanVienId).stream()
+                .map(this::toResponse)
+                .collect(Collectors.toList());
+        log.debug("✅ Found {} COUNTER carts for nhanVienId: {}", result.size(), nhanVienId);
+        return result;
     }
 }
 

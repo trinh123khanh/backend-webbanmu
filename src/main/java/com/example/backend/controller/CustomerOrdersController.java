@@ -74,21 +74,21 @@ public class CustomerOrdersController {
                 if (user.getEmail() != null && !user.getEmail().isEmpty()) {
                     khachHang = khachHangRepository.findByEmail(user.getEmail()).orElse(null);
                 }
-                
-                // Nếu vẫn chưa có, trả về danh sách rỗng (user chưa có đơn hàng nào)
-                if (khachHang == null) {
-                    System.out.println("⚠️ KhachHang not found for user: " + username + ", returning empty list");
-                    Map<String, Object> response = new HashMap<>();
-                    response.put("content", List.of());
-                    response.put("totalElements", 0);
-                    response.put("totalPages", 0);
-                    response.put("currentPage", page);
-                    response.put("size", size);
-                    response.put("first", true);
-                    response.put("last", true);
-                    response.put("numberOfElements", 0);
-                    return ResponseEntity.ok(response);
-                }
+            }
+            
+            // Nếu vẫn chưa có, trả về danh sách rỗng (user chưa có đơn hàng nào)
+            if (khachHang == null) {
+                System.out.println("⚠️ KhachHang not found for user: " + username + ", returning empty list");
+                Map<String, Object> response = new HashMap<>();
+                response.put("content", List.of());
+                response.put("totalElements", 0);
+                response.put("totalPages", 0);
+                response.put("currentPage", page);
+                response.put("size", size);
+                response.put("first", true);
+                response.put("last", true);
+                response.put("numberOfElements", 0);
+                return ResponseEntity.ok(response);
             }
             
             // Gọi service để lấy đơn hàng đã thanh toán của khách hàng

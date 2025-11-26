@@ -20,6 +20,11 @@ public interface HoaDonChoRepository extends JpaRepository<HoaDonCho, Long> {
     
     List<HoaDonCho> findByKhachHangId(Long khachHangId);
     
+    // Lấy giỏ hàng ONLINE (nhanVienId = null) theo khách hàng
+    @Query("SELECT h FROM HoaDonCho h WHERE h.khachHang.id = :khachHangId AND h.nhanVien IS NULL")
+    List<HoaDonCho> findByKhachHangIdAndNhanVienIsNull(@Param("khachHangId") Long khachHangId);
+    
+    // Lấy giỏ hàng TẠI QUẦY (nhanVienId != null) theo nhân viên
     List<HoaDonCho> findByNhanVienId(Long nhanVienId);
     
     @Query("SELECT h FROM HoaDonCho h ORDER BY h.ngayTao DESC")

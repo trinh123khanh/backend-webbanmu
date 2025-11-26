@@ -294,10 +294,17 @@ public class HoaDonService {
         }
         
         // Map nhân viên từ ID
+        // QUAN TRỌNG: Nếu nhanVienId là null (đơn hàng online), phải set nhanVien = null
+        // Nếu nhanVienId không null (đơn hàng tại quầy), load và set nhanVien
         if (d.getNhanVienId() != null) {
             NhanVien nhanVien = nhanVienRepository.findById(d.getNhanVienId())
                     .orElseThrow(() -> new RuntimeException("Không tìm thấy nhân viên với ID: " + d.getNhanVienId()));
             h.setNhanVien(nhanVien);
+            System.out.println("🏪 Counter order - Set nhanVien ID: " + d.getNhanVienId());
+        } else {
+            // Đơn hàng online - đảm bảo nhanVien = null
+            h.setNhanVien(null);
+            System.out.println("🌐 Online order - Set nhanVien = null");
         }
     }
 
@@ -520,12 +527,6 @@ public class HoaDonService {
             h.setDanhSachChiTiet(chiTietList);
             h.setSoLuongSanPham(chiTietList.size());
             
-            // QUAN TRỌNG: KHÔNG trừ số lượng khi tạo hoá đơn
-            // Số lượng sẽ CHỈ được trừ khi hoá đơn được xác nhận (status = DA_XAC_NHAN)
-            // Điều này áp dụng cho cả đơn hàng online và đơn hàng tại quầy
-            // Khách hàng chỉ được coi là "thanh toán thành công" khi admin/staff xác nhận đơn hàng
-            System.out.println("✅ Invoice created. Stock will be deducted when status changes to DA_XAC_NHAN (confirmed)");
-            
             // Tính lại tổng tiền từ danh sách chi tiết
             if (h.getTongTien() == null || h.getTongTien().compareTo(recalculatedTotal) != 0) {
                 System.out.println("⚠️ Recalculated total: " + h.getTongTien() + " -> " + recalculatedTotal);
@@ -560,16 +561,48 @@ public class HoaDonService {
         }
         
         // Verify danhSachChiTiet đã được lưu
+        List<HoaDonChiTiet> savedChiTietList = null;
         if (saved.getDanhSachChiTiet() != null) {
             System.out.println("✅ Saved invoice with " + saved.getDanhSachChiTiet().size() + " danhSachChiTiet items");
+            savedChiTietList = saved.getDanhSachChiTiet();
         } else {
             System.err.println("❌ WARNING: danhSachChiTiet is null after save! Invoice ID: " + saved.getId());
             // Thử load lại từ repository
-            List<HoaDonChiTiet> chiTietFromRepo = hoaDonChiTietRepository.findByHoaDonId(saved.getId());
-            if (chiTietFromRepo != null && !chiTietFromRepo.isEmpty()) {
-                System.out.println("✅ Found " + chiTietFromRepo.size() + " items in repository after save");
-                saved.setDanhSachChiTiet(chiTietFromRepo);
+            savedChiTietList = hoaDonChiTietRepository.findByHoaDonId(saved.getId());
+            if (savedChiTietList != null && !savedChiTietList.isEmpty()) {
+                System.out.println("✅ Found " + savedChiTietList.size() + " items in repository after save");
+                saved.setDanhSachChiTiet(savedChiTietList);
             }
+        }
+        
+        // QUAN TRỌNG: Logic trừ số lượng
+        // 1. Đơn hàng ONLINE (nhanVienId = null): Trừ stock ngay khi đặt hàng thành công (khi tạo đơn), KHÔNG cần chờ admin xác nhận
+        // 2. Đơn hàng TẠI QUẦY (nhanVienId != null): KHÔNG trừ stock khi tạo đơn, chỉ trừ khi admin xác nhận (DA_XAC_NHAN)
+        // Lý do: 
+        //   - Online: Khách hàng đặt hàng = đã thanh toán thành công, trừ stock ngay
+        //   - Tại quầy: Chưa thanh toán, chỉ trừ khi admin xác nhận (thanh toán thành công)
+        
+        // Debug: Log thông tin để kiểm tra
+        System.out.println("🔍 Checking order type for stock deduction:");
+        System.out.println("   - saved.getNhanVien(): " + (saved.getNhanVien() != null ? "ID=" + saved.getNhanVien().getId() : "null"));
+        System.out.println("   - savedChiTietList: " + (savedChiTietList != null ? savedChiTietList.size() + " items" : "null"));
+        System.out.println("   - Order status: " + saved.getTrangThai());
+        
+        if (saved.getNhanVien() == null) {
+            // Đơn hàng ONLINE - trừ stock ngay khi đặt hàng thành công (khi tạo đơn)
+            if (savedChiTietList != null && !savedChiTietList.isEmpty()) {
+                System.out.println("🌐 Online order detected (nhanVienId = null) - Deducting stock immediately (order placed successfully)...");
+                System.out.println("   - Number of items to deduct: " + savedChiTietList.size());
+                deductStockFromInvoice(savedChiTietList);
+            } else {
+                System.err.println("❌ WARNING: Online order but savedChiTietList is null or empty! Cannot deduct stock.");
+                System.err.println("   - savedChiTietList is null: " + (savedChiTietList == null));
+                System.err.println("   - savedChiTietList is empty: " + (savedChiTietList != null && savedChiTietList.isEmpty()));
+            }
+        } else {
+            // Đơn hàng TẠI QUẦY - KHÔNG trừ stock khi tạo đơn, sẽ trừ khi admin xác nhận (DA_XAC_NHAN)
+            System.out.println("🏪 Counter order detected (nhanVienId = " + saved.getNhanVien().getId() + 
+                ") - Stock will be deducted when status changes to DA_XAC_NHAN (confirmed)");
         }
         
         // Xử lý địa chỉ giao hàng: Nếu có địa chỉ từ DTO (checkout), tạo hoặc cập nhật địa chỉ khách hàng
@@ -913,27 +946,54 @@ public class HoaDonService {
         try {
             HoaDon.TrangThaiHoaDon newTrangThai = HoaDon.TrangThaiHoaDon.valueOf(trangThai);
             
-            // QUAN TRỌNG: Xử lý tồn kho TRƯỚC khi update trạng thái
-            // Số lượng CHỈ được trừ khi hoá đơn được xác nhận (status = DA_XAC_NHAN)
-            // Điều này áp dụng cho CẢ đơn hàng online và đơn hàng tại quầy
-            // Khách hàng chỉ được coi là "thanh toán thành công" khi admin/staff xác nhận đơn hàng
-            // 1. Nếu chuyển SANG DA_XAC_NHAN: Trừ tồn kho (thanh toán thành công)
-            // 2. Nếu chuyển TỪ DA_XAC_NHAN sang trạng thái khác (không phải DA_HUY và DA_GIAO_HANG): Hoàn lại tồn kho
-            //    (Nếu chuyển từ DA_XAC_NHAN sang DA_GIAO_HANG, KHÔNG hoàn lại vì đã trừ rồi và đơn đang tiến triển)
-            if (newTrangThai == HoaDon.TrangThaiHoaDon.DA_XAC_NHAN && 
-                oldTrangThai != HoaDon.TrangThaiHoaDon.DA_XAC_NHAN) {
-                // Chuyển SANG DA_XAC_NHAN: Trừ tồn kho (khách hàng đã thanh toán thành công)
-                System.out.println("💰 Status changed to DA_XAC_NHAN (Payment confirmed) - Deducting stock...");
-                deductStockFromInvoice(chiTietBeforeUpdate);
-            } else if (oldTrangThai == HoaDon.TrangThaiHoaDon.DA_XAC_NHAN && 
-                       newTrangThai != HoaDon.TrangThaiHoaDon.DA_XAC_NHAN &&
-                       newTrangThai != HoaDon.TrangThaiHoaDon.DA_HUY &&
-                       newTrangThai != HoaDon.TrangThaiHoaDon.DA_GIAO_HANG &&
-                       newTrangThai != HoaDon.TrangThaiHoaDon.DANG_GIAO_HANG) {
-                // Chuyển TỪ DA_XAC_NHAN sang trạng thái khác (trừ DA_HUY, DA_GIAO_HANG, DANG_GIAO_HANG): Hoàn lại tồn kho
-                // Chỉ hoàn lại nếu chuyển về CHO_XAC_NHAN (hủy xác nhận)
-                System.out.println("💰 Status changed from DA_XAC_NHAN to " + newTrangThai + " - Restoring stock...");
-                restoreStockFromInvoice(chiTietBeforeUpdate);
+            // QUAN TRỌNG: Xử lý tồn kho khi cập nhật trạng thái
+            // Logic mới:
+            // 1. Đơn hàng ONLINE (nhanVienId = null): Đã trừ stock khi tạo đơn, chỉ hoàn lại nếu hủy
+            // 2. Đơn hàng TẠI QUẦY (nhanVienId != null): Trừ stock khi xác nhận (DA_XAC_NHAN)
+            
+            boolean isOnlineOrder = hoaDon.getNhanVien() == null;
+            
+            // QUAN TRỌNG: Xử lý tồn kho khi cập nhật trạng thái
+            // Logic mới:
+            // 1. Đơn hàng ONLINE (nhanVienId = null): Đã trừ stock khi đặt hàng thành công (khi tạo đơn), chỉ hoàn lại nếu hủy
+            // 2. Đơn hàng TẠI QUẦY (nhanVienId != null): Trừ stock khi admin xác nhận (DA_XAC_NHAN), hoàn lại nếu hủy
+            
+            if (isOnlineOrder) {
+                // Đơn hàng ONLINE - đã trừ stock khi đặt hàng thành công (khi tạo đơn)
+                if (newTrangThai == HoaDon.TrangThaiHoaDon.DA_HUY) {
+                    // Hủy đơn hàng online - hoàn lại stock (cả khách hàng và admin/nhân viên hủy)
+                    if (oldTrangThai != HoaDon.TrangThaiHoaDon.DA_HUY) {
+                        System.out.println("💰 Online order cancelled (DA_HUY) - Restoring stock...");
+                        System.out.println("   - Old status: " + oldTrangThai + " -> New status: " + newTrangThai);
+                        restoreStockFromInvoice(chiTietBeforeUpdate);
+                    }
+                }
+                // Nếu chuyển sang DA_XAC_NHAN hoặc các trạng thái khác, không làm gì (đã trừ stock rồi)
+            } else {
+                // Đơn hàng TẠI QUẦY - trừ stock khi admin xác nhận
+                if (newTrangThai == HoaDon.TrangThaiHoaDon.DA_XAC_NHAN && 
+                    oldTrangThai != HoaDon.TrangThaiHoaDon.DA_XAC_NHAN) {
+                    // Chuyển SANG DA_XAC_NHAN: Trừ tồn kho (thanh toán thành công)
+                    System.out.println("💰 Counter order confirmed (DA_XAC_NHAN) - Deducting stock (payment successful)...");
+                    deductStockFromInvoice(chiTietBeforeUpdate);
+                } else if (newTrangThai == HoaDon.TrangThaiHoaDon.DA_HUY) {
+                    // Hủy đơn hàng tại quầy - hoàn lại stock nếu đã xác nhận (đã trừ stock)
+                    if (oldTrangThai == HoaDon.TrangThaiHoaDon.DA_XAC_NHAN) {
+                        System.out.println("💰 Counter order cancelled (DA_HUY) after confirmation - Restoring stock...");
+                        System.out.println("   - Old status: " + oldTrangThai + " -> New status: " + newTrangThai);
+                        restoreStockFromInvoice(chiTietBeforeUpdate);
+                    } else {
+                        System.out.println("💰 Counter order cancelled (DA_HUY) before confirmation - No stock to restore");
+                    }
+                } else if (oldTrangThai == HoaDon.TrangThaiHoaDon.DA_XAC_NHAN && 
+                           newTrangThai != HoaDon.TrangThaiHoaDon.DA_XAC_NHAN &&
+                           newTrangThai != HoaDon.TrangThaiHoaDon.DA_HUY &&
+                           newTrangThai != HoaDon.TrangThaiHoaDon.DA_GIAO_HANG &&
+                           newTrangThai != HoaDon.TrangThaiHoaDon.DANG_GIAO_HANG) {
+                    // Chuyển TỪ DA_XAC_NHAN sang trạng thái khác (trừ DA_HUY, DA_GIAO_HANG, DANG_GIAO_HANG): Hoàn lại tồn kho
+                    System.out.println("💰 Counter order status changed from DA_XAC_NHAN to " + newTrangThai + " - Restoring stock...");
+                    restoreStockFromInvoice(chiTietBeforeUpdate);
+                }
             }
             
             // QUAN TRỌNG: Update trạng thái bằng query trực tiếp, KHÔNG load entity
@@ -1013,9 +1073,9 @@ public class HoaDonService {
     }
 
     /**
-     * Trừ tồn kho sản phẩm khi hoá đơn được xác nhận (status = DA_XAC_NHAN)
-     * Điều này xảy ra khi admin/staff xác nhận đơn hàng = khách hàng đã thanh toán thành công
-     * Áp dụng cho CẢ đơn hàng online và đơn hàng tại quầy
+     * Trừ tồn kho sản phẩm
+     * - Đối với đơn hàng ONLINE: Được gọi ngay khi tạo đơn hàng (khách hàng đã thanh toán)
+     * - Đối với đơn hàng TẠI QUẦY: Được gọi khi admin/staff xác nhận đơn hàng (status = DA_XAC_NHAN)
      */
     private void deductStockFromInvoice(List<HoaDonChiTiet> danhSachChiTiet) {
         if (danhSachChiTiet == null || danhSachChiTiet.isEmpty()) {
@@ -1325,13 +1385,13 @@ public class HoaDonService {
     }
 
     public Page<HoaDon> getHoaDonByKhachHangId(Long khachHangId, Pageable pageable) {
-        // QUAN TRỌNG: Chỉ lấy đơn hàng đã thanh toán (đã được xác nhận trở lên, không phải CHO_XAC_NHAN và không phải DA_HUY/HUY)
-        // Đơn hàng đã thanh toán = trạng thái không phải CHO_XAC_NHAN và không phải DA_HUY/HUY
-        // Đếm tổng số bản ghi đã thanh toán
+        // QUAN TRỌNG: Hiển thị TẤT CẢ đơn hàng của khách hàng, TRỪ các đơn hàng đã hủy (DA_HUY/HUY)
+        // Khách hàng cần thấy cả đơn hàng đang chờ xác nhận (CHO_XAC_NHAN) để theo dõi trạng thái
+        // Chỉ loại bỏ các đơn hàng đã hủy (DA_HUY/HUY)
+        // Đếm tổng số bản ghi (trừ các đơn hàng đã hủy)
         jakarta.persistence.TypedQuery<Long> countQuery = entityManager.createQuery(
             "SELECT COUNT(DISTINCT h) FROM HoaDon h " +
             "WHERE h.khachHang.id = :khachHangId " +
-            "AND h.trangThai != 'CHO_XAC_NHAN' " +
             "AND h.trangThai != 'DA_HUY' " +
             "AND h.trangThai != 'HUY'",
             Long.class
@@ -1339,9 +1399,9 @@ public class HoaDonService {
         countQuery.setParameter("khachHangId", khachHangId);
         long totalElements = countQuery.getSingleResult();
         
-        System.out.println("📋 getHoaDonByKhachHangId - Total paid orders for customer " + khachHangId + ": " + totalElements);
+        System.out.println("📋 getHoaDonByKhachHangId - Total orders (excluding cancelled) for customer " + khachHangId + ": " + totalElements);
         
-        // Query với join fetch để load các relationships - chỉ lấy đơn hàng đã thanh toán
+        // Query với join fetch để load các relationships - lấy tất cả đơn hàng trừ đã hủy
         jakarta.persistence.TypedQuery<HoaDon> query = entityManager.createQuery(
             "SELECT DISTINCT h FROM HoaDon h " +
             "LEFT JOIN FETCH h.khachHang " +
@@ -1353,7 +1413,6 @@ public class HoaDonService {
             "LEFT JOIN FETCH ct.mauSac " +
             "LEFT JOIN FETCH ct.kichThuoc " +
             "WHERE h.khachHang.id = :khachHangId " +
-            "AND h.trangThai != 'CHO_XAC_NHAN' " +
             "AND h.trangThai != 'DA_HUY' " +
             "AND h.trangThai != 'HUY' " +
             "ORDER BY h.ngayTao DESC",
@@ -1365,6 +1424,8 @@ public class HoaDonService {
         query.setFirstResult((int) pageable.getOffset());
         query.setMaxResults(pageable.getPageSize());
         List<HoaDon> results = query.getResultList();
+        
+        System.out.println("📋 getHoaDonByKhachHangId - Returning " + results.size() + " orders for page " + pageable.getPageNumber());
         
         // Create a Page manually
         return new org.springframework.data.domain.PageImpl<>(results, pageable, totalElements);
