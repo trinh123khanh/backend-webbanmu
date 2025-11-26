@@ -67,16 +67,26 @@ public class HoaDonChoController {
     @PostMapping
     public ResponseEntity<?> createHoaDonCho(@RequestBody HoaDonChoRequest request) {
         try {
+            System.out.println("📥 POST /api/hoa-don-cho - Creating cart");
+            System.out.println("   - maHoaDonCho: " + request.getMaHoaDonCho());
+            System.out.println("   - khachHangId: " + request.getKhachHangId());
+            System.out.println("   - trangThai: " + request.getTrangThai());
+            
             if (request.getMaHoaDonCho() == null || request.getMaHoaDonCho().trim().isEmpty()) {
                 Map<String, String> error = new HashMap<>();
                 error.put("error", "Mã hóa đơn chờ không được để trống");
+                System.out.println("❌ Validation failed: Mã hóa đơn chờ không được để trống");
                 return ResponseEntity.badRequest().body(error);
             }
             HoaDonChoResponse response = hoaDonChoService.createHoaDonCho(request);
+            System.out.println("✅ Cart created successfully with ID: " + response.getId());
             return ResponseEntity.status(HttpStatus.CREATED).body(response);
         } catch (Exception e) {
+            System.err.println("❌ Error creating cart: " + e.getMessage());
+            e.printStackTrace();
             Map<String, String> error = new HashMap<>();
             error.put("error", "Lỗi khi tạo hóa đơn chờ: " + e.getMessage());
+            error.put("message", e.getMessage());
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(error);
         }
     }
