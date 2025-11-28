@@ -847,6 +847,17 @@ public class HoaDonService {
         System.out.println("   - dto.getDanhSachChiTiet() size: " + (dto.getDanhSachChiTiet() != null ? dto.getDanhSachChiTiet().size() : "null"));
         System.out.println("   - Current h.getDanhSachChiTiet() size: " + (h.getDanhSachChiTiet() != null ? h.getDanhSachChiTiet().size() : "null"));
 
+        // QUAN TRỌNG: Đảm bảo danhSachChiTiet được load đầy đủ từ database trước khi xử lý
+        // Nếu collection hiện tại là null hoặc empty nhưng có dữ liệu trong DB, load lại
+        if ((h.getDanhSachChiTiet() == null || h.getDanhSachChiTiet().isEmpty()) && dto.getDanhSachChiTiet() == null) {
+            System.out.println("🔄 danhSachChiTiet is null/empty in entity but DTO also null - Loading from repository...");
+            List<HoaDonChiTiet> existingChiTiet = hoaDonChiTietRepository.findByHoaDonId(id);
+            if (existingChiTiet != null && !existingChiTiet.isEmpty()) {
+                System.out.println("✅ Found " + existingChiTiet.size() + " existing items in DB, setting to entity");
+                h.setDanhSachChiTiet(existingChiTiet);
+            }
+        }
+
         // Chỉ xử lý danhSachChiTiet nếu có dữ liệu mới (không null và không empty)
         // Nếu null hoặc empty, giữ nguyên collection hiện tại để không mất dữ liệu
         if (dto.getDanhSachChiTiet() != null && !dto.getDanhSachChiTiet().isEmpty()) {
@@ -889,10 +900,22 @@ public class HoaDonService {
 
             System.out.println("✅ Added " + h.getDanhSachChiTiet().size() + " items to danhSachChiTiet");
         } else {
-            // Nếu danhSachChiTiet là null hoặc empty, giữ nguyên collection hiện tại
+            // Nếu danhSachChiTiet là null hoặc empty trong DTO, giữ nguyên collection hiện tại
             // Điều này đảm bảo không mất dữ liệu khi chỉ cập nhật trạng thái hoặc ghi chú
-            System.out.println("⚠️ danhSachChiTiet is null or empty, keeping existing collection (size: " +
-                (h.getDanhSachChiTiet() != null ? h.getDanhSachChiTiet().size() : 0) + ")");
+            // QUAN TRỌNG: Đảm bảo collection không bị null trước khi save
+            if (h.getDanhSachChiTiet() == null) {
+                System.out.println("⚠️ danhSachChiTiet is null in entity, loading from repository to prevent deletion...");
+                List<HoaDonChiTiet> existingChiTiet = hoaDonChiTietRepository.findByHoaDonId(id);
+                if (existingChiTiet != null && !existingChiTiet.isEmpty()) {
+                    System.out.println("✅ Loaded " + existingChiTiet.size() + " items from repository");
+                    h.setDanhSachChiTiet(existingChiTiet);
+                } else {
+                    System.out.println("⚠️ No existing items found in repository, initializing empty list");
+                    h.setDanhSachChiTiet(new ArrayList<>());
+                }
+            } else {
+                System.out.println("✅ Keeping existing danhSachChiTiet collection (size: " + h.getDanhSachChiTiet().size() + ")");
+            }
         }
         
         System.out.println("💾 Saving invoice with ghiChu: '" + h.getGhiChu() + "'");
