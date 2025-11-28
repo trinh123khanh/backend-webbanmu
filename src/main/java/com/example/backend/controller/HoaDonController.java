@@ -425,6 +425,65 @@ public class HoaDonController {
         }
     }
 
+    /**
+     * Hoàn tiền khi hủy đơn hàng
+     * POST /api/hoa-don/{id}/refund
+     */
+    @PostMapping("/{id}/refund")
+    @PreAuthorize("hasAnyRole('ADMIN', 'STAFF')")
+    public ResponseEntity<?> refundInvoice(@PathVariable Long id, @RequestBody com.example.backend.dto.RefundRequest refundRequest) {
+        try {
+            System.out.println("💰 Processing refund for invoice ID: " + id);
+            System.out.println("   Refund amount: " + refundRequest.getRefundAmount());
+            System.out.println("   Refund reason: " + refundRequest.getRefundReason());
+            System.out.println("   Refund method: " + refundRequest.getRefundMethod());
+            
+            HoaDonDTO result = hoaDonService.processRefund(id, refundRequest);
+            return ResponseEntity.ok(result);
+        } catch (jakarta.persistence.EntityNotFoundException e) {
+            return ResponseEntity.status(org.springframework.http.HttpStatus.NOT_FOUND)
+                .body(e.getMessage());
+        } catch (IllegalStateException e) {
+            return ResponseEntity.status(org.springframework.http.HttpStatus.BAD_REQUEST)
+                .body(e.getMessage());
+        } catch (Exception e) {
+            System.err.println("❌ Error processing refund: " + e.getMessage());
+            e.printStackTrace();
+            return ResponseEntity.status(org.springframework.http.HttpStatus.INTERNAL_SERVER_ERROR)
+                .body("Lỗi khi xử lý hoàn tiền: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Điều chỉnh phí ship (hoàn phí hoặc tăng phụ phí)
+     * POST /api/hoa-don/{id}/adjust-shipping-fee
+     */
+    @PostMapping("/{id}/adjust-shipping-fee")
+    @PreAuthorize("hasAnyRole('ADMIN', 'STAFF')")
+    public ResponseEntity<?> adjustShippingFee(@PathVariable Long id, @RequestBody com.example.backend.dto.ShippingFeeAdjustmentRequest adjustmentRequest) {
+        try {
+            System.out.println("🚚 Processing shipping fee adjustment for invoice ID: " + id);
+            System.out.println("   Old shipping fee: " + adjustmentRequest.getOldShippingFee());
+            System.out.println("   New shipping fee: " + adjustmentRequest.getNewShippingFee());
+            System.out.println("   Adjustment type: " + adjustmentRequest.getAdjustmentType());
+            System.out.println("   Adjustment amount: " + adjustmentRequest.getAdjustmentAmount());
+            
+            HoaDonDTO result = hoaDonService.adjustShippingFee(id, adjustmentRequest);
+            return ResponseEntity.ok(result);
+        } catch (jakarta.persistence.EntityNotFoundException e) {
+            return ResponseEntity.status(org.springframework.http.HttpStatus.NOT_FOUND)
+                .body(e.getMessage());
+        } catch (IllegalStateException e) {
+            return ResponseEntity.status(org.springframework.http.HttpStatus.BAD_REQUEST)
+                .body(e.getMessage());
+        } catch (Exception e) {
+            System.err.println("❌ Error adjusting shipping fee: " + e.getMessage());
+            e.printStackTrace();
+            return ResponseEntity.status(org.springframework.http.HttpStatus.INTERNAL_SERVER_ERROR)
+                .body("Lỗi khi điều chỉnh phí ship: " + e.getMessage());
+        }
+    }
+
     @GetMapping("/test")
     public ResponseEntity<String> test() {
         return ResponseEntity.ok("API hoạt động bình thường!");

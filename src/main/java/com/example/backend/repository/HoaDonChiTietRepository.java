@@ -73,6 +73,11 @@ public interface HoaDonChiTietRepository extends JpaRepository<HoaDonChiTiet, Lo
            "WHERE hdct.hoaDon.id = :hoaDonId")
     List<HoaDonChiTiet> findByHoaDonId(@Param("hoaDonId") Long hoaDonId);
     
+    // Query đơn giản hơn - chỉ lấy theo hoa_don_id (không JOIN FETCH)
+    // Dùng khi query với JOIN FETCH không hoạt động
+    @Query("SELECT hdct FROM HoaDonChiTiet hdct WHERE hdct.hoaDon.id = :hoaDonId")
+    List<HoaDonChiTiet> findByHoaDonIdSimple(@Param("hoaDonId") Long hoaDonId);
+    
     // Query đơn giản nhất - lấy tất cả không filter gì cả (để test)
     @Query("SELECT hdct FROM HoaDonChiTiet hdct " +
            "JOIN FETCH hdct.hoaDon hd " +
