@@ -376,9 +376,15 @@ public class HoaDonService {
         }
         if (d.getSoLuongSanPham() != null) h.setSoLuongSanPham(d.getSoLuongSanPham());
         
+        // ✅ CHO PHÉP HÓA ĐƠN KHÔNG CÓ KHÁCH HÀNG (BÁN HÀNG TẠI QUẦY)
         KhachHang attachedCustomer = resolveCustomerForInvoice(d);
         if (attachedCustomer != null) {
             h.setKhachHang(attachedCustomer);
+            System.out.println("✅ Set khachHang ID: " + attachedCustomer.getId());
+        } else {
+            // Cho phép khách hàng là null
+            h.setKhachHang(null);
+            System.out.println("✅ Set khachHang = null (counter sale without customer - ALLOWED)");
         }
         
         // Map nhân viên từ ID

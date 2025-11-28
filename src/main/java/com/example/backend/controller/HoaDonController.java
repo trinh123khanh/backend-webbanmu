@@ -203,21 +203,13 @@ public class HoaDonController {
                 return ResponseEntity.badRequest().body("Mã hóa đơn không được để trống");
             }
             
-            // Validate thông tin khách hàng: Nếu không có khachHangId thì phải có thông tin khách hàng
-            if (hoaDonDTO.getKhachHangId() == null) {
-                if (hoaDonDTO.getTenKhachHang() == null || hoaDonDTO.getTenKhachHang().trim().isEmpty()) {
-                    System.out.println("❌ Validation failed: Tên khách hàng không được để trống");
-                    return ResponseEntity.badRequest().body("Tên khách hàng không được để trống");
-                }
-                if (hoaDonDTO.getEmailKhachHang() == null || hoaDonDTO.getEmailKhachHang().trim().isEmpty()) {
-                    System.out.println("❌ Validation failed: Email khách hàng không được để trống");
-                    return ResponseEntity.badRequest().body("Email khách hàng không được để trống");
-                }
-                if (hoaDonDTO.getSoDienThoaiKhachHang() == null || hoaDonDTO.getSoDienThoaiKhachHang().trim().isEmpty()) {
-                    System.out.println("❌ Validation failed: Số điện thoại khách hàng không được để trống");
-                    return ResponseEntity.badRequest().body("Số điện thoại khách hàng không được để trống");
-                }
-            }
+            // ✅ CHO PHÉP TẠO HÓA ĐƠN KHÔNG CẦN THÔNG TIN KHÁCH HÀNG (BÁN HÀNG TẠI QUẦY)
+            // ✅ Không validate thông tin khách hàng - cho phép null/empty
+            System.out.println("✅ Customer info validation: SKIPPED (allowing null/empty for counter sales)");
+            System.out.println("   - khachHangId: " + hoaDonDTO.getKhachHangId() + " (can be null)");
+            System.out.println("   - tenKhachHang: " + hoaDonDTO.getTenKhachHang() + " (can be null/empty)");
+            System.out.println("   - soDienThoaiKhachHang: " + hoaDonDTO.getSoDienThoaiKhachHang() + " (can be null/empty)");
+            System.out.println("   - emailKhachHang: " + hoaDonDTO.getEmailKhachHang() + " (can be null/empty)");
             
             // Validate danh sách chi tiết
             if (hoaDonDTO.getDanhSachChiTiet() == null || hoaDonDTO.getDanhSachChiTiet().isEmpty()) {
