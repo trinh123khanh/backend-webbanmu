@@ -261,6 +261,7 @@ public class GHNController {
     
     /**
      * Tính phí mặc định dựa trên khoảng cách và vùng miền (fallback khi API GHN không khả dụng)
+     * Shop ở Hà Nội - địa chỉ càng xa thì phí càng cao
      */
     private int calculateDefaultFee(String province) {
         if (province == null || province.isEmpty()) {
@@ -272,69 +273,95 @@ public class GHNController {
             return 25000; // 25,000 VND - nội thành
         }
         
-        // Các tỉnh/thành phố miền Bắc (gần Hà Nội)
-        String[] mienBac = {
-            "Hải Phòng", "Hưng Yên", "Hải Dương", "Bắc Ninh", "Vĩnh Phúc", 
-            "Thái Nguyên", "Bắc Giang", "Quảng Ninh", "Hà Nam", "Nam Định",
-            "Thái Bình", "Ninh Bình", "Phú Thọ", "Tuyên Quang", "Yên Bái",
-            "Lào Cai", "Lạng Sơn", "Cao Bằng", "Bắc Kạn", "Hòa Bình",
-            "Sơn La", "Điện Biên", "Lai Châu"
+        // ✅ Miền Bắc - Phân loại theo khoảng cách từ Hà Nội
+        // Các tỉnh gần Hà Nội (30-50km): phí thấp
+        String[] mienBacGan = {
+            "Hưng Yên", "Hải Dương", "Bắc Ninh", "Vĩnh Phúc", "Hà Nam", "Bắc Giang"
         };
-        
-        for (String tinh : mienBac) {
+        for (String tinh : mienBacGan) {
             if (province.contains(tinh)) {
-                return 35000; // 35,000 VND - miền Bắc
+                return 30000; // 30,000 VND - miền Bắc gần
             }
         }
         
-        // Các tỉnh/thành phố miền Nam (gần TP.HCM) - KIỂM TRA TRƯỚC
+        // Các tỉnh trung bình (50-150km): phí trung bình
+        String[] mienBacTrungBinh = {
+            "Hải Phòng", "Thái Nguyên", "Quảng Ninh", "Nam Định", "Thái Bình",
+            "Ninh Bình", "Phú Thọ", "Tuyên Quang", "Yên Bái", "Hòa Bình"
+        };
+        for (String tinh : mienBacTrungBinh) {
+            if (province.contains(tinh)) {
+                return 40000; // 40,000 VND - miền Bắc trung bình
+            }
+        }
+        
+        // Các tỉnh xa Hà Nội (150km+): phí cao
+        String[] mienBacXa = {
+            "Lào Cai", "Lạng Sơn", "Cao Bằng", "Bắc Kạn", "Sơn La", "Điện Biên", "Lai Châu"
+        };
+        for (String tinh : mienBacXa) {
+            if (province.contains(tinh)) {
+                return 50000; // 50,000 VND - miền Bắc xa
+            }
+        }
+        
+        // ✅ Miền Trung - Phân loại theo khoảng cách từ Hà Nội
+        // Miền Trung gần (300-500km): phí trung bình
+        String[] mienTrungGan = {
+            "Thanh Hóa", "Nghệ An", "Hà Tĩnh", "Quảng Bình", "Quảng Trị", "Thừa Thiên Huế"
+        };
+        for (String tinh : mienTrungGan) {
+            if (province.contains(tinh)) {
+                return 50000; // 50,000 VND - miền Trung gần
+            }
+        }
+        
+        // Miền Trung xa (500-800km): phí cao hơn
+        String[] mienTrungXa = {
+            "Đà Nẵng", "Quảng Nam", "Quảng Ngãi", "Bình Định", "Phú Yên",
+            "Khánh Hòa", "Ninh Thuận", "Bình Thuận"
+        };
+        for (String tinh : mienTrungXa) {
+            if (province.contains(tinh)) {
+                return 60000; // 60,000 VND - miền Trung xa
+            }
+        }
+        
+        // ✅ Tây Nguyên - Xa Hà Nội (800-1000km)
+        String[] tayNguyen = {
+            "Kon Tum", "Gia Lai", "Đắk Lắk", "Đắk Nông", "Lâm Đồng"
+        };
+        for (String tinh : tayNguyen) {
+            if (province.contains(tinh)) {
+                return 65000; // 65,000 VND - Tây Nguyên
+            }
+        }
+        
+        // ✅ Miền Nam - Phân loại theo khoảng cách từ Hà Nội
+        // TP.HCM (1000km+ từ Hà Nội)
         String provinceLower = province.toLowerCase();
         if (provinceLower.contains("hồ chí minh") || 
             provinceLower.contains("tp.hcm") || 
             provinceLower.contains("tp hcm") ||
             provinceLower.contains("ho chi minh")) {
-            return 60000; // 60,000 VND - miền Nam
+            return 70000; // 70,000 VND - TP.HCM
         }
         
+        // Miền Nam gần TP.HCM (1000-1200km từ Hà Nội): phí cao
         String[] mienNamGan = {
             "Bình Dương", "Đồng Nai", "Bà Rịa - Vũng Tàu", "Bà Rịa-Vũng Tàu",
             "Tây Ninh", "Bình Phước", "Long An", "Tiền Giang", "Bến Tre",
             "Trà Vinh", "Vĩnh Long", "Đồng Tháp", "An Giang", "Kiên Giang",
             "Cần Thơ", "Hậu Giang", "Sóc Trăng", "Bạc Liêu", "Cà Mau"
         };
-        
         for (String tinh : mienNamGan) {
             if (province.contains(tinh)) {
-                return 60000; // 60,000 VND - miền Nam
+                return 70000; // 70,000 VND - miền Nam gần
             }
         }
         
-        // Các tỉnh/thành phố Tây Nguyên
-        String[] tayNguyen = {
-            "Kon Tum", "Gia Lai", "Đắk Lắk", "Đắk Nông", "Lâm Đồng"
-        };
-        
-        for (String tinh : tayNguyen) {
-            if (province.contains(tinh)) {
-                return 55000; // 55,000 VND - Tây Nguyên
-            }
-        }
-        
-        // Các tỉnh/thành phố miền Trung
-        String[] mienTrung = {
-            "Thanh Hóa", "Nghệ An", "Hà Tĩnh", "Quảng Bình", "Quảng Trị",
-            "Thừa Thiên Huế", "Đà Nẵng", "Quảng Nam", "Quảng Ngãi", "Bình Định",
-            "Phú Yên", "Khánh Hòa", "Ninh Thuận", "Bình Thuận"
-        };
-        
-        for (String tinh : mienTrung) {
-            if (province.contains(tinh)) {
-                return 50000; // 50,000 VND - miền Trung
-            }
-        }
-        
-        // Các tỉnh/thành phố miền Nam xa hơn
-        return 70000; // 70,000 VND - các tỉnh xa nhất
+        // Các tỉnh/thành phố xa nhất hoặc không xác định
+        return 80000; // 80,000 VND - các tỉnh xa nhất
     }
     
     /**
@@ -371,4 +398,5 @@ public class GHNController {
         return defaultValue;
     }
 }
+
 
