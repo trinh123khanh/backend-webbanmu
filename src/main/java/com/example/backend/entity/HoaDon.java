@@ -53,6 +53,9 @@ public class HoaDon {
     @Column(nullable = false)
     private Integer soLuongSanPham = 0;
     
+    @Column(name = "phi_giao_hang")
+    private BigDecimal phiGiaoHang; // Phí giao hàng
+    
     @OneToMany(mappedBy = "hoaDon", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<HoaDonChiTiet> danhSachChiTiet;
     

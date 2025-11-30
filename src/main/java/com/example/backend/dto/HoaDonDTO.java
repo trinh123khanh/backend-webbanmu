@@ -26,6 +26,7 @@ public class HoaDonDTO {
     private String quanHuyen; // Quận/Huyện
     private String phuongXa; // Xã/Phường
     private String diaChiChiTiet; // Địa chỉ chi tiết
+    private String diaChiGiaoHang; // Địa chỉ giao hàng đầy đủ (từ ThongTinDonHang)
     private Long nhanVienId;
     private String tenNhanVien;
     private LocalDateTime ngayTao;
@@ -38,8 +39,11 @@ public class HoaDonDTO {
     private String phuongThucThanhToan; // Phương thức thanh toán
     private String trangThai; // String để map DA_HUY -> HUY cho frontend
     private Integer soLuongSanPham;
+    private BigDecimal phiGiaoHang; // Phí giao hàng
     private String viTriBanHang; // "Online" hoặc "Tại quầy" - dựa trên nhanVienId (null = Online)
     private List<HoaDonChiTietDTO> danhSachChiTiet; // Danh sách chi tiết sản phẩm trong hóa đơn
+    private Long phieuGiamGiaId; // ✅ ID phiếu giảm giá (giữ tương thích)
+    private List<Long> phieuGiamGiaIds; // ✅ Danh sách ID các phiếu giảm giá đã áp dụng
 
 
 }

@@ -319,6 +319,25 @@ public class PhieuGiamGiaService {
         }
     }
     
+    // Lấy phiếu giảm giá công khai (đang hoạt động VÀ không có trong bảng phieu_giam_gia_ca_nhan)
+    @Transactional(readOnly = true)
+    public ApiResponse<List<PhieuGiamGiaResponse>> getPublicActivePhieuGiamGia() {
+        try {
+            log.info("Lấy phiếu giảm giá công khai đang hoạt động");
+            List<PhieuGiamGia> publicVouchers = phieuGiamGiaRepository.findPublicActiveVouchers(LocalDate.now());
+            List<PhieuGiamGiaResponse> responses = publicVouchers.stream()
+                    .map(this::convertToResponse)
+                    .collect(Collectors.toList());
+            
+            log.info("Lấy thành công {} phiếu giảm giá công khai", responses.size());
+            return ApiResponse.success(responses);
+            
+        } catch (Exception e) {
+            log.error("Lỗi khi lấy phiếu giảm giá công khai: {}", e.getMessage(), e);
+            return ApiResponse.error("Lỗi khi lấy phiếu giảm giá công khai: " + e.getMessage());
+        }
+    }
+    
     // Lấy phiếu giảm giá theo trạng thái động (sắp diễn ra, đang diễn ra, kết thúc)
     @Transactional(readOnly = true)
     public ApiResponse<List<PhieuGiamGiaResponse>> getPhieuGiamGiaByDynamicStatus(String status) {

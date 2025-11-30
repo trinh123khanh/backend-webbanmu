@@ -84,7 +84,31 @@ public class HoaDonService {
         this.objectMapper = objectMapper != null ? objectMapper : new ObjectMapper();
     }
 
+    /**
+     * Extract diaChiChiTiet từ diaChiGiaoHang (format: "dcw, Xã Liên Châu, Huyện Yên Lạc, Tỉnh Vĩnh Phúc")
+     */
+    private String extractDiaChiChiTiet(String diaChiGiaoHang) {
+        if (diaChiGiaoHang == null || diaChiGiaoHang.trim().isEmpty()) {
+            return "";
+        }
+        // Lấy phần đầu tiên trước dấu phẩy đầu tiên
+        String[] parts = diaChiGiaoHang.split(",");
+        if (parts.length > 0) {
+            return parts[0].trim();
+        }
+        return diaChiGiaoHang.trim();
+    }
+    
     public HoaDonDTO toDTO(HoaDon h) {
+        // ✅ QUAN TRỌNG: Tính toán thanhTien đúng logic = tongTien - tienGiamGia + phiGiaoHang
+        // ✅ QUAN TRỌNG: Ưu tiên lấy phiGiaoHang từ entity HoaDon (bảng hoa_don.phi_giao_hang)
+        java.math.BigDecimal phiGiaoHang = h.getPhiGiaoHang() != null ? h.getPhiGiaoHang() : java.math.BigDecimal.ZERO;
+        System.out.println("💰 [toDTO] phiGiaoHang from HoaDon entity (hoa_don.phi_giao_hang): " + phiGiaoHang + " (Invoice ID: " + h.getId() + ")");
+        
+        java.math.BigDecimal tongTien = h.getTongTien() != null ? h.getTongTien() : java.math.BigDecimal.ZERO;
+        java.math.BigDecimal tienGiamGia = h.getTienGiamGia() != null ? h.getTienGiamGia() : java.math.BigDecimal.ZERO;
+        java.math.BigDecimal calculatedThanhTien = tongTien.subtract(tienGiamGia).add(phiGiaoHang).max(java.math.BigDecimal.ZERO);
+        
         HoaDonDTO.HoaDonDTOBuilder builder = HoaDonDTO.builder()
                 .id(h.getId())
                 .maHoaDon(h.getMaHoaDon())
@@ -92,13 +116,14 @@ public class HoaDonService {
                 .nhanVienId(h.getNhanVien() != null ? h.getNhanVien().getId() : null)
                 .ngayTao(h.getNgayTao())
                 .ngayThanhToan(h.getNgayThanhToan())
-                .tongTien(h.getTongTien())
-                .tienGiamGia(h.getTienGiamGia())
+                .tongTien(tongTien)
+                .tienGiamGia(tienGiamGia)
                 .giamGiaPhanTram(h.getGiamGiaPhanTram())
-                .thanhTien(h.getThanhTien())
+                .thanhTien(calculatedThanhTien) // Sử dụng calculatedThanhTien thay vì h.getThanhTien()
                 .ghiChu(h.getGhiChu())
                 .trangThai(convertTrangThaiEnumToString(h.getTrangThai()))
-                .soLuongSanPham(h.getSoLuongSanPham());
+                .soLuongSanPham(h.getSoLuongSanPham())
+                .phiGiaoHang(phiGiaoHang); // ✅ Set phiGiaoHang từ entity trước
         
         // Map thông tin khách hàng
         if (h.getKhachHang() != null) {
@@ -106,8 +131,55 @@ public class HoaDonService {
                    .emailKhachHang(h.getKhachHang().getEmail())
                    .soDienThoaiKhachHang(h.getKhachHang().getSoDienThoai())
                    .diaChiKhachHang(h.getKhachHang().getDiaChi());
-            
-            // Lấy địa chỉ mặc định của khách hàng từ bảng dia_chi_khach_hang
+        }
+        
+        // ✅ QUAN TRỌNG: Ưu tiên lấy địa chỉ từ ThongTinDonHang (đơn hàng online)
+        // Đây là địa chỉ giao hàng chính xác từ checkout
+        try {
+            Optional<ThongTinDonHang> thongTinDonHang = thongTinDonHangRepository.findByHoaDonId(h.getId());
+            if (thongTinDonHang.isPresent()) {
+                ThongTinDonHang thongTin = thongTinDonHang.get();
+                System.out.println("✅ Found ThongTinDonHang for invoice ID: " + h.getId());
+                
+                // Map địa chỉ từ ThongTinDonHang
+                String diaChiGiaoHang = thongTin.getDiaChiGiaoHang();
+                builder.diaChiChiTiet(extractDiaChiChiTiet(diaChiGiaoHang))
+                       .tinhThanh(thongTin.getTinhThanh())
+                       .quanHuyen(thongTin.getQuanHuyen())
+                       .phuongXa(thongTin.getPhuongXa())
+                       .diaChiGiaoHang(diaChiGiaoHang);
+                
+                // ✅ QUAN TRỌNG: Chỉ dùng phiVanChuyen từ ThongTinDonHang nếu phiGiaoHang từ entity là null hoặc 0
+                // Ưu tiên: hoa_don.phi_giao_hang > thong_tin_don_hang.phi_van_chuyen
+                if (thongTin.getPhiVanChuyen() != null) {
+                    java.math.BigDecimal phiVanChuyenFromThongTin = thongTin.getPhiVanChuyen();
+                    System.out.println("💰 [toDTO] Found phiVanChuyen in ThongTinDonHang: " + phiVanChuyenFromThongTin);
+                    
+                    // Chỉ override nếu phiGiaoHang từ entity là null hoặc 0 (chưa có giá trị)
+                    if (phiGiaoHang == null || phiGiaoHang.compareTo(java.math.BigDecimal.ZERO) == 0) {
+                        phiGiaoHang = phiVanChuyenFromThongTin;
+                        builder.phiGiaoHang(phiGiaoHang);
+                        System.out.println("💰 [toDTO] Using phiVanChuyen from ThongTinDonHang (phiGiaoHang from entity was null/zero): " + phiGiaoHang);
+                        
+                        // ✅ QUAN TRỌNG: Tính lại thanhTien với phiGiaoHang từ ThongTinDonHang
+                        java.math.BigDecimal recalculatedThanhTien = tongTien.subtract(tienGiamGia).add(phiGiaoHang).max(java.math.BigDecimal.ZERO);
+                        builder.thanhTien(recalculatedThanhTien);
+                        calculatedThanhTien = recalculatedThanhTien; // Cập nhật giá trị calculatedThanhTien
+                        System.out.println("💰 [toDTO] Recalculated thanhTien with phiGiaoHang from ThongTinDonHang: " + recalculatedThanhTien + 
+                            " (tongTien: " + tongTien + ", tienGiamGia: " + tienGiamGia + ", phiGiaoHang: " + phiGiaoHang + ")");
+                    } else {
+                        // Giữ nguyên phiGiaoHang từ entity (đã có giá trị trong DB)
+                        System.out.println("💰 [toDTO] Keeping phiGiaoHang from HoaDon entity (hoa_don.phi_giao_hang): " + phiGiaoHang + 
+                            " (ignoring ThongTinDonHang.phiVanChuyen: " + phiVanChuyenFromThongTin + ")");
+                    }
+                } else {
+                    System.out.println("💰 [toDTO] No phiVanChuyen in ThongTinDonHang, using phiGiaoHang from entity: " + phiGiaoHang);
+                }
+                
+                System.out.println("✅ Mapped address from ThongTinDonHang: " + thongTin.getDiaChiGiaoHang());
+            } else {
+                // Fallback: Lấy địa chỉ mặc định của khách hàng từ bảng dia_chi_khach_hang
+                if (h.getKhachHang() != null) {
             try {
                 Optional<DiaChiKhachHangDTO> diaChiMacDinh = diaChiKhachHangService.getDiaChiMacDinhByKhachHangId(h.getKhachHang().getId());
                 if (diaChiMacDinh.isPresent()) {
@@ -127,6 +199,25 @@ public class HoaDonService {
                 }
             } catch (Exception e) {
                 // Nếu không lấy được địa chỉ, giữ nguyên địa chỉ từ khách hàng
+                    }
+                }
+            }
+        } catch (Exception e) {
+            System.err.println("⚠️ Error loading ThongTinDonHang: " + e.getMessage());
+            // Fallback to customer address if ThongTinDonHang fails
+            if (h.getKhachHang() != null) {
+                try {
+                    Optional<DiaChiKhachHangDTO> diaChiMacDinh = diaChiKhachHangService.getDiaChiMacDinhByKhachHangId(h.getKhachHang().getId());
+                    if (diaChiMacDinh.isPresent()) {
+                        DiaChiKhachHangDTO diaChi = diaChiMacDinh.get();
+                        builder.diaChiChiTiet(diaChi.getDiaChiChiTiet())
+                               .tinhThanh(diaChi.getTinhThanh())
+                               .quanHuyen(diaChi.getQuanHuyen())
+                               .phuongXa(diaChi.getPhuongXa());
+                    }
+                } catch (Exception e2) {
+                    // Ignore
+                }
             }
         }
         
@@ -375,6 +466,13 @@ public class HoaDonService {
             h.setTrangThai(trangThaiEnum);
         }
         if (d.getSoLuongSanPham() != null) h.setSoLuongSanPham(d.getSoLuongSanPham());
+        // ✅ QUAN TRỌNG: Luôn cập nhật phiGiaoHang nếu có trong DTO (kể cả khi = 0)
+        if (d.getPhiGiaoHang() != null) {
+            h.setPhiGiaoHang(d.getPhiGiaoHang());
+            System.out.println("💰 Setting phiGiaoHang in HoaDon entity: " + d.getPhiGiaoHang());
+        } else {
+            System.out.println("⚠️ phiGiaoHang is null in DTO, keeping existing value: " + h.getPhiGiaoHang());
+        }
         
         // ✅ CHO PHÉP HÓA ĐƠN KHÔNG CÓ KHÁCH HÀNG (BÁN HÀNG TẠI QUẦY)
         KhachHang attachedCustomer = resolveCustomerForInvoice(d);
@@ -492,11 +590,18 @@ public class HoaDonService {
             }
         }
 
+        // ✅ CHO PHÉP CẬP NHẬT HOẶC KHÔNG CẬP NHẬT SỐ ĐIỆN THOẠI
+        // - Nếu DTO có soDienThoaiKhachHang và có giá trị (không null, không empty) → Cập nhật
+        // - Nếu DTO không có soDienThoaiKhachHang hoặc null/empty → Giữ nguyên số điện thoại cũ
         String phone = sanitize(dto.getSoDienThoaiKhachHang());
         if (StringUtils.hasText(phone)) {
-            if (matchedByPhone || !StringUtils.hasText(khachHang.getSoDienThoai())) {
+            // Có giá trị trong DTO → Cập nhật số điện thoại
+            // Cho phép cập nhật ngay cả khi khách hàng đã có số điện thoại khác
                 khachHang.setSoDienThoai(phone);
-            }
+            System.out.println("📱 Updating customer phone number: " + phone);
+        } else {
+            // Không có giá trị trong DTO → Giữ nguyên số điện thoại cũ
+            System.out.println("📱 Keeping existing customer phone number: " + khachHang.getSoDienThoai());
         }
 
         String address = sanitize(dto.getDiaChiChiTiet());
@@ -625,7 +730,18 @@ public class HoaDonService {
             if (h.getTongTien() == null || h.getTongTien().compareTo(recalculatedTotal) != 0) {
                 System.out.println("⚠️ Recalculated total: " + h.getTongTien() + " -> " + recalculatedTotal);
                 h.setTongTien(recalculatedTotal);
-                h.setThanhTien(recalculatedTotal.subtract(h.getTienGiamGia() != null ? h.getTienGiamGia() : java.math.BigDecimal.ZERO).max(java.math.BigDecimal.ZERO));
+            }
+            
+            // ✅ QUAN TRỌNG: Tính lại thanhTien = tongTien - tienGiamGia + phiGiaoHang
+            java.math.BigDecimal phiGiaoHang = h.getPhiGiaoHang() != null ? h.getPhiGiaoHang() : java.math.BigDecimal.ZERO;
+            java.math.BigDecimal tienGiamGia = h.getTienGiamGia() != null ? h.getTienGiamGia() : java.math.BigDecimal.ZERO;
+            java.math.BigDecimal tongTien = h.getTongTien() != null ? h.getTongTien() : java.math.BigDecimal.ZERO;
+            java.math.BigDecimal calculatedThanhTien = tongTien.subtract(tienGiamGia).add(phiGiaoHang).max(java.math.BigDecimal.ZERO);
+            
+            if (h.getThanhTien() == null || h.getThanhTien().compareTo(calculatedThanhTien) != 0) {
+                System.out.println("💰 Recalculating thanhTien: " + h.getThanhTien() + " -> " + calculatedThanhTien + 
+                    " (tongTien: " + tongTien + ", tienGiamGia: " + tienGiamGia + ", phiGiaoHang: " + phiGiaoHang + ")");
+                h.setThanhTien(calculatedThanhTien);
             }
             
             System.out.println("📦 Prepared " + chiTietList.size() + " HoaDonChiTiet items to save with invoice");
@@ -757,11 +873,49 @@ public class HoaDonService {
                 thongTinDonHang.setPhuongXa(dto.getPhuongXa() != null ? dto.getPhuongXa() : "");
                 thongTinDonHang.setGhiChu(dto.getGhiChu());
                 
+                // ✅ QUAN TRỌNG: Set phí vận chuyển khi tạo ThongTinDonHang từ checkout
+                if (dto.getPhiGiaoHang() != null) {
+                    thongTinDonHang.setPhiVanChuyen(dto.getPhiGiaoHang());
+                    System.out.println("💰 Setting ThongTinDonHang phiVanChuyen to: " + dto.getPhiGiaoHang());
+                }
+                
                 thongTinDonHangRepository.save(thongTinDonHang);
-                System.out.println("✅ Created ThongTinDonHang for invoice ID: " + saved.getId());
+                System.out.println("✅ Created ThongTinDonHang for invoice ID: " + saved.getId() + 
+                    " with address: " + diaChiGiaoHang);
             } catch (Exception e) {
                 // Không block việc tạo hóa đơn nếu tạo ThongTinDonHang thất bại
                 System.err.println("⚠️ Could not save ThongTinDonHang: " + e.getMessage());
+            }
+        }
+        
+        // ✅ Xử lý danh sách phiếu giảm giá nếu có
+        if (dto.getPhieuGiamGiaIds() != null && !dto.getPhieuGiamGiaIds().isEmpty()) {
+            // Lưu danh sách ID phiếu giảm giá vào ghiChu dưới dạng JSON
+            try {
+                ObjectMapper objectMapper = new ObjectMapper();
+                String phieuGiamGiaIdsJson = objectMapper.writeValueAsString(dto.getPhieuGiamGiaIds());
+                String existingGhiChu = saved.getGhiChu() != null ? saved.getGhiChu() : "";
+                String newGhiChu = existingGhiChu.isEmpty() 
+                    ? "PHIEU_GIAM_GIA_IDS: " + phieuGiamGiaIdsJson
+                    : existingGhiChu + "\nPHIEU_GIAM_GIA_IDS: " + phieuGiamGiaIdsJson;
+                saved.setGhiChu(newGhiChu);
+                System.out.println("✅ Saved phieuGiamGiaIds to ghiChu: " + phieuGiamGiaIdsJson);
+            } catch (Exception e) {
+                System.err.println("❌ Error saving phieuGiamGiaIds: " + e.getMessage());
+            }
+        } else if (dto.getPhieuGiamGiaId() != null) {
+            // Giữ tương thích với phieuGiamGiaId cũ
+            try {
+                ObjectMapper objectMapper = new ObjectMapper();
+                String phieuGiamGiaIdsJson = objectMapper.writeValueAsString(java.util.Arrays.asList(dto.getPhieuGiamGiaId()));
+                String existingGhiChu = saved.getGhiChu() != null ? saved.getGhiChu() : "";
+                String newGhiChu = existingGhiChu.isEmpty() 
+                    ? "PHIEU_GIAM_GIA_IDS: " + phieuGiamGiaIdsJson
+                    : existingGhiChu + "\nPHIEU_GIAM_GIA_IDS: " + phieuGiamGiaIdsJson;
+                saved.setGhiChu(newGhiChu);
+                System.out.println("✅ Saved phieuGiamGiaId (legacy) to ghiChu: " + phieuGiamGiaIdsJson);
+            } catch (Exception e) {
+                System.err.println("❌ Error saving phieuGiamGiaId: " + e.getMessage());
             }
         }
         
@@ -792,7 +946,15 @@ public class HoaDonService {
             pttt.setHoaDon(saved);
             pttt.setHinhThucThanhToan(hinhThuc);
             pttt.setSoTienThanhToan(saved.getThanhTien() != null ? saved.getThanhTien() : java.math.BigDecimal.ZERO);
-            pttt.setTrangThai(PhuongThucThanhToan.TrangThaiThanhToan.DA_THANH_TOAN);
+            // ✅ QUAN TRỌNG: Chỉ set trạng thái "Đã Thanh Toán" khi phương thức thanh toán là chuyển khoản
+            // Với tiền mặt, trạng thái sẽ là CHUA_THANH_TOAN (mặc định)
+            if ("Chuyển khoản".equals(tenHinhThuc) || "transfer".equalsIgnoreCase(phuongThucTen)) {
+                pttt.setTrangThai(PhuongThucThanhToan.TrangThaiThanhToan.DA_THANH_TOAN);
+                System.out.println("✅ Payment method is transfer - Set status to DA_THANH_TOAN");
+            } else {
+                pttt.setTrangThai(PhuongThucThanhToan.TrangThaiThanhToan.CHO_THANH_TOAN);
+                System.out.println("✅ Payment method is cash - Set status to CHO_THANH_TOAN");
+            }
             phuongThucThanhToanRepository.save(pttt);
         }
         
@@ -840,6 +1002,20 @@ public class HoaDonService {
             oldDataJson = serializeHoaDonToJson(h);
         } catch (Exception e) {
             System.err.println("⚠️ Failed to serialize old data: " + e.getMessage());
+        }
+        
+        // ✅ QUAN TRỌNG: Lưu địa chỉ cũ để so sánh và gửi email nếu có thay đổi
+        String oldAddress = null;
+        try {
+            // Lấy địa chỉ cũ từ ThongTinDonHang hoặc từ entity
+            Optional<ThongTinDonHang> oldThongTin = thongTinDonHangRepository.findByHoaDonId(id);
+            if (oldThongTin.isPresent()) {
+                oldAddress = oldThongTin.get().getDiaChiGiaoHang();
+            } else if (h.getKhachHang() != null && h.getKhachHang().getDiaChi() != null) {
+                oldAddress = h.getKhachHang().getDiaChi();
+            }
+        } catch (Exception e) {
+            System.err.println("⚠️ Failed to get old address: " + e.getMessage());
         }
         
         updateEntityFromDTO(h, dto);
@@ -926,8 +1102,36 @@ public class HoaDonService {
         
         System.out.println("💾 Saving invoice with ghiChu: '" + h.getGhiChu() + "'");
 
+        // ✅ QUAN TRỌNG: Tính lại thanhTien sau khi cập nhật tất cả thông tin
+        // thanhTien = tongTien - tienGiamGia + phiGiaoHang
+        java.math.BigDecimal tongTien = h.getTongTien() != null ? h.getTongTien() : java.math.BigDecimal.ZERO;
+        java.math.BigDecimal tienGiamGia = h.getTienGiamGia() != null ? h.getTienGiamGia() : java.math.BigDecimal.ZERO;
+        java.math.BigDecimal phiGiaoHang = h.getPhiGiaoHang() != null ? h.getPhiGiaoHang() : java.math.BigDecimal.ZERO;
+        java.math.BigDecimal calculatedThanhTien = tongTien.subtract(tienGiamGia).add(phiGiaoHang).max(java.math.BigDecimal.ZERO);
+        
+        if (h.getThanhTien() == null || h.getThanhTien().compareTo(calculatedThanhTien) != 0) {
+            System.out.println("💰 Recalculating thanhTien in updateHoaDon: " + h.getThanhTien() + " -> " + calculatedThanhTien + 
+                " (tongTien: " + tongTien + ", tienGiamGia: " + tienGiamGia + ", phiGiaoHang: " + phiGiaoHang + ")");
+            h.setThanhTien(calculatedThanhTien);
+        }
+        
+        // ✅ QUAN TRỌNG: Log trước khi save để kiểm tra dữ liệu
+        System.out.println("💾 Before saving to DB:");
+        System.out.println("   - phiGiaoHang: " + h.getPhiGiaoHang());
+        System.out.println("   - tongTien: " + h.getTongTien());
+        System.out.println("   - tienGiamGia: " + h.getTienGiamGia());
+        System.out.println("   - thanhTien: " + h.getThanhTien());
+
         // Lưu hóa đơn
         HoaDon saved = hoaDonRepository.save(h);
+        hoaDonRepository.flush(); // Force flush để đảm bảo dữ liệu được lưu ngay
+        
+        // ✅ QUAN TRỌNG: Log sau khi save để xác nhận dữ liệu đã được lưu
+        System.out.println("✅ After saving to DB:");
+        System.out.println("   - phiGiaoHang: " + saved.getPhiGiaoHang());
+        System.out.println("   - tongTien: " + saved.getTongTien());
+        System.out.println("   - tienGiamGia: " + saved.getTienGiamGia());
+        System.out.println("   - thanhTien: " + saved.getThanhTien());
         
         // Log activity: UPDATE
         try {
@@ -941,6 +1145,40 @@ public class HoaDonService {
             );
         } catch (Exception e) {
             System.err.println("⚠️ Failed to log UPDATE activity: " + e.getMessage());
+        }
+        
+        // ✅ Xử lý danh sách phiếu giảm giá nếu có (trong updateHoaDon)
+        if (dto.getPhieuGiamGiaIds() != null && !dto.getPhieuGiamGiaIds().isEmpty()) {
+            // Lưu danh sách ID phiếu giảm giá vào ghiChu dưới dạng JSON
+            try {
+                ObjectMapper objectMapper = new ObjectMapper();
+                String phieuGiamGiaIdsJson = objectMapper.writeValueAsString(dto.getPhieuGiamGiaIds());
+                String existingGhiChu = saved.getGhiChu() != null ? saved.getGhiChu() : "";
+                // Xóa dòng PHIEU_GIAM_GIA_IDS cũ nếu có
+                String cleanedGhiChu = existingGhiChu.replaceAll("(?m)^PHIEU_GIAM_GIA_IDS:.*$", "").trim();
+                String newGhiChu = cleanedGhiChu.isEmpty() 
+                    ? "PHIEU_GIAM_GIA_IDS: " + phieuGiamGiaIdsJson
+                    : cleanedGhiChu + "\nPHIEU_GIAM_GIA_IDS: " + phieuGiamGiaIdsJson;
+                saved.setGhiChu(newGhiChu);
+                System.out.println("✅ Updated phieuGiamGiaIds in ghiChu: " + phieuGiamGiaIdsJson);
+            } catch (Exception e) {
+                System.err.println("❌ Error updating phieuGiamGiaIds: " + e.getMessage());
+            }
+        } else if (dto.getPhieuGiamGiaId() != null) {
+            // Giữ tương thích với phieuGiamGiaId cũ
+            try {
+                ObjectMapper objectMapper = new ObjectMapper();
+                String phieuGiamGiaIdsJson = objectMapper.writeValueAsString(java.util.Arrays.asList(dto.getPhieuGiamGiaId()));
+                String existingGhiChu = saved.getGhiChu() != null ? saved.getGhiChu() : "";
+                String cleanedGhiChu = existingGhiChu.replaceAll("(?m)^PHIEU_GIAM_GIA_IDS:.*$", "").trim();
+                String newGhiChu = cleanedGhiChu.isEmpty() 
+                    ? "PHIEU_GIAM_GIA_IDS: " + phieuGiamGiaIdsJson
+                    : cleanedGhiChu + "\nPHIEU_GIAM_GIA_IDS: " + phieuGiamGiaIdsJson;
+                saved.setGhiChu(newGhiChu);
+                System.out.println("✅ Updated phieuGiamGiaId (legacy) in ghiChu: " + phieuGiamGiaIdsJson);
+            } catch (Exception e) {
+                System.err.println("❌ Error updating phieuGiamGiaId: " + e.getMessage());
+            }
         }
         
         // Xử lý phương thức thanh toán nếu có
@@ -977,14 +1215,152 @@ public class HoaDonService {
             pttt.setHoaDon(saved);
             pttt.setHinhThucThanhToan(hinhThuc);
             pttt.setSoTienThanhToan(saved.getThanhTien() != null ? saved.getThanhTien() : java.math.BigDecimal.ZERO);
-            pttt.setTrangThai(PhuongThucThanhToan.TrangThaiThanhToan.DA_THANH_TOAN);
+            // ✅ QUAN TRỌNG: Chỉ set trạng thái "Đã Thanh Toán" khi phương thức thanh toán là chuyển khoản
+            // Với tiền mặt, trạng thái sẽ là CHUA_THANH_TOAN (mặc định)
+            if ("Chuyển khoản".equals(tenHinhThuc) || "transfer".equalsIgnoreCase(phuongThucTen)) {
+                pttt.setTrangThai(PhuongThucThanhToan.TrangThaiThanhToan.DA_THANH_TOAN);
+                System.out.println("✅ Payment method is transfer - Set status to DA_THANH_TOAN");
+            } else {
+                pttt.setTrangThai(PhuongThucThanhToan.TrangThaiThanhToan.CHO_THANH_TOAN);
+                System.out.println("✅ Payment method is cash - Set status to CHO_THANH_TOAN");
+            }
             phuongThucThanhToanRepository.save(pttt);
+        }
+        
+        // ✅ CẬP NHẬT THÔNG TIN ĐỊA CHỈ GIAO HÀNG (ThongTinDonHang) NẾU CÓ THAY ĐỔI
+        // Kiểm tra xem có thông tin địa chỉ mới không
+        if (dto.getTinhThanh() != null || dto.getQuanHuyen() != null || dto.getPhuongXa() != null || dto.getDiaChiChiTiet() != null) {
+            try {
+                // Tìm ThongTinDonHang hiện tại
+                Optional<ThongTinDonHang> existingThongTin = thongTinDonHangRepository.findByHoaDonId(saved.getId());
+                
+                if (existingThongTin.isPresent()) {
+                    // Cập nhật ThongTinDonHang hiện tại
+                    ThongTinDonHang thongTin = existingThongTin.get();
+                    if (dto.getTenKhachHang() != null) {
+                        thongTin.setTenNguoiNhan(dto.getTenKhachHang());
+                    }
+                    if (dto.getSoDienThoaiKhachHang() != null) {
+                        thongTin.setSoDienThoai(dto.getSoDienThoaiKhachHang());
+                    }
+                    
+                    // Tạo địa chỉ giao hàng đầy đủ từ các thành phần
+                    String diaChiChiTiet = dto.getDiaChiChiTiet() != null ? dto.getDiaChiChiTiet() : "";
+                    String phuongXa = dto.getPhuongXa() != null ? dto.getPhuongXa() : (thongTin.getPhuongXa() != null ? thongTin.getPhuongXa() : "");
+                    String quanHuyen = dto.getQuanHuyen() != null ? dto.getQuanHuyen() : (thongTin.getQuanHuyen() != null ? thongTin.getQuanHuyen() : "");
+                    String tinhThanh = dto.getTinhThanh() != null ? dto.getTinhThanh() : (thongTin.getTinhThanh() != null ? thongTin.getTinhThanh() : "");
+                    
+                    String diaChiGiaoHang = String.format("%s, %s, %s, %s",
+                        diaChiChiTiet, phuongXa, quanHuyen, tinhThanh);
+                    thongTin.setDiaChiGiaoHang(diaChiGiaoHang.trim().replaceAll("^,\\s*|,\\s*$", ""));
+                    
+                    if (dto.getTinhThanh() != null) {
+                        thongTin.setTinhThanh(dto.getTinhThanh());
+                    }
+                    if (dto.getQuanHuyen() != null) {
+                        thongTin.setQuanHuyen(dto.getQuanHuyen());
+                    }
+                    if (dto.getPhuongXa() != null) {
+                        thongTin.setPhuongXa(dto.getPhuongXa());
+                    }
+                    if (dto.getGhiChu() != null) {
+                        thongTin.setGhiChu(dto.getGhiChu());
+                    }
+                    
+                    // ✅ QUAN TRỌNG: Cập nhật phí vận chuyển nếu có trong DTO
+                    if (dto.getPhiGiaoHang() != null) {
+                        thongTin.setPhiVanChuyen(dto.getPhiGiaoHang());
+                        System.out.println("💰 Updated ThongTinDonHang phiVanChuyen to: " + dto.getPhiGiaoHang());
+                    }
+                    
+                    thongTinDonHangRepository.save(thongTin);
+                    System.out.println("✅ Updated ThongTinDonHang for invoice ID: " + saved.getId());
+                } else if (dto.getTenKhachHang() != null && dto.getSoDienThoaiKhachHang() != null &&
+                          (dto.getDiaChiChiTiet() != null || dto.getTinhThanh() != null)) {
+                    // Tạo mới ThongTinDonHang nếu chưa có
+                    ThongTinDonHang thongTinDonHang = new ThongTinDonHang();
+                    thongTinDonHang.setHoaDon(saved);
+                    thongTinDonHang.setTenNguoiNhan(dto.getTenKhachHang());
+                    thongTinDonHang.setSoDienThoai(dto.getSoDienThoaiKhachHang());
+                    
+                    String diaChiGiaoHang = String.format("%s, %s, %s, %s",
+                        dto.getDiaChiChiTiet() != null ? dto.getDiaChiChiTiet() : "",
+                        dto.getPhuongXa() != null ? dto.getPhuongXa() : "",
+                        dto.getQuanHuyen() != null ? dto.getQuanHuyen() : "",
+                        dto.getTinhThanh() != null ? dto.getTinhThanh() : "");
+                    thongTinDonHang.setDiaChiGiaoHang(diaChiGiaoHang.trim().replaceAll("^,\\s*|,\\s*$", ""));
+                    thongTinDonHang.setTinhThanh(dto.getTinhThanh() != null ? dto.getTinhThanh() : "");
+                    thongTinDonHang.setQuanHuyen(dto.getQuanHuyen() != null ? dto.getQuanHuyen() : "");
+                    thongTinDonHang.setPhuongXa(dto.getPhuongXa() != null ? dto.getPhuongXa() : "");
+                    thongTinDonHang.setGhiChu(dto.getGhiChu());
+                    
+                    // ✅ QUAN TRỌNG: Set phí vận chuyển khi tạo mới
+                    if (dto.getPhiGiaoHang() != null) {
+                        thongTinDonHang.setPhiVanChuyen(dto.getPhiGiaoHang());
+                        System.out.println("💰 Setting new ThongTinDonHang phiVanChuyen to: " + dto.getPhiGiaoHang());
+                    }
+                    
+                    thongTinDonHangRepository.save(thongTinDonHang);
+                    System.out.println("✅ Created new ThongTinDonHang for invoice ID: " + saved.getId());
+                }
+            } catch (Exception e) {
+                // Không block việc cập nhật hóa đơn nếu cập nhật ThongTinDonHang thất bại
+                System.err.println("⚠️ Could not update ThongTinDonHang: " + e.getMessage());
+            }
         }
         
         // Reload hóa đơn để đảm bảo có dữ liệu đầy đủ
         Optional<HoaDon> reloaded = getHoaDonById(saved.getId());
         if (reloaded.isPresent()) {
-            return toDTO(reloaded.get());
+            HoaDon reloadedHoaDon = reloaded.get();
+            
+            // ✅ QUAN TRỌNG: Kiểm tra xem địa chỉ có thay đổi không và gửi email cho khách hàng
+            try {
+                String newAddress = null;
+                Optional<ThongTinDonHang> newThongTin = thongTinDonHangRepository.findByHoaDonId(saved.getId());
+                if (newThongTin.isPresent()) {
+                    newAddress = newThongTin.get().getDiaChiGiaoHang();
+                } else if (reloadedHoaDon.getKhachHang() != null && reloadedHoaDon.getKhachHang().getDiaChi() != null) {
+                    newAddress = reloadedHoaDon.getKhachHang().getDiaChi();
+                }
+                
+                // So sánh địa chỉ cũ và mới
+                boolean addressChanged = false;
+                if (oldAddress == null && newAddress != null && !newAddress.trim().isEmpty()) {
+                    addressChanged = true; // Từ không có địa chỉ -> có địa chỉ
+                } else if (oldAddress != null && newAddress != null && !oldAddress.equals(newAddress)) {
+                    addressChanged = true; // Địa chỉ thay đổi
+                } else if (oldAddress != null && (newAddress == null || newAddress.trim().isEmpty())) {
+                    addressChanged = true; // Từ có địa chỉ -> không có địa chỉ
+                }
+                
+                // Gửi email nếu địa chỉ thay đổi và có thông tin khách hàng
+                if (addressChanged && reloadedHoaDon.getKhachHang() != null) {
+                    String customerEmail = reloadedHoaDon.getKhachHang().getEmail();
+                    String customerName = reloadedHoaDon.getKhachHang().getTenKhachHang();
+                    
+                    if (customerEmail != null && !customerEmail.trim().isEmpty()) {
+                        System.out.println("📧 Sending address update email to: " + customerEmail);
+                        System.out.println("   Old address: " + (oldAddress != null ? oldAddress : "N/A"));
+                        System.out.println("   New address: " + (newAddress != null ? newAddress : "N/A"));
+                        
+                        emailService.sendAddressUpdateEmail(
+                            customerEmail,
+                            customerName,
+                            reloadedHoaDon.getMaHoaDon(),
+                            oldAddress != null ? oldAddress : "Chưa có địa chỉ",
+                            newAddress != null ? newAddress : "Chưa có địa chỉ"
+                        );
+                    } else {
+                        System.out.println("⚠️ Customer email is empty, cannot send address update email");
+                    }
+                }
+            } catch (Exception e) {
+                System.err.println("⚠️ Failed to send address update email: " + e.getMessage());
+                // Không throw exception để không ảnh hưởng đến việc cập nhật hóa đơn
+            }
+            
+            return toDTO(reloadedHoaDon);
         }
         return toDTO(saved);
     }
@@ -1051,9 +1427,12 @@ public class HoaDonService {
         int danhSachChiTietSizeBefore = (chiTietBeforeUpdate != null ? chiTietBeforeUpdate.size() : 0);
         System.out.println("📦 Before update - danhSachChiTiet count in DB: " + danhSachChiTietSizeBefore);
         
-        // Validate trạng thái
+        // Validate trạng thái - sử dụng convertStringToTrangThaiEnum để map HUY -> DA_HUY
         try {
-            HoaDon.TrangThaiHoaDon newTrangThai = HoaDon.TrangThaiHoaDon.valueOf(trangThai);
+            HoaDon.TrangThaiHoaDon newTrangThai = convertStringToTrangThaiEnum(trangThai);
+            if (newTrangThai == null) {
+                throw new RuntimeException("Trạng thái không hợp lệ: " + trangThai);
+            }
             
             // QUAN TRỌNG: Xử lý tồn kho khi cập nhật trạng thái
             // Logic mới:
@@ -1177,8 +1556,9 @@ public class HoaDonService {
                     System.out.println("💰 Invoice cancelled and was paid - Refund required");
                     System.out.println("   Payment date: " + hoaDon.getNgayThanhToan());
                     System.out.println("   Total amount: " + hoaDon.getThanhTien());
+                    
                     // Ghi chú về hoàn tiền vào ghiChu
-                    String refundNote = "\n[HOÀN TIỀN] Đơn hàng đã bị hủy. Số tiền " + hoaDon.getThanhTien() + " sẽ được hoàn trả trong vòng 3-5 ngày làm việc.";
+                    String refundNote = "\n[HOÀN TIỀN] Đơn hàng đã bị hủy. Số tiền " + hoaDon.getThanhTien() + " sẽ được hoàn trả trong vòng 3-5 ngày làm việc sau khi nhận được thông tin tài khoản ngân hàng.";
                     String updatedGhiChu = (reloadedHoaDon.getGhiChu() != null ? reloadedHoaDon.getGhiChu() : "") + refundNote;
                     jakarta.persistence.Query updateGhiChuQuery = entityManager.createQuery(
                         "UPDATE HoaDon h SET h.ghiChu = :ghiChu WHERE h.id = :id"
@@ -1189,14 +1569,66 @@ public class HoaDonService {
                     
                     // Cập nhật trạng thái thanh toán thành DA_HOAN_TIEN nếu có PhuongThucThanhToan
                     List<PhuongThucThanhToan> ptttList = phuongThucThanhToanRepository.findByHoaDonId(id);
+                    boolean isTransferPayment = false; // Flag để kiểm tra phương thức thanh toán
+                    
                     if (!ptttList.isEmpty()) {
                         for (PhuongThucThanhToan pttt : ptttList) {
                             if (pttt.getTrangThai() == PhuongThucThanhToan.TrangThaiThanhToan.DA_THANH_TOAN) {
                                 pttt.setTrangThai(PhuongThucThanhToan.TrangThaiThanhToan.DA_HOAN_TIEN);
-                                pttt.setGhiChu("Hoàn tiền do hủy đơn hàng");
+                                
+                                // Kiểm tra phương thức thanh toán
+                                if (pttt.getHinhThucThanhToan() != null) {
+                                    String tenHinhThuc = pttt.getHinhThucThanhToan().getTenHinhThuc();
+                                    // Chỉ yêu cầu thông tin tài khoản cho đơn hàng chuyển khoản
+                                    if ("Chuyển khoản".equals(tenHinhThuc) || "Chuyển Khoản".equals(tenHinhThuc)) {
+                                        isTransferPayment = true;
+                                        pttt.setGhiChu("Hoàn tiền do hủy đơn hàng - Đang chờ thông tin tài khoản");
+                                    } else {
+                                        // Đơn hàng tiền mặt - không cần thông tin tài khoản
+                                        pttt.setGhiChu("Hoàn tiền do hủy đơn hàng - Sẽ hoàn tiền tại cửa hàng");
+                                    }
+                                }
+                                
                                 phuongThucThanhToanRepository.save(pttt);
                             }
                         }
+                    }
+                    
+                    // ✅ CHỈ GỬI EMAIL VỚI FORM REFUND CHO ĐƠN HÀNG THANH TOÁN BẰNG CHUYỂN KHOẢN
+                    // Đơn hàng tiền mặt sẽ được hoàn tiền tại cửa hàng, không cần form
+                    if (isTransferPayment) {
+                        // Gửi email yêu cầu thông tin hoàn tiền cho khách hàng (chỉ cho đơn hàng chuyển khoản)
+                        try {
+                            if (reloadedHoaDon.getKhachHang() != null) {
+                                String customerEmail = reloadedHoaDon.getKhachHang().getEmail();
+                                String customerName = reloadedHoaDon.getKhachHang().getTenKhachHang();
+                                
+                                if (customerEmail != null && !customerEmail.trim().isEmpty()) {
+                                    System.out.println("📧 Sending refund request email (transfer payment) to: " + customerEmail);
+                                    // Tạo link để khách hàng nhập thông tin tài khoản
+                                    String refundLink = "http://localhost:4200/refund?invoice=" + java.net.URLEncoder.encode(reloadedHoaDon.getMaHoaDon(), java.nio.charset.StandardCharsets.UTF_8);
+                                    emailService.sendRefundRequestEmail(
+                                        customerEmail,
+                                        customerName,
+                                        reloadedHoaDon.getMaHoaDon(),
+                                        reloadedHoaDon.getThanhTien(),
+                                        refundLink
+                                    );
+                                    System.out.println("✅ Refund request email sent successfully to: " + customerEmail);
+                                } else {
+                                    System.out.println("⚠️ Customer email is empty, skipping refund request email");
+                                }
+                            } else {
+                                System.out.println("⚠️ Invoice has no customer, skipping refund request email");
+                            }
+                        } catch (Exception e) {
+                            System.err.println("⚠️ Failed to send refund request email: " + e.getMessage());
+                            e.printStackTrace();
+                            // Không throw exception để không ảnh hưởng đến việc hủy đơn hàng
+                        }
+                    } else {
+                        // Đơn hàng tiền mặt - không gửi email với form, chỉ ghi chú
+                        System.out.println("ℹ️ Invoice payment method is cash - No refund form email needed. Customer will receive refund at store.");
                     }
                 }
                 
@@ -1325,6 +1757,15 @@ public class HoaDonService {
         // Cập nhật phí ship mới (cần lưu vào ThongTinDonHang hoặc cập nhật trực tiếp)
         // Tạm thời ghi vào ghiChu và tính lại thanhTien
         
+        // ✅ QUAN TRỌNG: Cập nhật phiGiaoHang vào DB
+        jakarta.persistence.Query updatePhiGiaoHangQuery = entityManager.createQuery(
+            "UPDATE HoaDon h SET h.phiGiaoHang = :phiGiaoHang WHERE h.id = :id"
+        );
+        updatePhiGiaoHangQuery.setParameter("phiGiaoHang", newFee);
+        updatePhiGiaoHangQuery.setParameter("id", id);
+        updatePhiGiaoHangQuery.executeUpdate();
+        System.out.println("✅ Updated phiGiaoHang in DB: " + newFee);
+        
         // Tính lại thanhTien với phí ship mới
         java.math.BigDecimal newThanhTien = hoaDon.getTongTien()
             .subtract(hoaDon.getTienGiamGia() != null ? hoaDon.getTienGiamGia() : java.math.BigDecimal.ZERO)
@@ -1337,6 +1778,7 @@ public class HoaDonService {
         updateThanhTienQuery.setParameter("thanhTien", newThanhTien);
         updateThanhTienQuery.setParameter("id", id);
         updateThanhTienQuery.executeUpdate();
+        System.out.println("✅ Updated thanhTien in DB: " + newThanhTien);
         
         // Ghi chú điều chỉnh phí ship
         String adjustmentNote;
@@ -1650,6 +2092,16 @@ public class HoaDonService {
         return new org.springframework.data.domain.PageImpl<>(results, pageable, totalElements);
     }
 
+    /**
+     * Lấy hóa đơn theo mã hóa đơn
+     */
+    public Optional<HoaDon> getHoaDonByMaHoaDon(String maHoaDon) {
+        if (maHoaDon == null || maHoaDon.trim().isEmpty()) {
+            return Optional.empty();
+        }
+        return hoaDonRepository.findByMaHoaDon(maHoaDon.trim());
+    }
+
     public Optional<HoaDon> getHoaDonById(Long id) {
         // QUAN TRỌNG: Sử dụng EntityGraph hoặc query với JOIN FETCH để đảm bảo load danhSachChiTiet
         // Cũng load thêm loaiMuBaoHiem cho sản phẩm
@@ -1674,6 +2126,7 @@ public class HoaDonService {
         try {
             HoaDon hoaDon = query.getSingleResult();
             System.out.println("✅ Loaded HoaDon ID: " + id + ", status: " + hoaDon.getTrangThai() + ", soLuongSanPham: " + hoaDon.getSoLuongSanPham());
+            System.out.println("💰 [getHoaDonById] phiGiaoHang from DB (hoa_don.phi_giao_hang): " + hoaDon.getPhiGiaoHang());
             
             // QUAN TRỌNG: Luôn kiểm tra và load danhSachChiTiet cho TẤT CẢ các trạng thái
             // Không chỉ load cho CHO_XAC_NHAN mà load cho tất cả
@@ -2002,7 +2455,42 @@ public class HoaDonService {
                 return;
             }
             
-            // Gửi email
+            // ✅ QUAN TRỌNG: Lấy phương thức thanh toán để hiển thị message phù hợp khi hủy đơn
+            String phuongThucThanhToan = null;
+            try {
+                List<PhuongThucThanhToan> ptttList = phuongThucThanhToanRepository.findByHoaDonId(hoaDon.getId());
+                System.out.println("   - Found " + (ptttList != null ? ptttList.size() : 0) + " payment method(s)");
+                
+                if (ptttList != null && !ptttList.isEmpty()) {
+                    PhuongThucThanhToan pttt = ptttList.get(0);
+                    if (pttt.getHinhThucThanhToan() != null) {
+                        // Lấy tên hình thức thanh toán từ DB (có thể là "Chuyển khoản", "Chuyển Khoản", "Tiền mặt", etc.)
+                        String tenHinhThuc = pttt.getHinhThucThanhToan().getTenHinhThuc();
+                        phuongThucThanhToan = tenHinhThuc; // Giữ nguyên giá trị từ DB để kiểm tra chính xác
+                        System.out.println("   - Payment Method (from DB): '" + phuongThucThanhToan + "'");
+                        System.out.println("   - Payment Method (raw object): " + pttt.getHinhThucThanhToan());
+                        
+                        // Log để debug
+                        if (tenHinhThuc != null) {
+                            String lower = tenHinhThuc.toLowerCase().trim();
+                            boolean isChuyenKhoan = lower.contains("chuyển khoản") || 
+                                                   lower.contains("chuyen khoan") || 
+                                                   lower.equals("transfer");
+                            System.out.println("   - Is Transfer Payment (check): " + isChuyenKhoan);
+                        }
+                    } else {
+                        System.out.println("   - ⚠️ HinhThucThanhToan is null in PhuongThucThanhToan");
+                    }
+                } else {
+                    System.out.println("   - ⚠️ No payment method found for invoice ID: " + hoaDon.getId());
+                    System.out.println("   - This might be an unpaid order or payment method not set yet");
+                }
+            } catch (Exception e) {
+                System.err.println("⚠️ Failed to get payment method: " + e.getMessage());
+                e.printStackTrace();
+            }
+            
+            // Gửi email với phương thức thanh toán
             System.out.println("📤 Sending status change email to: " + customerEmail);
             emailService.sendInvoiceStatusChangeNotification(
                 customerEmail,
@@ -2010,7 +2498,8 @@ public class HoaDonService {
                 hoaDon.getMaHoaDon(),
                 oldStatus,
                 newStatus,
-                hoaDon.getThanhTien()
+                hoaDon.getThanhTien(),
+                phuongThucThanhToan
             );
             
             System.out.println("✅ Status change email notification sent successfully to: " + customerEmail);

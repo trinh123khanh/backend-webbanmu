@@ -78,4 +78,10 @@ public interface PhieuGiamGiaRepository extends JpaRepository<PhieuGiamGia, Long
            "(:status = 'dang_dien_ra' AND p.trangThai = true AND p.ngayBatDau <= :currentDate AND p.ngayKetThuc >= :currentDate) OR " +
            "(:status = 'ket_thuc' AND p.ngayKetThuc < :currentDate)")
     List<PhieuGiamGia> findByDynamicStatus(@Param("status") String status, @Param("currentDate") LocalDate currentDate);
+    
+    // Tìm phiếu giảm giá công khai (đang hoạt động VÀ không có trong bảng phieu_giam_gia_ca_nhan)
+    @Query("SELECT p FROM PhieuGiamGia p WHERE p.trangThai = true " +
+           "AND p.ngayBatDau <= :currentDate AND p.ngayKetThuc >= :currentDate " +
+           "AND NOT EXISTS (SELECT 1 FROM PhieuGiamGiaCaNhan pgcn WHERE pgcn.phieuGiamGiaId = p.id)")
+    List<PhieuGiamGia> findPublicActiveVouchers(@Param("currentDate") LocalDate currentDate);
 }

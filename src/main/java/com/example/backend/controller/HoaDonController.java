@@ -23,6 +23,7 @@ import org.springframework.data.domain.Sort;
 import java.util.List;
 import java.util.Map;
 import java.util.HashMap;
+import java.util.Optional;
 
 @RestController
 @RequestMapping("/api/hoa-don")
@@ -257,35 +258,43 @@ public class HoaDonController {
         }
     }
 
-    // Cập nhật hóa đơn
+    // Cập nhật hóa đơn - API duy nhất cho view cập nhật thông tin hóa đơn
     @PutMapping("/{id:\\d+}")
     public ResponseEntity<?> updateHoaDon(@PathVariable Long id, @RequestBody HoaDonDTO hoaDonDTO) {
         try {
             System.out.println("🔍 ========== PUT /api/hoa-don/" + id + " ==========");
             System.out.println("📥 Received HoaDonDTO:");
             System.out.println("   - maHoaDon: " + hoaDonDTO.getMaHoaDon());
+            System.out.println("   - khachHangId: " + hoaDonDTO.getKhachHangId());
+            System.out.println("   - tenKhachHang: " + hoaDonDTO.getTenKhachHang());
+            System.out.println("   - emailKhachHang: " + hoaDonDTO.getEmailKhachHang());
+            System.out.println("   - soDienThoaiKhachHang: " + hoaDonDTO.getSoDienThoaiKhachHang());
+            System.out.println("   - tinhThanh: " + hoaDonDTO.getTinhThanh());
+            System.out.println("   - quanHuyen: " + hoaDonDTO.getQuanHuyen());
+            System.out.println("   - phuongXa: " + hoaDonDTO.getPhuongXa());
+            System.out.println("   - phiGiaoHang: " + hoaDonDTO.getPhiGiaoHang() + " (type: " + (hoaDonDTO.getPhiGiaoHang() != null ? hoaDonDTO.getPhiGiaoHang().getClass().getSimpleName() : "null") + ")");
+            System.out.println("   - tongTien: " + hoaDonDTO.getTongTien());
+            System.out.println("   - tienGiamGia: " + hoaDonDTO.getTienGiamGia());
+            System.out.println("   - thanhTien: " + hoaDonDTO.getThanhTien());
             System.out.println("   - trangThai: " + hoaDonDTO.getTrangThai());
             System.out.println("   - ghiChu: " + hoaDonDTO.getGhiChu());
-            System.out.println("   - ghiChu length: " + (hoaDonDTO.getGhiChu() != null ? hoaDonDTO.getGhiChu().length() : "null"));
             System.out.println("   - danhSachChiTiet size: " + (hoaDonDTO.getDanhSachChiTiet() != null ? hoaDonDTO.getDanhSachChiTiet().size() : "null"));
             
-            // Validate dữ liệu đầu vào
+            // Validate dữ liệu đầu vào - CHỈ validate các trường bắt buộc
             if (hoaDonDTO.getMaHoaDon() == null || hoaDonDTO.getMaHoaDon().trim().isEmpty()) {
                 return ResponseEntity.badRequest().body("Mã hóa đơn không được để trống");
             }
-            if (hoaDonDTO.getKhachHangId() == null) {
-                return ResponseEntity.badRequest().body("Khách hàng ID không được để trống");
-            }
-            if (hoaDonDTO.getTongTien() == null || hoaDonDTO.getTongTien().compareTo(java.math.BigDecimal.ZERO) <= 0) {
-                return ResponseEntity.badRequest().body("Tổng tiền phải lớn hơn 0");
-            }
+            
+            // ✅ CHO PHÉP CẬP NHẬT KHÔNG CẦN THAY ĐỔI THÔNG TIN KHÁCH HÀNG
+            // ✅ Không bắt buộc khachHangId phải có (có thể giữ nguyên hoặc null)
+            // ✅ Không bắt buộc tongTien phải có (có thể giữ nguyên)
             
             HoaDonDTO updatedHoaDon = hoaDonService.updateHoaDon(id, hoaDonDTO);
           
             System.out.println("✅ Invoice updated successfully:");
             System.out.println("   - New status: " + updatedHoaDon.getTrangThai());
+            System.out.println("   - New phiGiaoHang: " + updatedHoaDon.getPhiGiaoHang());
             System.out.println("   - New ghiChu: " + updatedHoaDon.getGhiChu());
-            System.out.println("   - ghiChu length: " + (updatedHoaDon.getGhiChu() != null ? updatedHoaDon.getGhiChu().length() : "null"));
             System.out.println("==========================================");
             return ResponseEntity.ok(updatedHoaDon);
         } catch (jakarta.persistence.EntityNotFoundException e) {
@@ -418,7 +427,89 @@ public class HoaDonController {
     }
 
     /**
-     * Hoàn tiền khi hủy đơn hàng
+     * Khách hàng submit thông tin hoàn tiền (không cần auth)
+     * POST /api/hoa-don/refund/submit
+     */
+    @PostMapping("/refund/submit")
+    public ResponseEntity<?> submitRefundInfo(@RequestBody Map<String, String> request) {
+        try {
+            String maHoaDon = request.get("maHoaDon");
+            String bankAccount = request.get("bankAccount");
+            String bankName = request.get("bankName");
+            String accountHolder = request.get("accountHolder");
+            
+            if (maHoaDon == null || maHoaDon.trim().isEmpty()) {
+                return ResponseEntity.badRequest().body("Mã hóa đơn không được để trống");
+            }
+            
+            if (bankAccount == null || bankAccount.trim().isEmpty()) {
+                return ResponseEntity.badRequest().body("Số tài khoản không được để trống");
+            }
+            
+            if (bankName == null || bankName.trim().isEmpty()) {
+                return ResponseEntity.badRequest().body("Tên ngân hàng không được để trống");
+            }
+            
+            if (accountHolder == null || accountHolder.trim().isEmpty()) {
+                return ResponseEntity.badRequest().body("Tên chủ tài khoản không được để trống");
+            }
+            
+            System.out.println("💰 Customer submitting refund info:");
+            System.out.println("   - Invoice Code: " + maHoaDon);
+            System.out.println("   - Bank Account: " + bankAccount);
+            System.out.println("   - Bank Name: " + bankName);
+            System.out.println("   - Account Holder: " + accountHolder);
+            
+            // Tìm hóa đơn theo mã
+            Optional<com.example.backend.entity.HoaDon> hoaDonOpt = hoaDonService.getHoaDonByMaHoaDon(maHoaDon);
+            if (!hoaDonOpt.isPresent()) {
+                return ResponseEntity.status(org.springframework.http.HttpStatus.NOT_FOUND)
+                    .body("Không tìm thấy hóa đơn với mã: " + maHoaDon);
+            }
+            
+            com.example.backend.entity.HoaDon hoaDon = hoaDonOpt.get();
+            
+            // Kiểm tra hóa đơn đã bị hủy chưa
+            if (hoaDon.getTrangThai() != com.example.backend.entity.HoaDon.TrangThaiHoaDon.DA_HUY) {
+                return ResponseEntity.badRequest()
+                    .body("Hóa đơn chưa bị hủy, không thể yêu cầu hoàn tiền");
+            }
+            
+            // Kiểm tra đơn hàng đã thanh toán chưa
+            if (hoaDon.getNgayThanhToan() == null) {
+                return ResponseEntity.badRequest()
+                    .body("Hóa đơn chưa thanh toán, không cần hoàn tiền");
+            }
+            
+            // Tạo RefundRequest và gọi service
+            com.example.backend.dto.RefundRequest refundRequest = com.example.backend.dto.RefundRequest.builder()
+                .refundAmount(hoaDon.getThanhTien())
+                .refundReason("Khách hàng cung cấp thông tin tài khoản để hoàn tiền")
+                .refundMethod("bank_transfer")
+                .bankAccount(bankAccount)
+                .bankName(bankName)
+                .accountHolder(accountHolder)
+                .build();
+            
+            HoaDonDTO result = hoaDonService.processRefund(hoaDon.getId(), refundRequest);
+            
+            Map<String, Object> response = new HashMap<>();
+            response.put("success", true);
+            response.put("message", "Đã nhận được thông tin tài khoản. Tiền sẽ được hoàn trả trong vòng 3-5 ngày làm việc.");
+            response.put("invoice", result);
+            
+            return ResponseEntity.ok(response);
+            
+        } catch (Exception e) {
+            System.err.println("❌ Error submitting refund info: " + e.getMessage());
+            e.printStackTrace();
+            return ResponseEntity.status(org.springframework.http.HttpStatus.INTERNAL_SERVER_ERROR)
+                .body("Lỗi khi xử lý thông tin hoàn tiền: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Hoàn tiền khi hủy đơn hàng (cho admin/staff)
      * POST /api/hoa-don/{id}/refund
      */
     @PostMapping("/{id}/refund")
