@@ -343,6 +343,17 @@ public class EmailService {
     public void sendInvoiceStatusChangeNotification(String customerEmail, String customerName, 
                                                    String maHoaDon, String oldStatus, String newStatus,
                                                    java.math.BigDecimal thanhTien) {
+        // Gọi overload method với phuongThucThanhToan = null (mặc định)
+        sendInvoiceStatusChangeNotification(customerEmail, customerName, maHoaDon, oldStatus, newStatus, thanhTien, null);
+    }
+
+    /**
+     * Gửi email thông báo thay đổi trạng thái hóa đơn (với phương thức thanh toán)
+     */
+    @Async
+    public void sendInvoiceStatusChangeNotification(String customerEmail, String customerName, 
+                                                   String maHoaDon, String oldStatus, String newStatus,
+                                                   java.math.BigDecimal thanhTien, String phuongThucThanhToan) {
         if (!emailEnabled) {
             log.info("Email service is disabled. Skipping invoice status change notification.");
             return;
@@ -357,6 +368,43 @@ public class EmailService {
             String oldStatusText = getStatusLabel(oldStatus);
             String newStatusText = getStatusLabel(newStatus);
             String thanhTienText = String.format("%,.0f VNĐ", thanhTien != null ? thanhTien.doubleValue() : 0);
+            
+            // ✅ QUAN TRỌNG: Xác định phương thức thanh toán để hiển thị message phù hợp
+            boolean isTransferPayment = false;
+            if (phuongThucThanhToan != null && !phuongThucThanhToan.trim().isEmpty()) {
+                // Normalize: trim và loại bỏ khoảng trắng thừa
+                String phuongThuc = phuongThucThanhToan.trim().replaceAll("\\s+", " ");
+                String phuongThucLower = phuongThuc.toLowerCase();
+                
+                // Log để debug
+                log.info("🔍 Checking payment method: '{}' (normalized: '{}', lower: '{}')", 
+                    phuongThucThanhToan, phuongThuc, phuongThucLower);
+                
+                // Kiểm tra nếu là chuyển khoản - kiểm tra nhiều cách viết khác nhau
+                // Bao gồm: có dấu, không dấu, chữ hoa, chữ thường, có khoảng trắng
+                isTransferPayment = 
+                    // Kiểm tra với dấu tiếng Việt
+                    phuongThucLower.contains("chuyển khoản") || 
+                    phuongThucLower.contains("chuyểnkhoản") ||
+                    phuongThucLower.equals("chuyển khoản") ||
+                    // Kiểm tra không dấu
+                    phuongThucLower.contains("chuyen khoan") || 
+                    phuongThucLower.contains("chuyenkhoan") ||
+                    phuongThucLower.equals("chuyen khoan") ||
+                    // Kiểm tra tiếng Anh
+                    phuongThucLower.equals("transfer") ||
+                    phuongThucLower.contains("transfer") ||
+                    // Kiểm tra trực tiếp với chữ hoa (trường hợp đặc biệt)
+                    phuongThuc.equals("Chuyển khoản") ||
+                    phuongThuc.equals("Chuyển Khoản") ||
+                    phuongThuc.equals("CHUYỂN KHOẢN") ||
+                    phuongThuc.equals("CHUYEN KHOAN");
+                
+                log.info("💰 Payment method check result: isTransferPayment = {} (method: '{}', status: {})", 
+                    isTransferPayment, phuongThuc, newStatus);
+            } else {
+                log.warn("⚠️ phuongThucThanhToan is null or empty, defaulting to cash payment message (status: {})", newStatus);
+            }
             
             String emailContent = String.format(
                 "Xin chào %s,\n\n" +
@@ -375,7 +423,7 @@ public class EmailService {
                 oldStatusText,
                 newStatusText,
                 thanhTienText,
-                getStatusChangeMessage(newStatus)
+                getStatusChangeMessage(newStatus, isTransferPayment)
             );
 
             SimpleMailMessage message = new SimpleMailMessage();
@@ -385,8 +433,8 @@ public class EmailService {
             message.setText(emailContent);
             mailSender.send(message);
 
-            log.info("✅ Invoice status change notification sent successfully to: {} (Invoice: {}, Status: {} -> {})", 
-                customerEmail, maHoaDon, oldStatus, newStatus);
+            log.info("✅ Invoice status change notification sent successfully to: {} (Invoice: {}, Status: {} -> {}, Payment: {})", 
+                customerEmail, maHoaDon, oldStatus, newStatus, phuongThucThanhToan != null ? phuongThucThanhToan : "N/A");
 
         } catch (Exception e) {
             log.error("❌ Lỗi khi gửi email thông báo thay đổi trạng thái tới {}: {}", customerEmail, e.getMessage(), e);
@@ -406,6 +454,11 @@ public class EmailService {
     }
 
     private String getStatusChangeMessage(String newStatus) {
+        // Gọi overload method với isTransferPayment = false (mặc định)
+        return getStatusChangeMessage(newStatus, false);
+    }
+
+    private String getStatusChangeMessage(String newStatus, boolean isTransferPayment) {
         if (newStatus == null) return "";
         switch (newStatus) {
             case "DA_XAC_NHAN":
@@ -415,9 +468,135 @@ public class EmailService {
             case "DA_GIAO_HANG":
                 return "Đơn hàng của bạn đã được giao thành công. Cảm ơn bạn đã mua sắm tại TDK Store!";
             case "DA_HUY": case "HUY":
-                return "Đơn hàng của bạn đã bị hủy. Nếu bạn có thắc mắc, vui lòng liên hệ với chúng tôi.";
+                // ✅ QUAN TRỌNG: Nếu là đơn hàng chuyển khoản, hiển thị message yêu cầu trao đổi thông tin
+                // Nếu là đơn hàng tiền mặt, giữ nguyên message cũ
+                if (isTransferPayment) {
+                    return "Đơn hàng của bạn đã bị hủy, để nhận được tiền hoàn phí thanh toán, quý khách vui lòng trao đổi thông tin với shop qua email này hoặc trao đổi trực tiếp với shop qua message, TDK xin cảm ơn.";
+                } else {
+                    return "Đơn hàng của bạn đã bị hủy. Nếu bạn có thắc mắc, vui lòng liên hệ với chúng tôi.";
+                }
             default:
                 return "Trạng thái đơn hàng đã được cập nhật.";
+        }
+    }
+
+    /**
+     * Gửi email yêu cầu thông tin hoàn tiền khi hủy đơn hàng đã thanh toán
+     */
+    @Async
+    public void sendRefundRequestEmail(String customerEmail, String customerName, String maHoaDon,
+                                      java.math.BigDecimal thanhTien, String refundLink) {
+        if (!emailEnabled) {
+            log.info("Email service is disabled. Skipping refund request email.");
+            return;
+        }
+
+        if (customerEmail == null || customerEmail.trim().isEmpty()) {
+            log.warn("Email khách hàng trống, không thể gửi email yêu cầu hoàn tiền");
+            return;
+        }
+
+        try {
+            String thanhTienText = String.format("%,.0f VNĐ", thanhTien != null ? thanhTien.doubleValue() : 0);
+            
+            // Tạo nội dung email với link để khách hàng nhập thông tin
+            String emailContent = String.format(
+                "Xin chào %s,\n\n" +
+                "Chúng tôi rất tiếc vì đơn hàng của bạn đã bị hủy.\n\n" +
+                "📋 THÔNG TIN HÓA ĐƠN:\n" +
+                "- Mã hóa đơn: %s\n" +
+                "- Số tiền cần hoàn: %s\n\n" +
+                "💰 YÊU CẦU HOÀN TIỀN:\n" +
+                "Để chúng tôi có thể hoàn tiền cho bạn, vui lòng cung cấp thông tin tài khoản ngân hàng của bạn bằng cách:\n\n" +
+                "1. Truy cập link sau: %s\n" +
+                "2. Nhập mã hóa đơn: %s\n" +
+                "3. Điền thông tin tài khoản ngân hàng:\n" +
+                "   - Số tài khoản\n" +
+                "   - Tên ngân hàng\n" +
+                "   - Tên chủ tài khoản\n\n" +
+                "⚠️ LƯU Ý:\n" +
+                "- Thông tin tài khoản sẽ được bảo mật và chỉ sử dụng để hoàn tiền\n" +
+                "- Tiền sẽ được hoàn trả trong vòng 3-5 ngày làm việc sau khi nhận được thông tin\n" +
+                "- Nếu bạn không cung cấp thông tin trong vòng 7 ngày, vui lòng liên hệ trực tiếp với chúng tôi\n\n" +
+                "Nếu có bất kỳ thắc mắc nào, vui lòng liên hệ với chúng tôi:\n" +
+                "- Email: support@tdkstore.com\n" +
+                "- Hotline: 0909 123 456\n\n" +
+                "Trân trọng,\n" +
+                "TDK Store - Bán mũ bảo hiểm",
+                customerName != null ? customerName : "Khách hàng",
+                maHoaDon != null ? maHoaDon : "N/A",
+                thanhTienText,
+                refundLink != null ? refundLink : "http://localhost:4200/refund",
+                maHoaDon != null ? maHoaDon : "N/A"
+            );
+
+            SimpleMailMessage message = new SimpleMailMessage();
+            message.setFrom(fromEmail);
+            message.setTo(customerEmail);
+            message.setSubject("💰 Yêu cầu thông tin hoàn tiền - Hóa đơn " + maHoaDon + " - TDK Store");
+            message.setText(emailContent);
+            mailSender.send(message);
+
+            log.info("✅ Refund request email sent successfully to: {} (Invoice: {})", customerEmail, maHoaDon);
+
+        } catch (Exception e) {
+            log.error("❌ Lỗi khi gửi email yêu cầu hoàn tiền tới {}: {}", customerEmail, e.getMessage(), e);
+            // Không throw exception để không ảnh hưởng đến logic chính
+        }
+    }
+
+    /**
+     * Gửi email thông báo cập nhật địa chỉ giao hàng cho khách hàng
+     */
+    @Async
+    public void sendAddressUpdateEmail(String customerEmail, String customerName, String maHoaDon,
+                                      String oldAddress, String newAddress) {
+        if (!emailEnabled) {
+            log.info("Email service is disabled. Skipping address update email.");
+            return;
+        }
+
+        if (customerEmail == null || customerEmail.trim().isEmpty()) {
+            log.warn("Email khách hàng trống, không thể gửi thông báo cập nhật địa chỉ");
+            return;
+        }
+
+        try {
+            String emailContent = String.format(
+                "Xin chào %s,\n\n" +
+                "Chúng tôi xin thông báo rằng địa chỉ giao hàng của đơn hàng của bạn đã được cập nhật.\n\n" +
+                "📋 THÔNG TIN HÓA ĐƠN:\n" +
+                "- Mã hóa đơn: %s\n\n" +
+                "📍 THAY ĐỔI ĐỊA CHỈ:\n" +
+                "- Địa chỉ cũ: %s\n" +
+                "- Địa chỉ mới: %s\n\n" +
+                "⚠️ LƯU Ý:\n" +
+                "- Nếu địa chỉ mới khác với địa chỉ bạn đã cung cấp, vui lòng liên hệ với chúng tôi ngay.\n" +
+                "- Phí giao hàng có thể thay đổi tùy theo địa chỉ mới.\n" +
+                "- Đơn hàng sẽ được giao đến địa chỉ mới này.\n\n" +
+                "Nếu có bất kỳ thắc mắc nào, vui lòng liên hệ với chúng tôi:\n" +
+                "- Email: support@tdkstore.com\n" +
+                "- Hotline: 0909 123 456\n\n" +
+                "Trân trọng,\n" +
+                "TDK Store - Bán mũ bảo hiểm",
+                customerName != null ? customerName : "Khách hàng",
+                maHoaDon != null ? maHoaDon : "N/A",
+                oldAddress != null && !oldAddress.trim().isEmpty() ? oldAddress : "Chưa có địa chỉ",
+                newAddress != null && !newAddress.trim().isEmpty() ? newAddress : "Chưa có địa chỉ"
+            );
+
+            SimpleMailMessage message = new SimpleMailMessage();
+            message.setFrom(fromEmail);
+            message.setTo(customerEmail);
+            message.setSubject("📍 Cập nhật địa chỉ giao hàng - Hóa đơn " + maHoaDon + " - TDK Store");
+            message.setText(emailContent);
+            mailSender.send(message);
+
+            log.info("✅ Address update email sent successfully to: {} (Invoice: {})", customerEmail, maHoaDon);
+
+        } catch (Exception e) {
+            log.error("❌ Lỗi khi gửi email thông báo cập nhật địa chỉ tới {}: {}", customerEmail, e.getMessage(), e);
+            // Không throw exception để không ảnh hưởng đến logic chính
         }
     }
 

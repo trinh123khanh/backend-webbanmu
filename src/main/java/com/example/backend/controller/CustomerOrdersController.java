@@ -19,6 +19,7 @@ import org.springframework.web.bind.annotation.*;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 @RestController
 @RequestMapping("/api/customer")
@@ -143,15 +144,29 @@ public class CustomerOrdersController {
             KhachHang khachHang = khachHangRepository.findByUserId(user.getId())
                     .orElseThrow(() -> new RuntimeException("KhachHang not found for user: " + username));
             
-            // Chỉ cho phép hủy đơn hàng ở trạng thái CHO_XAC_NHAN
-            // Gọi service để cập nhật trạng thái
-            HoaDonDTO updatedHoaDon = hoaDonService.updateTrangThaiHoaDon(id, "HUY");
+            // Kiểm tra đơn hàng có tồn tại và thuộc về khách hàng này không
+            Optional<HoaDon> hoaDonOpt = hoaDonService.getHoaDonById(id);
+            if (!hoaDonOpt.isPresent()) {
+                return ResponseEntity.status(org.springframework.http.HttpStatus.NOT_FOUND)
+                        .body("Không tìm thấy đơn hàng với ID: " + id);
+            }
             
-            // Kiểm tra xem đơn hàng có thuộc về khách hàng này không
-            if (!updatedHoaDon.getKhachHangId().equals(khachHang.getId())) {
+            HoaDon hoaDon = hoaDonOpt.get();
+            
+            // Kiểm tra quyền sở hữu đơn hàng
+            if (hoaDon.getKhachHang() == null || !hoaDon.getKhachHang().getId().equals(khachHang.getId())) {
                 return ResponseEntity.status(org.springframework.http.HttpStatus.FORBIDDEN)
                         .body("Bạn không có quyền hủy đơn hàng này");
             }
+            
+            // Chỉ cho phép hủy đơn hàng ở trạng thái CHO_XAC_NHAN
+            if (hoaDon.getTrangThai() != HoaDon.TrangThaiHoaDon.CHO_XAC_NHAN) {
+                return ResponseEntity.status(org.springframework.http.HttpStatus.BAD_REQUEST)
+                        .body("Chỉ có thể hủy đơn hàng khi đang ở trạng thái 'Chờ xác nhận'. Trạng thái hiện tại: " + hoaDon.getTrangThai());
+            }
+            
+            // Gọi service để cập nhật trạng thái thành DA_HUY
+            HoaDonDTO updatedHoaDon = hoaDonService.updateTrangThaiHoaDon(id, "HUY");
             
             return ResponseEntity.ok(updatedHoaDon);
         } catch (Exception e) {
