@@ -292,17 +292,18 @@ public class ChatConversationServiceImpl implements ChatConversationService {
      * Sử dụng ChatbotService để phân tích và truy vấn sản phẩm từ database
      */
     private void addAutoReply(ConversationDTO conversation, String customerMessage) {
-        // Sử dụng ChatbotService để tạo phản hồi thông minh
-        String reply = chatbotService.generateReply(customerMessage);
+        // Sử dụng ChatbotService để tạo phản hồi thông minh (có kèm suggested products)
+        com.example.backend.dto.chat.ChatbotReply chatbotReply = chatbotService.generateReplyWithProducts(customerMessage);
         
         ChatMessageDTO autoMessage = ChatMessageDTO.builder()
                 .id(messageIdSequence.getAndIncrement())
                 .conversationId(conversation.getId())
-                .noiDung(reply)
+                .noiDung(chatbotReply.getReplyText())
                 .loaiNguoiGui("CHATBOT")
                 .thoiGianGui(now())
                 .tuDongTraLoi(true)
                 .daDoc(false)
+                .suggestedProducts(chatbotReply.getSuggestedProducts())
                 .build();
         conversation.getMessages().add(autoMessage);
         conversation.setNgayCapNhat(now());
