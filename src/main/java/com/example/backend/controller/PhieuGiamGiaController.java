@@ -166,6 +166,16 @@ public class PhieuGiamGiaController {
         return ResponseEntity.ok(response);
     }
     
+    // Lấy phiếu giảm giá công khai (đang hoạt động VÀ không có trong bảng phieu_giam_gia_ca_nhan)
+    @GetMapping("/public/active")
+    public ResponseEntity<ApiResponse<java.util.List<PhieuGiamGiaResponse>>> getPublicActivePhieuGiamGia() {
+        log.info("Lấy phiếu giảm giá công khai đang hoạt động");
+        
+        ApiResponse<java.util.List<PhieuGiamGiaResponse>> response = phieuGiamGiaService.getPublicActivePhieuGiamGia();
+        
+        return ResponseEntity.ok(response);
+    }
+    
     // Tìm kiếm phiếu giảm giá
     @GetMapping("/search")
     public ResponseEntity<ApiResponse<java.util.List<PhieuGiamGiaResponse>>> searchPhieuGiamGia(
