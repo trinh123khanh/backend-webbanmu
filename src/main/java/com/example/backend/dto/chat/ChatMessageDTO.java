@@ -1,9 +1,12 @@
 package com.example.backend.dto.chat;
 
+import com.example.backend.dto.SanPhamResponse;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+
+import java.util.List;
 
 @Data
 @Builder
@@ -21,5 +24,6 @@ public class ChatMessageDTO {
     private String thoiGianGui;
     private Boolean tuDongTraLoi;
     private Boolean daDoc;
+    private List<SanPhamResponse> suggestedProducts; // Danh sách sản phẩm gợi ý từ chatbot
 }
 
