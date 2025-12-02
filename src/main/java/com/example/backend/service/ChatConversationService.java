@@ -26,3 +26,4 @@ public interface ChatConversationService {
     ConversationDTO closeConversation(Long conversationId);
 }
 
+

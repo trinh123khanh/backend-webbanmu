@@ -941,5 +941,3 @@ public class ChatbotService {
         return withoutAccents.toLowerCase(Locale.ROOT).trim();
     }
 }
-
-
