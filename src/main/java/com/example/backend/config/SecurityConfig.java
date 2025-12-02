@@ -78,15 +78,15 @@ public class SecurityConfig {
                 .requestMatchers("/api/reports/**").hasAnyRole("ADMIN", "STAFF")
                 .requestMatchers("/api/report-test/**").hasAnyRole("ADMIN", "STAFF")
                 
-                // Admin endpoints - chỉ ADMIN
+                // Product & variant management - cho phép ADMIN và STAFF (đặt TRƯỚC rule chung /api/admin/**)
+                .requestMatchers("/api/san-pham/**").hasAnyRole("ADMIN", "STAFF")
+                .requestMatchers("/api/admin/products/**").hasAnyRole("ADMIN", "STAFF")
+                
+                // Admin endpoints - chỉ ADMIN (đặt SAU các rule cụ thể)
                 .requestMatchers("/api/admin/**").hasRole("ADMIN")
                 
                 // Staff endpoints - ADMIN và STAFF
                 .requestMatchers("/api/staff/**").hasAnyRole("ADMIN", "STAFF")
-                
-                // Product & variant management - cho phép ADMIN và STAFF
-                .requestMatchers("/api/san-pham/**").hasAnyRole("ADMIN", "STAFF")
-                .requestMatchers("/api/admin/products/**").hasAnyRole("ADMIN", "STAFF")
                 
                 // Customer endpoints - cho phép authenticated users (không nhất thiết phải có role CUSTOMER)
                 .requestMatchers("/api/customer/profile/**").hasRole("CUSTOMER")
