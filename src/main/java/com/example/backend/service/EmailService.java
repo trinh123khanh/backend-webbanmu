@@ -601,6 +601,144 @@ public class EmailService {
     }
 
     /**
+     * Gửi email thông báo cập nhật thông tin hóa đơn cho khách hàng
+     */
+    @Async
+    public void sendInvoiceUpdateNotification(String customerEmail, String customerName, String maHoaDon,
+                                             java.util.Map<String, String> changes) {
+        if (!emailEnabled) {
+            log.info("Email service is disabled. Skipping invoice update notification.");
+            return;
+        }
+
+        if (customerEmail == null || customerEmail.trim().isEmpty()) {
+            log.warn("Email khách hàng trống, không thể gửi thông báo cập nhật hóa đơn");
+            return;
+        }
+
+        if (changes == null || changes.isEmpty()) {
+            log.info("Không có thay đổi nào, bỏ qua gửi email thông báo cập nhật");
+            return;
+        }
+
+        try {
+            // Tạo danh sách thay đổi
+            StringBuilder changesList = new StringBuilder();
+            for (java.util.Map.Entry<String, String> entry : changes.entrySet()) {
+                String fieldName = getFieldLabel(entry.getKey());
+                changesList.append("- ").append(fieldName).append(": ").append(entry.getValue()).append("\n");
+            }
+
+            String emailContent = String.format(
+                "Xin chào %s,\n\n" +
+                "Chúng tôi xin thông báo rằng thông tin hóa đơn của bạn đã được cập nhật.\n\n" +
+                "📋 THÔNG TIN HÓA ĐƠN:\n" +
+                "- Mã hóa đơn: %s\n\n" +
+                "🔄 CÁC THAY ĐỔI:\n" +
+                "%s\n" +
+                "⚠️ LƯU Ý:\n" +
+                "- Nếu bạn không thực hiện các thay đổi này, vui lòng liên hệ với chúng tôi ngay.\n" +
+                "- Nếu có bất kỳ thắc mắc nào, vui lòng liên hệ với chúng tôi:\n" +
+                "  - Email: support@tdkstore.com\n" +
+                "  - Hotline: 0909 123 456\n\n" +
+                "Trân trọng,\n" +
+                "TDK Store - Bán mũ bảo hiểm",
+                customerName != null ? customerName : "Khách hàng",
+                maHoaDon != null ? maHoaDon : "N/A",
+                changesList.toString()
+            );
+
+            SimpleMailMessage message = new SimpleMailMessage();
+            message.setFrom(fromEmail);
+            message.setTo(customerEmail);
+            message.setSubject("🔄 Cập nhật thông tin hóa đơn " + maHoaDon + " - TDK Store");
+            message.setText(emailContent);
+            mailSender.send(message);
+
+            log.info("✅ Invoice update notification sent successfully to: {} (Invoice: {}, Changes: {})", 
+                customerEmail, maHoaDon, changes.size());
+
+        } catch (Exception e) {
+            log.error("❌ Lỗi khi gửi email thông báo cập nhật hóa đơn tới {}: {}", customerEmail, e.getMessage(), e);
+        }
+    }
+
+    /**
+     * Chuyển đổi tên field thành label tiếng Việt
+     */
+    private String getFieldLabel(String fieldName) {
+        if (fieldName == null) return "N/A";
+        switch (fieldName) {
+            case "tenKhachHang": return "Tên khách hàng";
+            case "emailKhachHang": return "Email khách hàng";
+            case "soDienThoaiKhachHang": return "Số điện thoại";
+            case "diaChiChiTiet": return "Địa chỉ chi tiết";
+            case "tinhThanh": return "Tỉnh/Thành phố";
+            case "quanHuyen": return "Quận/Huyện";
+            case "phuongXa": return "Phường/Xã";
+            case "tongTien": return "Tổng tiền";
+            case "tienGiamGia": return "Tiền giảm giá";
+            case "phiGiaoHang": return "Phí giao hàng";
+            case "thanhTien": return "Thành tiền";
+            case "ghiChu": return "Ghi chú";
+            default: return fieldName;
+        }
+    }
+
+    /**
+     * Gửi email thông báo xóa hóa đơn cho khách hàng
+     */
+    @Async
+    public void sendInvoiceDeletionNotification(String customerEmail, String customerName, String maHoaDon,
+                                               java.math.BigDecimal thanhTien) {
+        if (!emailEnabled) {
+            log.info("Email service is disabled. Skipping invoice deletion notification.");
+            return;
+        }
+
+        if (customerEmail == null || customerEmail.trim().isEmpty()) {
+            log.warn("Email khách hàng trống, không thể gửi thông báo xóa hóa đơn");
+            return;
+        }
+
+        try {
+            String thanhTienText = String.format("%,.0f VNĐ", thanhTien != null ? thanhTien.doubleValue() : 0);
+            
+            String emailContent = String.format(
+                "Xin chào %s,\n\n" +
+                "Chúng tôi xin thông báo rằng hóa đơn của bạn đã bị xóa khỏi hệ thống.\n\n" +
+                "📋 THÔNG TIN HÓA ĐƠN ĐÃ XÓA:\n" +
+                "- Mã hóa đơn: %s\n" +
+                "- Thành tiền: %s\n\n" +
+                "⚠️ LƯU Ý:\n" +
+                "- Nếu bạn không yêu cầu xóa hóa đơn này, vui lòng liên hệ với chúng tôi ngay.\n" +
+                "- Nếu hóa đơn đã được thanh toán, chúng tôi sẽ xử lý hoàn tiền nếu cần.\n" +
+                "- Nếu có bất kỳ thắc mắc nào, vui lòng liên hệ với chúng tôi:\n" +
+                "  - Email: support@tdkstore.com\n" +
+                "  - Hotline: 0909 123 456\n\n" +
+                "Trân trọng,\n" +
+                "TDK Store - Bán mũ bảo hiểm",
+                customerName != null ? customerName : "Khách hàng",
+                maHoaDon != null ? maHoaDon : "N/A",
+                thanhTienText
+            );
+
+            SimpleMailMessage message = new SimpleMailMessage();
+            message.setFrom(fromEmail);
+            message.setTo(customerEmail);
+            message.setSubject("⚠️ Thông báo xóa hóa đơn " + maHoaDon + " - TDK Store");
+            message.setText(emailContent);
+            mailSender.send(message);
+
+            log.info("✅ Invoice deletion notification sent successfully to: {} (Invoice: {})", 
+                customerEmail, maHoaDon);
+
+        } catch (Exception e) {
+            log.error("❌ Lỗi khi gửi email thông báo xóa hóa đơn tới {}: {}", customerEmail, e.getMessage(), e);
+        }
+    }
+
+    /**
      * Inner class để chứa thông tin sản phẩm trong hóa đơn
      */
     public static class InvoiceItemInfo {

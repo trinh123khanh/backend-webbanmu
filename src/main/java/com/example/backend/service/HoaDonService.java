@@ -756,15 +756,15 @@ public class HoaDonService {
         
         // Log activity: CREATE
         try {
-            String newDataJson = serializeHoaDonToJson(saved);
+            String newDataText = formatHoaDonToText(saved);
             hoaDonActivityService.logActivity(
                 saved,
                 "CREATE",
                 String.format("Tạo hóa đơn mới: %s - Tổng tiền: %s VNĐ", 
                     saved.getMaHoaDon(), 
-                    saved.getThanhTien() != null ? saved.getThanhTien().toString() : "0"),
+                    saved.getThanhTien() != null ? String.format("%,.0f", saved.getThanhTien().doubleValue()) : "0"),
                 null,
-                newDataJson
+                newDataText
             );
         } catch (Exception e) {
             System.err.println("⚠️ Failed to log CREATE activity: " + e.getMessage());
@@ -997,22 +997,33 @@ public class HoaDonService {
                 .orElseThrow(() -> new EntityNotFoundException("Không tìm thấy hóa đơn"));
         
         // Lưu dữ liệu cũ để log
-        String oldDataJson = null;
+        String oldDataText = null;
         try {
-            oldDataJson = serializeHoaDonToJson(h);
+            oldDataText = formatHoaDonToText(h);
         } catch (Exception e) {
-            System.err.println("⚠️ Failed to serialize old data: " + e.getMessage());
+            System.err.println("⚠️ Failed to format old data: " + e.getMessage());
         }
         
-        // ✅ QUAN TRỌNG: Lưu địa chỉ cũ để so sánh và gửi email nếu có thay đổi
-        String oldAddress = null;
+        // ✅ QUAN TRỌNG: Lưu tất cả thông tin cũ để so sánh và gửi email nếu có thay đổi
+        String oldTenKhachHang = h.getKhachHang() != null ? h.getKhachHang().getTenKhachHang() : null;
+        String oldEmailKhachHang = h.getKhachHang() != null ? h.getKhachHang().getEmail() : null;
+        String oldSoDienThoaiKhachHang = h.getKhachHang() != null ? h.getKhachHang().getSoDienThoai() : null;
+        String oldTinhThanh = null;
+        String oldQuanHuyen = null;
+        String oldPhuongXa = null;
+        java.math.BigDecimal oldTongTien = h.getTongTien();
+        java.math.BigDecimal oldTienGiamGia = h.getTienGiamGia();
+        java.math.BigDecimal oldPhiGiaoHang = h.getPhiGiaoHang();
+        java.math.BigDecimal oldThanhTien = h.getThanhTien();
+        String oldGhiChu = h.getGhiChu();
+        
         try {
-            // Lấy địa chỉ cũ từ ThongTinDonHang hoặc từ entity
+            // Lấy địa chỉ cũ từ ThongTinDonHang
             Optional<ThongTinDonHang> oldThongTin = thongTinDonHangRepository.findByHoaDonId(id);
             if (oldThongTin.isPresent()) {
-                oldAddress = oldThongTin.get().getDiaChiGiaoHang();
-            } else if (h.getKhachHang() != null && h.getKhachHang().getDiaChi() != null) {
-                oldAddress = h.getKhachHang().getDiaChi();
+                oldTinhThanh = oldThongTin.get().getTinhThanh();
+                oldQuanHuyen = oldThongTin.get().getQuanHuyen();
+                oldPhuongXa = oldThongTin.get().getPhuongXa();
             }
         } catch (Exception e) {
             System.err.println("⚠️ Failed to get old address: " + e.getMessage());
@@ -1132,20 +1143,6 @@ public class HoaDonService {
         System.out.println("   - tongTien: " + saved.getTongTien());
         System.out.println("   - tienGiamGia: " + saved.getTienGiamGia());
         System.out.println("   - thanhTien: " + saved.getThanhTien());
-        
-        // Log activity: UPDATE
-        try {
-            String newDataJson = serializeHoaDonToJson(saved);
-            hoaDonActivityService.logActivity(
-                saved,
-                "UPDATE",
-                String.format("Cập nhật thông tin hóa đơn: %s", saved.getMaHoaDon()),
-                oldDataJson,
-                newDataJson
-            );
-        } catch (Exception e) {
-            System.err.println("⚠️ Failed to log UPDATE activity: " + e.getMessage());
-        }
         
         // ✅ Xử lý danh sách phiếu giảm giá nếu có (trong updateHoaDon)
         if (dto.getPhieuGiamGiaIds() != null && !dto.getPhieuGiamGiaIds().isEmpty()) {
@@ -1314,49 +1311,174 @@ public class HoaDonService {
         if (reloaded.isPresent()) {
             HoaDon reloadedHoaDon = reloaded.get();
             
-            // ✅ QUAN TRỌNG: Kiểm tra xem địa chỉ có thay đổi không và gửi email cho khách hàng
+            // Log activity: UPDATE (sau khi reload để có dữ liệu đầy đủ)
             try {
-                String newAddress = null;
+                String newDataText = formatHoaDonToText(reloadedHoaDon);
+                // Tạo mô tả dạng text từ các thay đổi
+                String descriptionText = buildUpdateDescriptionText(h, reloadedHoaDon);
+                hoaDonActivityService.logActivity(
+                    reloadedHoaDon,
+                    "UPDATE",
+                    descriptionText,
+                    oldDataText,
+                    newDataText
+                );
+            } catch (Exception e) {
+                System.err.println("⚠️ Failed to log UPDATE activity: " + e.getMessage());
+            }
+            
+            // ✅ QUAN TRỌNG: Kiểm tra tất cả các thay đổi và gửi email thông báo cho khách hàng
+            try {
+                // Lấy thông tin mới
+                String newTenKhachHang = reloadedHoaDon.getKhachHang() != null ? reloadedHoaDon.getKhachHang().getTenKhachHang() : null;
+                String newEmailKhachHang = reloadedHoaDon.getKhachHang() != null ? reloadedHoaDon.getKhachHang().getEmail() : null;
+                String newSoDienThoaiKhachHang = reloadedHoaDon.getKhachHang() != null ? reloadedHoaDon.getKhachHang().getSoDienThoai() : null;
+                String newTinhThanh = null;
+                String newQuanHuyen = null;
+                String newPhuongXa = null;
+                
                 Optional<ThongTinDonHang> newThongTin = thongTinDonHangRepository.findByHoaDonId(saved.getId());
                 if (newThongTin.isPresent()) {
-                    newAddress = newThongTin.get().getDiaChiGiaoHang();
-                } else if (reloadedHoaDon.getKhachHang() != null && reloadedHoaDon.getKhachHang().getDiaChi() != null) {
-                    newAddress = reloadedHoaDon.getKhachHang().getDiaChi();
+                    newTinhThanh = newThongTin.get().getTinhThanh();
+                    newQuanHuyen = newThongTin.get().getQuanHuyen();
+                    newPhuongXa = newThongTin.get().getPhuongXa();
                 }
                 
-                // So sánh địa chỉ cũ và mới
-                boolean addressChanged = false;
-                if (oldAddress == null && newAddress != null && !newAddress.trim().isEmpty()) {
-                    addressChanged = true; // Từ không có địa chỉ -> có địa chỉ
-                } else if (oldAddress != null && newAddress != null && !oldAddress.equals(newAddress)) {
-                    addressChanged = true; // Địa chỉ thay đổi
-                } else if (oldAddress != null && (newAddress == null || newAddress.trim().isEmpty())) {
-                    addressChanged = true; // Từ có địa chỉ -> không có địa chỉ
+                java.math.BigDecimal newTongTien = reloadedHoaDon.getTongTien();
+                java.math.BigDecimal newTienGiamGia = reloadedHoaDon.getTienGiamGia();
+                java.math.BigDecimal newPhiGiaoHang = reloadedHoaDon.getPhiGiaoHang();
+                java.math.BigDecimal newThanhTien = reloadedHoaDon.getThanhTien();
+                String newGhiChu = reloadedHoaDon.getGhiChu();
+                
+                // So sánh và tạo danh sách thay đổi
+                java.util.Map<String, String> changes = new java.util.HashMap<>();
+                
+                // So sánh thông tin khách hàng
+                if (!java.util.Objects.equals(oldTenKhachHang, newTenKhachHang)) {
+                    changes.put("tenKhachHang", 
+                        (oldTenKhachHang != null ? oldTenKhachHang : "Chưa có") + " → " + 
+                        (newTenKhachHang != null ? newTenKhachHang : "Chưa có"));
+                }
+                if (!java.util.Objects.equals(oldEmailKhachHang, newEmailKhachHang)) {
+                    changes.put("emailKhachHang", 
+                        (oldEmailKhachHang != null ? oldEmailKhachHang : "Chưa có") + " → " + 
+                        (newEmailKhachHang != null ? newEmailKhachHang : "Chưa có"));
+                }
+                if (!java.util.Objects.equals(oldSoDienThoaiKhachHang, newSoDienThoaiKhachHang)) {
+                    changes.put("soDienThoaiKhachHang", 
+                        (oldSoDienThoaiKhachHang != null ? oldSoDienThoaiKhachHang : "Chưa có") + " → " + 
+                        (newSoDienThoaiKhachHang != null ? newSoDienThoaiKhachHang : "Chưa có"));
                 }
                 
-                // Gửi email nếu địa chỉ thay đổi và có thông tin khách hàng
-                if (addressChanged && reloadedHoaDon.getKhachHang() != null) {
-                    String customerEmail = reloadedHoaDon.getKhachHang().getEmail();
-                    String customerName = reloadedHoaDon.getKhachHang().getTenKhachHang();
+                // So sánh địa chỉ
+                if (!java.util.Objects.equals(oldTinhThanh, newTinhThanh)) {
+                    changes.put("tinhThanh", 
+                        (oldTinhThanh != null ? oldTinhThanh : "Chưa có") + " → " + 
+                        (newTinhThanh != null ? newTinhThanh : "Chưa có"));
+                }
+                if (!java.util.Objects.equals(oldQuanHuyen, newQuanHuyen)) {
+                    changes.put("quanHuyen", 
+                        (oldQuanHuyen != null ? oldQuanHuyen : "Chưa có") + " → " + 
+                        (newQuanHuyen != null ? newQuanHuyen : "Chưa có"));
+                }
+                if (!java.util.Objects.equals(oldPhuongXa, newPhuongXa)) {
+                    changes.put("phuongXa", 
+                        (oldPhuongXa != null ? oldPhuongXa : "Chưa có") + " → " + 
+                        (newPhuongXa != null ? newPhuongXa : "Chưa có"));
+                }
+                
+                // So sánh tiền
+                if (oldTongTien == null && newTongTien != null || 
+                    oldTongTien != null && newTongTien == null ||
+                    (oldTongTien != null && newTongTien != null && oldTongTien.compareTo(newTongTien) != 0)) {
+                    String oldTongTienText = oldTongTien != null ? String.format("%,.0f VNĐ", oldTongTien.doubleValue()) : "Chưa có";
+                    String newTongTienText = newTongTien != null ? String.format("%,.0f VNĐ", newTongTien.doubleValue()) : "Chưa có";
+                    changes.put("tongTien", oldTongTienText + " → " + newTongTienText);
+                }
+                if (oldTienGiamGia == null && newTienGiamGia != null || 
+                    oldTienGiamGia != null && newTienGiamGia == null ||
+                    (oldTienGiamGia != null && newTienGiamGia != null && oldTienGiamGia.compareTo(newTienGiamGia) != 0)) {
+                    String oldTienGiamGiaText = oldTienGiamGia != null ? String.format("%,.0f VNĐ", oldTienGiamGia.doubleValue()) : "Chưa có";
+                    String newTienGiamGiaText = newTienGiamGia != null ? String.format("%,.0f VNĐ", newTienGiamGia.doubleValue()) : "Chưa có";
+                    changes.put("tienGiamGia", oldTienGiamGiaText + " → " + newTienGiamGiaText);
+                }
+                if (oldPhiGiaoHang == null && newPhiGiaoHang != null || 
+                    oldPhiGiaoHang != null && newPhiGiaoHang == null ||
+                    (oldPhiGiaoHang != null && newPhiGiaoHang != null && oldPhiGiaoHang.compareTo(newPhiGiaoHang) != 0)) {
+                    String oldPhiGiaoHangText = oldPhiGiaoHang != null ? String.format("%,.0f VNĐ", oldPhiGiaoHang.doubleValue()) : "Chưa có";
+                    String newPhiGiaoHangText = newPhiGiaoHang != null ? String.format("%,.0f VNĐ", newPhiGiaoHang.doubleValue()) : "Chưa có";
+                    changes.put("phiGiaoHang", oldPhiGiaoHangText + " → " + newPhiGiaoHangText);
+                }
+                if (oldThanhTien == null && newThanhTien != null || 
+                    oldThanhTien != null && newThanhTien == null ||
+                    (oldThanhTien != null && newThanhTien != null && oldThanhTien.compareTo(newThanhTien) != 0)) {
+                    String oldThanhTienText = oldThanhTien != null ? String.format("%,.0f VNĐ", oldThanhTien.doubleValue()) : "Chưa có";
+                    String newThanhTienText = newThanhTien != null ? String.format("%,.0f VNĐ", newThanhTien.doubleValue()) : "Chưa có";
+                    changes.put("thanhTien", oldThanhTienText + " → " + newThanhTienText);
+                }
+                
+                // So sánh ghi chú
+                if (!java.util.Objects.equals(oldGhiChu, newGhiChu)) {
+                    changes.put("ghiChu", 
+                        (oldGhiChu != null && !oldGhiChu.trim().isEmpty() ? oldGhiChu : "Chưa có") + " → " + 
+                        (newGhiChu != null && !newGhiChu.trim().isEmpty() ? newGhiChu : "Chưa có"));
+                }
+                
+                // Gửi email nếu có thay đổi
+                if (!changes.isEmpty()) {
+                    String customerEmail = null;
+                    String customerName = null;
+                    
+                    // Ưu tiên lấy từ entity khách hàng
+                    if (reloadedHoaDon.getKhachHang() != null) {
+                        customerEmail = reloadedHoaDon.getKhachHang().getEmail();
+                        customerName = reloadedHoaDon.getKhachHang().getTenKhachHang();
+                    }
+                    
+                    // Nếu không có từ entity, thử lấy từ thông tin mới
+                    if ((customerEmail == null || customerEmail.trim().isEmpty()) && 
+                        newEmailKhachHang != null && !newEmailKhachHang.trim().isEmpty()) {
+                        customerEmail = newEmailKhachHang;
+                    }
+                    if ((customerName == null || customerName.trim().isEmpty()) && 
+                        newTenKhachHang != null && !newTenKhachHang.trim().isEmpty()) {
+                        customerName = newTenKhachHang;
+                    }
+                    
+                    // Nếu vẫn không có, thử lấy từ DTO
+                    if ((customerEmail == null || customerEmail.trim().isEmpty()) && 
+                        dto.getEmailKhachHang() != null && !dto.getEmailKhachHang().trim().isEmpty()) {
+                        customerEmail = dto.getEmailKhachHang();
+                    }
+                    if ((customerName == null || customerName.trim().isEmpty()) && 
+                        dto.getTenKhachHang() != null && !dto.getTenKhachHang().trim().isEmpty()) {
+                        customerName = dto.getTenKhachHang();
+                    }
                     
                     if (customerEmail != null && !customerEmail.trim().isEmpty()) {
-                        System.out.println("📧 Sending address update email to: " + customerEmail);
-                        System.out.println("   Old address: " + (oldAddress != null ? oldAddress : "N/A"));
-                        System.out.println("   New address: " + (newAddress != null ? newAddress : "N/A"));
+                        System.out.println("📧 Sending invoice update notification email to: " + customerEmail);
+                        System.out.println("   Changes count: " + changes.size());
+                        System.out.println("   Changes: " + changes);
                         
-                        emailService.sendAddressUpdateEmail(
+                        emailService.sendInvoiceUpdateNotification(
                             customerEmail,
-                            customerName,
+                            customerName != null ? customerName : "Khách hàng",
                             reloadedHoaDon.getMaHoaDon(),
-                            oldAddress != null ? oldAddress : "Chưa có địa chỉ",
-                            newAddress != null ? newAddress : "Chưa có địa chỉ"
+                            changes
                         );
+                        System.out.println("✅ Invoice update notification email sent successfully");
                     } else {
-                        System.out.println("⚠️ Customer email is empty, cannot send address update email");
+                        System.out.println("⚠️ Customer email is empty, cannot send invoice update notification email");
+                        System.out.println("   - Entity email: " + (reloadedHoaDon.getKhachHang() != null ? reloadedHoaDon.getKhachHang().getEmail() : "null"));
+                        System.out.println("   - New email: " + newEmailKhachHang);
+                        System.out.println("   - DTO email: " + dto.getEmailKhachHang());
                     }
+                } else {
+                    System.out.println("ℹ️ No changes detected, skipping email notification");
                 }
             } catch (Exception e) {
-                System.err.println("⚠️ Failed to send address update email: " + e.getMessage());
+                System.err.println("⚠️ Failed to send invoice update notification email: " + e.getMessage());
+                e.printStackTrace();
                 // Không throw exception để không ảnh hưởng đến việc cập nhật hóa đơn
             }
             
@@ -1370,18 +1492,46 @@ public class HoaDonService {
         HoaDon h = hoaDonRepository.findById(id)
                 .orElseThrow(() -> new EntityNotFoundException("Không tìm thấy hóa đơn"));
         
-        // Lưu dữ liệu cũ để log trước khi xóa
-        String oldDataJson = null;
-        try {
-            oldDataJson = serializeHoaDonToJson(h);
-        } catch (Exception e) {
-            System.err.println("⚠️ Failed to serialize data before delete: " + e.getMessage());
+        // Lưu thông tin để gửi email trước khi xóa
+        String maHoaDon = h.getMaHoaDon();
+        String customerEmail = null;
+        String customerName = null;
+        java.math.BigDecimal thanhTien = h.getThanhTien();
+        
+        if (h.getKhachHang() != null) {
+            customerEmail = h.getKhachHang().getEmail();
+            customerName = h.getKhachHang().getTenKhachHang();
         }
         
-        String maHoaDon = h.getMaHoaDon();
+        // Lưu dữ liệu cũ để log trước khi xóa
+        String oldDataText = null;
+        try {
+            oldDataText = formatHoaDonToText(h);
+        } catch (Exception e) {
+            System.err.println("⚠️ Failed to format data before delete: " + e.getMessage());
+        }
+        
         Long hoaDonId = h.getId();
         
         hoaDonRepository.delete(h);
+        
+        // Gửi email thông báo xóa hóa đơn cho khách hàng
+        if (customerEmail != null && !customerEmail.trim().isEmpty()) {
+            try {
+                System.out.println("📧 Sending invoice deletion notification email to: " + customerEmail);
+                emailService.sendInvoiceDeletionNotification(
+                    customerEmail,
+                    customerName != null ? customerName : "Khách hàng",
+                    maHoaDon,
+                    thanhTien
+                );
+                System.out.println("✅ Invoice deletion notification email sent successfully");
+            } catch (Exception e) {
+                System.err.println("⚠️ Failed to send invoice deletion notification email: " + e.getMessage());
+                e.printStackTrace();
+                // Không throw exception để không ảnh hưởng đến việc xóa hóa đơn
+            }
+        }
         
         // Log activity: DELETE
         try {
@@ -1394,7 +1544,7 @@ public class HoaDonService {
                 tempHoaDon,
                 "DELETE",
                 String.format("Xóa hóa đơn: %s", maHoaDon),
-                oldDataJson,
+                oldDataText,
                 null
             );
         } catch (Exception e) {
@@ -1519,14 +1669,17 @@ public class HoaDonService {
                 
                 // Log activity: STATUS_CHANGE
                 try {
-                    String oldDataJson = serializeHoaDonToJson(hoaDon); // Dữ liệu cũ (trước khi update)
-                    String newDataJson = serializeHoaDonToJson(reloadedHoaDon); // Dữ liệu mới (sau khi update)
+                    String oldDataText = formatHoaDonToText(hoaDon); // Dữ liệu cũ (trước khi update)
+                    String newDataText = formatHoaDonToText(reloadedHoaDon); // Dữ liệu mới (sau khi update)
+                    String statusDescription = String.format("Cập nhật trạng thái từ %s sang %s", 
+                        convertTrangThaiEnumToString(oldTrangThai), 
+                        convertTrangThaiEnumToString(newTrangThai));
                     hoaDonActivityService.logActivity(
                         reloadedHoaDon,
                         "STATUS_CHANGE",
-                        String.format("Cập nhật trạng thái từ %s sang %s", oldTrangThai, newTrangThai),
-                        oldDataJson,
-                        newDataJson
+                        statusDescription,
+                        oldDataText,
+                        newDataText
                     );
                 } catch (Exception e) {
                     System.err.println("⚠️ Failed to log STATUS_CHANGE activity: " + e.getMessage());
@@ -1780,33 +1933,9 @@ public class HoaDonService {
         updateThanhTienQuery.executeUpdate();
         System.out.println("✅ Updated thanhTien in DB: " + newThanhTien);
         
-        // Ghi chú điều chỉnh phí ship
-        String adjustmentNote;
-        if (difference.compareTo(java.math.BigDecimal.ZERO) > 0) {
-            // Tăng phụ phí
-            adjustmentNote = String.format("\n[TĂNG PHỤ PHÍ SHIP] Phí ship cũ: %s, Phí ship mới: %s, Tăng thêm: %s. Lý do: %s", 
-                oldFee, newFee, difference, 
-                adjustmentRequest.getReason() != null ? adjustmentRequest.getReason() : "Thay đổi địa chỉ giao hàng");
-        } else if (difference.compareTo(java.math.BigDecimal.ZERO) < 0) {
-            // Hoàn phí
-            adjustmentNote = String.format("\n[HOÀN PHÍ SHIP] Phí ship cũ: %s, Phí ship mới: %s, Hoàn lại: %s. Lý do: %s. Phương thức hoàn: %s", 
-                oldFee, newFee, difference.abs(), 
-                adjustmentRequest.getReason() != null ? adjustmentRequest.getReason() : "Thay đổi địa chỉ giao hàng",
-                adjustmentRequest.getRefundMethod() != null ? adjustmentRequest.getRefundMethod() : "original_method");
-        } else {
-            adjustmentNote = String.format("\n[ĐIỀU CHỈNH PHÍ SHIP] Phí ship không thay đổi: %s. Lý do: %s", 
-                newFee,
-                adjustmentRequest.getReason() != null ? adjustmentRequest.getReason() : "Cập nhật thông tin");
-        }
-        
-        String updatedGhiChu = (hoaDon.getGhiChu() != null ? hoaDon.getGhiChu() : "") + adjustmentNote;
-        
-        jakarta.persistence.Query updateGhiChuQuery = entityManager.createQuery(
-            "UPDATE HoaDon h SET h.ghiChu = :ghiChu WHERE h.id = :id"
-        );
-        updateGhiChuQuery.setParameter("ghiChu", updatedGhiChu);
-        updateGhiChuQuery.setParameter("id", id);
-        updateGhiChuQuery.executeUpdate();
+        // ✅ KHÔNG TỰ ĐỘNG THÊM GHI CHÚ VÀO ghiChu
+        // Ghi chú điều chỉnh phí ship đã được log trong activity history, không cần thêm vào ghiChu
+        // Code cũ đã được xóa để tránh tự động sinh ghi chú trong ghiChu
         
         // Log activity
         try {
@@ -2272,7 +2401,81 @@ public class HoaDonService {
     }
 
     /**
-     * Serialize HoaDon entity thành JSON string để lưu vào oldData/newData
+     * Format HoaDon entity thành text dễ đọc để lưu vào oldData/newData
+     */
+    private String formatHoaDonToText(HoaDon hoaDon) {
+        if (hoaDon == null) {
+            return null;
+        }
+        try {
+            StringBuilder text = new StringBuilder();
+            
+            // Thông tin cơ bản
+            text.append("Mã hóa đơn: ").append(hoaDon.getMaHoaDon() != null ? hoaDon.getMaHoaDon() : "N/A").append("\n");
+            text.append("Trạng thái: ").append(hoaDon.getTrangThai() != null ? convertTrangThaiEnumToString(hoaDon.getTrangThai()) : "N/A").append("\n");
+            
+            // Thông tin khách hàng
+            if (hoaDon.getKhachHang() != null) {
+                text.append("Khách hàng: ").append(hoaDon.getKhachHang().getTenKhachHang() != null ? hoaDon.getKhachHang().getTenKhachHang() : "N/A");
+                if (hoaDon.getKhachHang().getEmail() != null && !hoaDon.getKhachHang().getEmail().trim().isEmpty()) {
+                    text.append(" (").append(hoaDon.getKhachHang().getEmail()).append(")");
+                }
+                text.append("\n");
+            }
+            
+            // Thông tin tiền
+            if (hoaDon.getTongTien() != null) {
+                text.append("Tổng tiền: ").append(String.format("%,.0f VNĐ", hoaDon.getTongTien().doubleValue())).append("\n");
+            }
+            if (hoaDon.getTienGiamGia() != null && hoaDon.getTienGiamGia().compareTo(java.math.BigDecimal.ZERO) > 0) {
+                text.append("Tiền giảm giá: ").append(String.format("%,.0f VNĐ", hoaDon.getTienGiamGia().doubleValue())).append("\n");
+            }
+            if (hoaDon.getPhiGiaoHang() != null && hoaDon.getPhiGiaoHang().compareTo(java.math.BigDecimal.ZERO) > 0) {
+                text.append("Phí giao hàng: ").append(String.format("%,.0f VNĐ", hoaDon.getPhiGiaoHang().doubleValue())).append("\n");
+            }
+            if (hoaDon.getThanhTien() != null) {
+                text.append("Thành tiền: ").append(String.format("%,.0f VNĐ", hoaDon.getThanhTien().doubleValue())).append("\n");
+            }
+            
+            // Số lượng sản phẩm
+            if (hoaDon.getSoLuongSanPham() != null && hoaDon.getSoLuongSanPham() > 0) {
+                text.append("Số lượng sản phẩm: ").append(hoaDon.getSoLuongSanPham()).append("\n");
+            }
+            
+            // Ghi chú
+            if (hoaDon.getGhiChu() != null && !hoaDon.getGhiChu().trim().isEmpty()) {
+                text.append("Ghi chú: ").append(hoaDon.getGhiChu()).append("\n");
+            }
+            
+            // Thông tin nhân viên
+            if (hoaDon.getNhanVien() != null) {
+                text.append("Nhân viên: ").append(hoaDon.getNhanVien().getHoTen() != null ? hoaDon.getNhanVien().getHoTen() : "N/A").append("\n");
+            }
+            
+            // Ngày tạo
+            if (hoaDon.getNgayTao() != null) {
+                java.time.format.DateTimeFormatter formatter = java.time.format.DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm:ss");
+                text.append("Ngày tạo: ").append(hoaDon.getNgayTao().format(formatter)).append("\n");
+            }
+            
+            // Ngày thanh toán
+            if (hoaDon.getNgayThanhToan() != null) {
+                java.time.format.DateTimeFormatter formatter = java.time.format.DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm:ss");
+                text.append("Ngày thanh toán: ").append(hoaDon.getNgayThanhToan().format(formatter)).append("\n");
+            }
+            
+            return text.toString().trim();
+        } catch (Exception e) {
+            System.err.println("⚠️ Error formatting HoaDon to text: " + e.getMessage());
+            // Fallback: return simple string representation
+            return String.format("Mã hóa đơn: %s\nTrạng thái: %s",
+                hoaDon.getMaHoaDon() != null ? hoaDon.getMaHoaDon() : "N/A",
+                hoaDon.getTrangThai() != null ? convertTrangThaiEnumToString(hoaDon.getTrangThai()) : "N/A");
+        }
+    }
+
+    /**
+     * Serialize HoaDon entity thành JSON string để lưu vào oldData/newData (deprecated - dùng formatHoaDonToText)
      */
     private String serializeHoaDonToJson(HoaDon hoaDon) {
         if (hoaDon == null) {
@@ -2327,6 +2530,114 @@ public class HoaDonService {
                 hoaDon.getMaHoaDon() != null ? hoaDon.getMaHoaDon() : "",
                 hoaDon.getTrangThai() != null ? hoaDon.getTrangThai().name() : "");
         }
+    }
+
+    /**
+     * Tạo mô tả dạng text cho UPDATE activity từ các thay đổi
+     */
+    private String buildUpdateDescriptionText(HoaDon oldInvoice, HoaDon newInvoice) {
+        if (oldInvoice == null || newInvoice == null) {
+            return String.format("Cập nhật thông tin hóa đơn: %s", 
+                newInvoice != null ? newInvoice.getMaHoaDon() : "N/A");
+        }
+        
+        StringBuilder description = new StringBuilder();
+        description.append(String.format("Cập nhật thông tin hóa đơn: %s", newInvoice.getMaHoaDon()));
+        
+        java.util.List<String> changes = new java.util.ArrayList<>();
+        
+        // So sánh thông tin khách hàng
+        String oldTenKhachHang = oldInvoice.getKhachHang() != null ? oldInvoice.getKhachHang().getTenKhachHang() : null;
+        String newTenKhachHang = newInvoice.getKhachHang() != null ? newInvoice.getKhachHang().getTenKhachHang() : null;
+        if (!java.util.Objects.equals(oldTenKhachHang, newTenKhachHang)) {
+            changes.add(String.format("Tên khách hàng: %s → %s", 
+                oldTenKhachHang != null ? oldTenKhachHang : "Chưa có",
+                newTenKhachHang != null ? newTenKhachHang : "Chưa có"));
+        }
+        
+        String oldEmail = oldInvoice.getKhachHang() != null ? oldInvoice.getKhachHang().getEmail() : null;
+        String newEmail = newInvoice.getKhachHang() != null ? newInvoice.getKhachHang().getEmail() : null;
+        if (!java.util.Objects.equals(oldEmail, newEmail)) {
+            changes.add(String.format("Email: %s → %s", 
+                oldEmail != null ? oldEmail : "Chưa có",
+                newEmail != null ? newEmail : "Chưa có"));
+        }
+        
+        String oldSoDienThoai = oldInvoice.getKhachHang() != null ? oldInvoice.getKhachHang().getSoDienThoai() : null;
+        String newSoDienThoai = newInvoice.getKhachHang() != null ? newInvoice.getKhachHang().getSoDienThoai() : null;
+        if (!java.util.Objects.equals(oldSoDienThoai, newSoDienThoai)) {
+            changes.add(String.format("Số điện thoại: %s → %s", 
+                oldSoDienThoai != null ? oldSoDienThoai : "Chưa có",
+                newSoDienThoai != null ? newSoDienThoai : "Chưa có"));
+        }
+        
+        // So sánh tiền
+        if (oldInvoice.getTongTien() == null && newInvoice.getTongTien() != null || 
+            oldInvoice.getTongTien() != null && newInvoice.getTongTien() == null ||
+            (oldInvoice.getTongTien() != null && newInvoice.getTongTien() != null && 
+             oldInvoice.getTongTien().compareTo(newInvoice.getTongTien()) != 0)) {
+            String oldTongTienText = oldInvoice.getTongTien() != null ? 
+                String.format("%,.0f VNĐ", oldInvoice.getTongTien().doubleValue()) : "Chưa có";
+            String newTongTienText = newInvoice.getTongTien() != null ? 
+                String.format("%,.0f VNĐ", newInvoice.getTongTien().doubleValue()) : "Chưa có";
+            changes.add(String.format("Tổng tiền: %s → %s", oldTongTienText, newTongTienText));
+        }
+        
+        if (oldInvoice.getTienGiamGia() == null && newInvoice.getTienGiamGia() != null || 
+            oldInvoice.getTienGiamGia() != null && newInvoice.getTienGiamGia() == null ||
+            (oldInvoice.getTienGiamGia() != null && newInvoice.getTienGiamGia() != null && 
+             oldInvoice.getTienGiamGia().compareTo(newInvoice.getTienGiamGia()) != 0)) {
+            String oldTienGiamGiaText = oldInvoice.getTienGiamGia() != null ? 
+                String.format("%,.0f VNĐ", oldInvoice.getTienGiamGia().doubleValue()) : "Chưa có";
+            String newTienGiamGiaText = newInvoice.getTienGiamGia() != null ? 
+                String.format("%,.0f VNĐ", newInvoice.getTienGiamGia().doubleValue()) : "Chưa có";
+            changes.add(String.format("Tiền giảm giá: %s → %s", oldTienGiamGiaText, newTienGiamGiaText));
+        }
+        
+        if (oldInvoice.getPhiGiaoHang() == null && newInvoice.getPhiGiaoHang() != null || 
+            oldInvoice.getPhiGiaoHang() != null && newInvoice.getPhiGiaoHang() == null ||
+            (oldInvoice.getPhiGiaoHang() != null && newInvoice.getPhiGiaoHang() != null && 
+             oldInvoice.getPhiGiaoHang().compareTo(newInvoice.getPhiGiaoHang()) != 0)) {
+            String oldPhiGiaoHangText = oldInvoice.getPhiGiaoHang() != null ? 
+                String.format("%,.0f VNĐ", oldInvoice.getPhiGiaoHang().doubleValue()) : "Chưa có";
+            String newPhiGiaoHangText = newInvoice.getPhiGiaoHang() != null ? 
+                String.format("%,.0f VNĐ", newInvoice.getPhiGiaoHang().doubleValue()) : "Chưa có";
+            changes.add(String.format("Phí giao hàng: %s → %s", oldPhiGiaoHangText, newPhiGiaoHangText));
+        }
+        
+        if (oldInvoice.getThanhTien() == null && newInvoice.getThanhTien() != null || 
+            oldInvoice.getThanhTien() != null && newInvoice.getThanhTien() == null ||
+            (oldInvoice.getThanhTien() != null && newInvoice.getThanhTien() != null && 
+             oldInvoice.getThanhTien().compareTo(newInvoice.getThanhTien()) != 0)) {
+            String oldThanhTienText = oldInvoice.getThanhTien() != null ? 
+                String.format("%,.0f VNĐ", oldInvoice.getThanhTien().doubleValue()) : "Chưa có";
+            String newThanhTienText = newInvoice.getThanhTien() != null ? 
+                String.format("%,.0f VNĐ", newInvoice.getThanhTien().doubleValue()) : "Chưa có";
+            changes.add(String.format("Thành tiền: %s → %s", oldThanhTienText, newThanhTienText));
+        }
+        
+        // So sánh trạng thái
+        if (oldInvoice.getTrangThai() != newInvoice.getTrangThai()) {
+            changes.add(String.format("Trạng thái: %s → %s", 
+                oldInvoice.getTrangThai() != null ? convertTrangThaiEnumToString(oldInvoice.getTrangThai()) : "Chưa có",
+                newInvoice.getTrangThai() != null ? convertTrangThaiEnumToString(newInvoice.getTrangThai()) : "Chưa có"));
+        }
+        
+        // So sánh ghi chú
+        if (!java.util.Objects.equals(oldInvoice.getGhiChu(), newInvoice.getGhiChu())) {
+            changes.add(String.format("Ghi chú: %s → %s", 
+                oldInvoice.getGhiChu() != null && !oldInvoice.getGhiChu().trim().isEmpty() ? oldInvoice.getGhiChu() : "Chưa có",
+                newInvoice.getGhiChu() != null && !newInvoice.getGhiChu().trim().isEmpty() ? newInvoice.getGhiChu() : "Chưa có"));
+        }
+        
+        // Thêm danh sách thay đổi vào mô tả
+        if (!changes.isEmpty()) {
+            description.append(" (");
+            description.append(String.join(", ", changes));
+            description.append(")");
+        }
+        
+        return description.toString();
     }
 
     /**

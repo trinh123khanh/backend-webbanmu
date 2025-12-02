@@ -236,40 +236,70 @@ public class AuthService {
 
     @Transactional
     public AuthResponse resetPassword(ResetPasswordRequest request) {
+        log.info("🔄 [AuthService] Bắt đầu reset password cho email: {}", request.getEmail());
+        
         // Validate password match
         if (!request.getNewPassword().equals(request.getConfirmPassword())) {
+            log.warn("❌ [AuthService] Mật khẩu mới và xác nhận mật khẩu không khớp");
             throw new RuntimeException("Mật khẩu mới và xác nhận mật khẩu không khớp");
+        }
+
+        // Validate password length
+        if (request.getNewPassword().length() < 6) {
+            log.warn("❌ [AuthService] Mật khẩu quá ngắn (tối thiểu 6 ký tự)");
+            throw new RuntimeException("Mật khẩu phải có ít nhất 6 ký tự");
         }
 
         // Tìm OTP token hợp lệ
         OtpToken otpToken = otpTokenRepository.findByEmailAndTokenAndType(
             request.getEmail(),
-            request.getOtp(),
+            request.getOtp().toUpperCase(),
             OtpToken.OtpType.PASSWORD_RESET
-        ).orElseThrow(() -> new RuntimeException("Mã OTP không hợp lệ hoặc đã hết hạn"));
+        ).orElseThrow(() -> {
+            log.warn("❌ [AuthService] Không tìm thấy OTP hợp lệ cho email: {}, OTP: {}", 
+                request.getEmail(), request.getOtp());
+            return new RuntimeException("Mã OTP không hợp lệ hoặc đã hết hạn");
+        });
+
+        log.info("✅ [AuthService] Tìm thấy OTP token cho email: {}", request.getEmail());
 
         // Kiểm tra OTP đã được sử dụng chưa
         if (otpToken.isUsed()) {
+            log.warn("❌ [AuthService] OTP đã được sử dụng cho email: {}", request.getEmail());
             throw new RuntimeException("Mã OTP đã được sử dụng");
         }
 
         // Kiểm tra OTP còn hạn không
         if (otpToken.getExpiryDate().isBefore(LocalDateTime.now())) {
+            log.warn("❌ [AuthService] OTP đã hết hạn cho email: {}", request.getEmail());
             throw new RuntimeException("Mã OTP đã hết hạn");
         }
 
         // Tìm user theo email
         User user = userRepository.findByEmail(request.getEmail())
-            .orElseThrow(() -> new RuntimeException("Người dùng không tồn tại"));
+            .orElseThrow(() -> {
+                log.error("❌ [AuthService] Không tìm thấy user với email: {}", request.getEmail());
+                return new RuntimeException("Người dùng không tồn tại");
+            });
 
-        // Cập nhật mật khẩu mới
-        user.setPassword(passwordEncoder.encode(request.getNewPassword()));
-        userRepository.save(user);
+        log.info("✅ [AuthService] Tìm thấy user: {} (ID: {})", user.getEmail(), user.getId());
+
+        // Hash và cập nhật mật khẩu mới
+        String hashedPassword = passwordEncoder.encode(request.getNewPassword());
+        user.setPassword(hashedPassword);
+        User savedUser = userRepository.save(user);
+        
+        log.info("✅ [AuthService] Đã cập nhật mật khẩu mới cho user ID: {}", savedUser.getId());
 
         // Đánh dấu OTP đã được sử dụng và xóa các OTP khác chưa dùng
         otpToken.setUsed(true);
         otpTokenRepository.save(otpToken);
         otpTokenRepository.deleteByEmailAndUsedFalse(request.getEmail());
+        
+        log.info("✅ [AuthService] Đã đánh dấu OTP đã sử dụng và xóa các OTP cũ cho email: {}", 
+            request.getEmail());
+
+        log.info("✅ [AuthService] Reset password thành công cho email: {}", request.getEmail());
 
         return AuthResponse.builder()
             .message("Đặt lại mật khẩu thành công")
