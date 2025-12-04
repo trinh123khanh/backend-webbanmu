@@ -74,9 +74,16 @@ public class HoaDonChoService {
                         BigDecimal.ZERO)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
 
-        BigDecimal tongGiamGia = gioHang.stream()
+        BigDecimal tongGiamGiaItem = gioHang.stream()
                 .map(item -> item.getGiamGia() != null ? item.getGiamGia() : BigDecimal.ZERO)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        // Cộng thêm số tiền giảm từ phiếu giảm giá (nếu có snapshot)
+        BigDecimal voucherDiscount = h.getVoucherDiscountAmount() != null
+                ? h.getVoucherDiscountAmount()
+                : BigDecimal.ZERO;
+
+        BigDecimal tongGiamGia = tongGiamGiaItem.add(voucherDiscount);
 
         BigDecimal thanhTien = tongTien.subtract(tongGiamGia).max(BigDecimal.ZERO);
 
@@ -97,6 +104,11 @@ public class HoaDonChoService {
                 .tongTien(tongTien)
                 .tongGiamGia(tongGiamGia)
                 .thanhTien(thanhTien)
+                .voucherCode(h.getVoucherCode())
+                .voucherDiscountAmount(h.getVoucherDiscountAmount())
+                .voucherType(h.getVoucherType())
+                .voucherValue(h.getVoucherValue())
+                .voucherMaxDiscount(h.getVoucherMaxDiscount())
                 .build();
     }
 
@@ -142,6 +154,12 @@ public class HoaDonChoService {
             hoaDonCho.setTenNhanVien(request.getTenNhanVien());
             hoaDonCho.setGhiChu(request.getGhiChu());
             hoaDonCho.setTrangThai(request.getTrangThai() != null ? request.getTrangThai() : "DANG_CHO");
+            // Lưu snapshot voucher nếu FE gửi kèm (có thể null nếu chưa áp dụng)
+            hoaDonCho.setVoucherCode(request.getVoucherCode());
+            hoaDonCho.setVoucherDiscountAmount(request.getVoucherDiscountAmount());
+            hoaDonCho.setVoucherType(request.getVoucherType());
+            hoaDonCho.setVoucherValue(request.getVoucherValue());
+            hoaDonCho.setVoucherMaxDiscount(request.getVoucherMaxDiscount());
 
             // Set khachHang if khachHangId is provided
             if (request.getKhachHangId() != null) {
@@ -447,6 +465,22 @@ public class HoaDonChoService {
         }
         if (request.getTrangThai() != null) {
             hoaDonCho.setTrangThai(request.getTrangThai());
+        }
+        // Cập nhật snapshot voucher nếu FE gửi kèm
+        if (request.getVoucherCode() != null) {
+            hoaDonCho.setVoucherCode(request.getVoucherCode());
+        }
+        if (request.getVoucherDiscountAmount() != null) {
+            hoaDonCho.setVoucherDiscountAmount(request.getVoucherDiscountAmount());
+        }
+        if (request.getVoucherType() != null) {
+            hoaDonCho.setVoucherType(request.getVoucherType());
+        }
+        if (request.getVoucherValue() != null) {
+            hoaDonCho.setVoucherValue(request.getVoucherValue());
+        }
+        if (request.getVoucherMaxDiscount() != null) {
+            hoaDonCho.setVoucherMaxDiscount(request.getVoucherMaxDiscount());
         }
 
         hoaDonChoRepository.save(hoaDonCho);

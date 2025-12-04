@@ -2,6 +2,8 @@ package com.example.backend.dto;
 
 import lombok.Builder;
 import lombok.Data;
+
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -21,8 +23,19 @@ public class HoaDonChoResponse {
     private LocalDateTime ngayCapNhat;
     private List<GioHangChoItemResponse> danhSachGioHang;
     private Long tongSoLuong;
-    private java.math.BigDecimal tongTien;
-    private java.math.BigDecimal tongGiamGia;
-    private java.math.BigDecimal thanhTien;
+    private BigDecimal tongTien;
+    private BigDecimal tongGiamGia;
+    private BigDecimal thanhTien;
+
+    /**
+     * Snapshot mã phiếu giảm giá và số tiền giảm đã áp dụng cho hóa đơn chờ.
+     * Dùng để hiển thị lại đúng thông tin giảm giá cho từng hóa đơn, không
+     * bị thay đổi khi cấu hình phiếu giảm giá được cập nhật.
+     */
+    private String voucherCode;
+    private BigDecimal voucherDiscountAmount;
+    private String voucherType;
+    private BigDecimal voucherValue;
+    private BigDecimal voucherMaxDiscount;
 }
 
