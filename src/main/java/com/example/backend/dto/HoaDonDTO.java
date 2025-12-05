@@ -44,6 +44,13 @@ public class HoaDonDTO {
     private List<HoaDonChiTietDTO> danhSachChiTiet; // Danh sách chi tiết sản phẩm trong hóa đơn
     private Long phieuGiamGiaId; // ✅ ID phiếu giảm giá (giữ tương thích)
     private List<Long> phieuGiamGiaIds; // ✅ Danh sách ID các phiếu giảm giá đã áp dụng
+    
+    // Thông tin vận chuyển
+    private LocalDateTime ngayDuKienGiao; // Ngày dự kiến giao hàng
+    private BigDecimal khoiLuong; // Khối lượng (kg)
+    private BigDecimal chieuDai; // Chiều dài (cm)
+    private BigDecimal chieuRong; // Chiều rộng (cm)
+    private BigDecimal chieuCao; // Chiều cao (cm)
 
 
 }

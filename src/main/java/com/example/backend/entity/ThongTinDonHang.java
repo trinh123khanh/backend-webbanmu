@@ -41,6 +41,12 @@ public class ThongTinDonHang {
     
     private LocalDateTime ngayGiaoHangThucTe;
     
+    // Thông tin vận chuyển chi tiết
+    private BigDecimal khoiLuong; // Khối lượng (kg)
+    private BigDecimal chieuDai; // Chiều dài (cm)
+    private BigDecimal chieuRong; // Chiều rộng (cm)
+    private BigDecimal chieuCao; // Chiều cao (cm)
+    
     @Column(columnDefinition = "TEXT")
     private String ghiChu;
 }
