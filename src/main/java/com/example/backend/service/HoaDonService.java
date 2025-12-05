@@ -176,6 +176,28 @@ public class HoaDonService {
                     System.out.println("💰 [toDTO] No phiVanChuyen in ThongTinDonHang, using phiGiaoHang from entity: " + phiGiaoHang);
                 }
                 
+                // ✅ QUAN TRỌNG: Map thông tin vận chuyển từ ThongTinDonHang
+                if (thongTin.getNgayGiaoHangDuKien() != null) {
+                    builder.ngayDuKienGiao(thongTin.getNgayGiaoHangDuKien());
+                    System.out.println("📅 [toDTO] Mapped ngayGiaoHangDuKien from ThongTinDonHang: " + thongTin.getNgayGiaoHangDuKien());
+                }
+                if (thongTin.getKhoiLuong() != null) {
+                    builder.khoiLuong(thongTin.getKhoiLuong());
+                    System.out.println("📦 [toDTO] Mapped khoiLuong from ThongTinDonHang: " + thongTin.getKhoiLuong());
+                }
+                if (thongTin.getChieuDai() != null) {
+                    builder.chieuDai(thongTin.getChieuDai());
+                    System.out.println("📏 [toDTO] Mapped chieuDai from ThongTinDonHang: " + thongTin.getChieuDai());
+                }
+                if (thongTin.getChieuRong() != null) {
+                    builder.chieuRong(thongTin.getChieuRong());
+                    System.out.println("📏 [toDTO] Mapped chieuRong from ThongTinDonHang: " + thongTin.getChieuRong());
+                }
+                if (thongTin.getChieuCao() != null) {
+                    builder.chieuCao(thongTin.getChieuCao());
+                    System.out.println("📏 [toDTO] Mapped chieuCao from ThongTinDonHang: " + thongTin.getChieuCao());
+                }
+                
                 System.out.println("✅ Mapped address from ThongTinDonHang: " + thongTin.getDiaChiGiaoHang());
             } else {
                 // Fallback: Lấy địa chỉ mặc định của khách hàng từ bảng dia_chi_khach_hang
@@ -1225,8 +1247,10 @@ public class HoaDonService {
         }
         
         // ✅ CẬP NHẬT THÔNG TIN ĐỊA CHỈ GIAO HÀNG (ThongTinDonHang) NẾU CÓ THAY ĐỔI
-        // Kiểm tra xem có thông tin địa chỉ mới không
-        if (dto.getTinhThanh() != null || dto.getQuanHuyen() != null || dto.getPhuongXa() != null || dto.getDiaChiChiTiet() != null) {
+        // Kiểm tra xem có thông tin địa chỉ mới HOẶC thông tin vận chuyển mới
+        if (dto.getTinhThanh() != null || dto.getQuanHuyen() != null || dto.getPhuongXa() != null || dto.getDiaChiChiTiet() != null
+            || dto.getNgayDuKienGiao() != null || dto.getKhoiLuong() != null || dto.getChieuDai() != null 
+            || dto.getChieuRong() != null || dto.getChieuCao() != null) {
             try {
                 // Tìm ThongTinDonHang hiện tại
                 Optional<ThongTinDonHang> existingThongTin = thongTinDonHangRepository.findByHoaDonId(saved.getId());
@@ -1270,35 +1294,124 @@ public class HoaDonService {
                         System.out.println("💰 Updated ThongTinDonHang phiVanChuyen to: " + dto.getPhiGiaoHang());
                     }
                     
-                    thongTinDonHangRepository.save(thongTin);
-                    System.out.println("✅ Updated ThongTinDonHang for invoice ID: " + saved.getId());
-                } else if (dto.getTenKhachHang() != null && dto.getSoDienThoaiKhachHang() != null &&
-                          (dto.getDiaChiChiTiet() != null || dto.getTinhThanh() != null)) {
-                    // Tạo mới ThongTinDonHang nếu chưa có
-                    ThongTinDonHang thongTinDonHang = new ThongTinDonHang();
-                    thongTinDonHang.setHoaDon(saved);
-                    thongTinDonHang.setTenNguoiNhan(dto.getTenKhachHang());
-                    thongTinDonHang.setSoDienThoai(dto.getSoDienThoaiKhachHang());
-                    
-                    String diaChiGiaoHang = String.format("%s, %s, %s, %s",
-                        dto.getDiaChiChiTiet() != null ? dto.getDiaChiChiTiet() : "",
-                        dto.getPhuongXa() != null ? dto.getPhuongXa() : "",
-                        dto.getQuanHuyen() != null ? dto.getQuanHuyen() : "",
-                        dto.getTinhThanh() != null ? dto.getTinhThanh() : "");
-                    thongTinDonHang.setDiaChiGiaoHang(diaChiGiaoHang.trim().replaceAll("^,\\s*|,\\s*$", ""));
-                    thongTinDonHang.setTinhThanh(dto.getTinhThanh() != null ? dto.getTinhThanh() : "");
-                    thongTinDonHang.setQuanHuyen(dto.getQuanHuyen() != null ? dto.getQuanHuyen() : "");
-                    thongTinDonHang.setPhuongXa(dto.getPhuongXa() != null ? dto.getPhuongXa() : "");
-                    thongTinDonHang.setGhiChu(dto.getGhiChu());
-                    
-                    // ✅ QUAN TRỌNG: Set phí vận chuyển khi tạo mới
-                    if (dto.getPhiGiaoHang() != null) {
-                        thongTinDonHang.setPhiVanChuyen(dto.getPhiGiaoHang());
-                        System.out.println("💰 Setting new ThongTinDonHang phiVanChuyen to: " + dto.getPhiGiaoHang());
+                    // ✅ QUAN TRỌNG: Cập nhật thông tin vận chuyển chi tiết
+                    if (dto.getNgayDuKienGiao() != null) {
+                        thongTin.setNgayGiaoHangDuKien(dto.getNgayDuKienGiao());
+                        System.out.println("📅 Updated ThongTinDonHang ngayGiaoHangDuKien to: " + dto.getNgayDuKienGiao());
+                    }
+                    if (dto.getKhoiLuong() != null) {
+                        thongTin.setKhoiLuong(dto.getKhoiLuong());
+                        System.out.println("📦 Updated ThongTinDonHang khoiLuong to: " + dto.getKhoiLuong());
+                    }
+                    if (dto.getChieuDai() != null) {
+                        thongTin.setChieuDai(dto.getChieuDai());
+                        System.out.println("📏 Updated ThongTinDonHang chieuDai to: " + dto.getChieuDai());
+                    }
+                    if (dto.getChieuRong() != null) {
+                        thongTin.setChieuRong(dto.getChieuRong());
+                        System.out.println("📏 Updated ThongTinDonHang chieuRong to: " + dto.getChieuRong());
+                    }
+                    if (dto.getChieuCao() != null) {
+                        thongTin.setChieuCao(dto.getChieuCao());
+                        System.out.println("📏 Updated ThongTinDonHang chieuCao to: " + dto.getChieuCao());
                     }
                     
-                    thongTinDonHangRepository.save(thongTinDonHang);
-                    System.out.println("✅ Created new ThongTinDonHang for invoice ID: " + saved.getId());
+                    thongTinDonHangRepository.save(thongTin);
+                    System.out.println("✅ Updated ThongTinDonHang for invoice ID: " + saved.getId());
+                } else {
+                    // ✅ QUAN TRỌNG: Nếu ThongTinDonHang đã tồn tại nhưng chỉ có thông tin vận chuyển mới
+                    // (không có địa chỉ mới), vẫn phải cập nhật thông tin vận chuyển
+                    Optional<ThongTinDonHang> existingThongTinForShipping = thongTinDonHangRepository.findByHoaDonId(saved.getId());
+                    if (existingThongTinForShipping.isPresent()) {
+                        ThongTinDonHang thongTin = existingThongTinForShipping.get();
+                        boolean hasShippingUpdate = false;
+                        
+                        // Cập nhật thông tin vận chuyển nếu có
+                        if (dto.getNgayDuKienGiao() != null) {
+                            thongTin.setNgayGiaoHangDuKien(dto.getNgayDuKienGiao());
+                            System.out.println("📅 Updated existing ThongTinDonHang ngayGiaoHangDuKien to: " + dto.getNgayDuKienGiao());
+                            hasShippingUpdate = true;
+                        }
+                        if (dto.getKhoiLuong() != null) {
+                            thongTin.setKhoiLuong(dto.getKhoiLuong());
+                            System.out.println("📦 Updated existing ThongTinDonHang khoiLuong to: " + dto.getKhoiLuong());
+                            hasShippingUpdate = true;
+                        }
+                        if (dto.getChieuDai() != null) {
+                            thongTin.setChieuDai(dto.getChieuDai());
+                            System.out.println("📏 Updated existing ThongTinDonHang chieuDai to: " + dto.getChieuDai());
+                            hasShippingUpdate = true;
+                        }
+                        if (dto.getChieuRong() != null) {
+                            thongTin.setChieuRong(dto.getChieuRong());
+                            System.out.println("📏 Updated existing ThongTinDonHang chieuRong to: " + dto.getChieuRong());
+                            hasShippingUpdate = true;
+                        }
+                        if (dto.getChieuCao() != null) {
+                            thongTin.setChieuCao(dto.getChieuCao());
+                            System.out.println("📏 Updated existing ThongTinDonHang chieuCao to: " + dto.getChieuCao());
+                            hasShippingUpdate = true;
+                        }
+                        if (dto.getPhiGiaoHang() != null) {
+                            thongTin.setPhiVanChuyen(dto.getPhiGiaoHang());
+                            System.out.println("💰 Updated existing ThongTinDonHang phiVanChuyen to: " + dto.getPhiGiaoHang());
+                            hasShippingUpdate = true;
+                        }
+                        
+                        if (hasShippingUpdate) {
+                            thongTinDonHangRepository.save(thongTin);
+                            System.out.println("✅ Updated existing ThongTinDonHang shipping info for invoice ID: " + saved.getId());
+                        }
+                    } else if (dto.getTenKhachHang() != null && dto.getSoDienThoaiKhachHang() != null &&
+                              (dto.getDiaChiChiTiet() != null || dto.getTinhThanh() != null)) {
+                            // Tạo mới ThongTinDonHang nếu chưa có
+                        ThongTinDonHang thongTinDonHang = new ThongTinDonHang();
+                        thongTinDonHang.setHoaDon(saved);
+                        thongTinDonHang.setTenNguoiNhan(dto.getTenKhachHang());
+                        thongTinDonHang.setSoDienThoai(dto.getSoDienThoaiKhachHang());
+                        
+                        String diaChiGiaoHang = String.format("%s, %s, %s, %s",
+                            dto.getDiaChiChiTiet() != null ? dto.getDiaChiChiTiet() : "",
+                            dto.getPhuongXa() != null ? dto.getPhuongXa() : "",
+                            dto.getQuanHuyen() != null ? dto.getQuanHuyen() : "",
+                            dto.getTinhThanh() != null ? dto.getTinhThanh() : "");
+                        thongTinDonHang.setDiaChiGiaoHang(diaChiGiaoHang.trim().replaceAll("^,\\s*|,\\s*$", ""));
+                        thongTinDonHang.setTinhThanh(dto.getTinhThanh() != null ? dto.getTinhThanh() : "");
+                        thongTinDonHang.setQuanHuyen(dto.getQuanHuyen() != null ? dto.getQuanHuyen() : "");
+                        thongTinDonHang.setPhuongXa(dto.getPhuongXa() != null ? dto.getPhuongXa() : "");
+                        thongTinDonHang.setGhiChu(dto.getGhiChu());
+                        
+                        // ✅ QUAN TRỌNG: Set phí vận chuyển khi tạo mới
+                        if (dto.getPhiGiaoHang() != null) {
+                            thongTinDonHang.setPhiVanChuyen(dto.getPhiGiaoHang());
+                            System.out.println("💰 Setting new ThongTinDonHang phiVanChuyen to: " + dto.getPhiGiaoHang());
+                        }
+                        
+                        // ✅ QUAN TRỌNG: Set thông tin vận chuyển chi tiết khi tạo mới
+                        if (dto.getNgayDuKienGiao() != null) {
+                            thongTinDonHang.setNgayGiaoHangDuKien(dto.getNgayDuKienGiao());
+                            System.out.println("📅 Setting new ThongTinDonHang ngayGiaoHangDuKien to: " + dto.getNgayDuKienGiao());
+                        }
+                        if (dto.getKhoiLuong() != null) {
+                            thongTinDonHang.setKhoiLuong(dto.getKhoiLuong());
+                            System.out.println("📦 Setting new ThongTinDonHang khoiLuong to: " + dto.getKhoiLuong());
+                        }
+                        if (dto.getChieuDai() != null) {
+                            thongTinDonHang.setChieuDai(dto.getChieuDai());
+                            System.out.println("📏 Setting new ThongTinDonHang chieuDai to: " + dto.getChieuDai());
+                        }
+                        if (dto.getChieuRong() != null) {
+                            thongTinDonHang.setChieuRong(dto.getChieuRong());
+                            System.out.println("📏 Setting new ThongTinDonHang chieuRong to: " + dto.getChieuRong());
+                        }
+                        if (dto.getChieuCao() != null) {
+                            thongTinDonHang.setChieuCao(dto.getChieuCao());
+                            System.out.println("📏 Setting new ThongTinDonHang chieuCao to: " + dto.getChieuCao());
+                        }
+                        
+                        thongTinDonHangRepository.save(thongTinDonHang);
+                        System.out.println("✅ Created new ThongTinDonHang for invoice ID: " + saved.getId());
+                    }
                 }
             } catch (Exception e) {
                 // Không block việc cập nhật hóa đơn nếu cập nhật ThongTinDonHang thất bại
