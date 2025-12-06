@@ -78,9 +78,19 @@ public class SecurityConfig {
                 .requestMatchers("/api/reports/**").hasAnyRole("ADMIN", "STAFF")
                 .requestMatchers("/api/report-test/**").hasAnyRole("ADMIN", "STAFF")
                 
-                // Product & variant management - cho phép ADMIN và STAFF (đặt TRƯỚC rule chung /api/admin/**)
-                .requestMatchers("/api/san-pham/**").hasAnyRole("ADMIN", "STAFF")
-                .requestMatchers("/api/admin/products/**").hasAnyRole("ADMIN", "STAFF")
+                // Product & variant management - chỉ ADMIN (đặt TRƯỚC rule chung /api/admin/**)
+                .requestMatchers("/api/san-pham/**").hasRole("ADMIN")
+                .requestMatchers("/api/admin/products/**").hasRole("ADMIN")
+                
+                // Product attributes management - chỉ ADMIN
+                .requestMatchers("/mau-sac/**").hasRole("ADMIN")
+                .requestMatchers("/kich-thuoc/**").hasRole("ADMIN")
+                .requestMatchers("/chat-lieu-vo/**").hasRole("ADMIN")
+                .requestMatchers("/xuat-xu/**").hasRole("ADMIN")
+                .requestMatchers("/trong-luong/**").hasRole("ADMIN")
+                .requestMatchers("/loai-mu/**").hasRole("ADMIN")
+                .requestMatchers("/nha-san-xuat/**").hasRole("ADMIN")
+                .requestMatchers("/api/cong-nghe-an-toan/**").hasRole("ADMIN")
                 
                 // Admin endpoints - chỉ ADMIN (đặt SAU các rule cụ thể)
                 .requestMatchers("/api/admin/**").hasRole("ADMIN")

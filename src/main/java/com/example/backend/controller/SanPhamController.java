@@ -79,13 +79,13 @@ public class SanPhamController {
     }
 
     @GetMapping("/api/admin/products/{id}")
-    @PreAuthorize("hasAnyRole('ADMIN', 'STAFF')")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<SanPhamResponse> getById(@PathVariable Long id) {
         return ResponseEntity.ok(service.getById(id));
     }
 
     @GetMapping("/api/admin/products")
-    @PreAuthorize("hasAnyRole('ADMIN', 'STAFF')")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<Page<SanPhamResponse>> search(
             @RequestParam(required = false) String keyword,
             @RequestParam(required = false) Boolean trangThai,
