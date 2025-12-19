@@ -1201,14 +1201,14 @@ public class HoaDonService {
         }
         
         // Xử lý phương thức thanh toán nếu có
-        // Xóa các phương thức thanh toán cũ trước
-        List<PhuongThucThanhToan> existingPttt = phuongThucThanhToanRepository.findByHoaDonId(saved.getId());
-        if (!existingPttt.isEmpty()) {
-            phuongThucThanhToanRepository.deleteAll(existingPttt);
-        }
-        
-        // Tạo phương thức thanh toán mới nếu có
+        // ✅ QUAN TRỌNG: Chỉ xóa và tạo lại phương thức thanh toán nếu có trong DTO
+        // Nếu không có trong DTO, giữ nguyên phương thức thanh toán cũ
         if (dto.getPhuongThucThanhToan() != null && !dto.getPhuongThucThanhToan().trim().isEmpty()) {
+            // Xóa các phương thức thanh toán cũ trước khi tạo mới
+            List<PhuongThucThanhToan> existingPttt = phuongThucThanhToanRepository.findByHoaDonId(saved.getId());
+            if (!existingPttt.isEmpty()) {
+                phuongThucThanhToanRepository.deleteAll(existingPttt);
+            }
             String phuongThucTen = dto.getPhuongThucThanhToan().trim();
             // Map từ frontend: "cash" -> "Tiền mặt", "transfer" -> "Chuyển khoản"
             String tenHinhThuc;
