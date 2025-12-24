@@ -176,14 +176,23 @@ public class SanPhamServiceImpl implements SanPhamService {
             r.setMauSacTen(e.getMauSac().getTenMau()); 
             r.setMauSacMa(e.getMauSac().getMaMau()); 
         }
-        r.setAnhSanPham(e.getAnhSanPham());
+        // Set ảnh sản phẩm: nếu SanPham không có ảnh, lấy ảnh từ ChiTietSanPham đầu tiên
+        String anhSanPham = e.getAnhSanPham();
         r.setGiaBan(e.getGiaBan());
         r.setSoLuongTon(e.getSoLuongTon());
         r.setNgayTao(e.getNgayTao());
         r.setTrangThai(e.getTrangThai());
-        // Tính tổng số lượng và giá trung bình từ bảng chi tiết
+        // Tính tổng số lượng và giá trung bình từ bảng chi tiết, đồng thời lấy ảnh nếu cần
         try {
             var list = chiTietSanPhamRepository.findBySanPhamId(e.getId());
+            // Nếu SanPham không có ảnh, lấy ảnh từ ChiTietSanPham đầu tiên có ảnh
+            if ((anhSanPham == null || anhSanPham.trim().isEmpty()) && !list.isEmpty()) {
+                anhSanPham = list.stream()
+                    .filter(ct -> ct.getAnhSanPham() != null && !ct.getAnhSanPham().trim().isEmpty())
+                    .map(ct -> ct.getAnhSanPham())
+                    .findFirst()
+                    .orElse(null);
+            }
             int total = list.stream()
                 .map(ct -> ChiTietSanPhamRequest.parseIntegerSafe(ct.getSoLuongTon()))
                 .filter(v -> v != null)
@@ -209,6 +218,8 @@ public class SanPhamServiceImpl implements SanPhamService {
             r.setTongSoLuongChiTiet(null);
             r.setGiaTrungBinh(null);
         }
+        // Set ảnh sản phẩm (có thể đã được lấy từ ChiTietSanPham ở trên)
+        r.setAnhSanPham(anhSanPham);
         return r;
     }
 }

@@ -292,20 +292,49 @@ public class ChatConversationServiceImpl implements ChatConversationService {
      * Sử dụng ChatbotService để phân tích và truy vấn sản phẩm từ database
      */
     private void addAutoReply(ConversationDTO conversation, String customerMessage) {
-        // Sử dụng ChatbotService để tạo phản hồi thông minh
-        String reply = chatbotService.generateReply(customerMessage);
-        
-        ChatMessageDTO autoMessage = ChatMessageDTO.builder()
-                .id(messageIdSequence.getAndIncrement())
-                .conversationId(conversation.getId())
-                .noiDung(reply)
-                .loaiNguoiGui("CHATBOT")
-                .thoiGianGui(now())
-                .tuDongTraLoi(true)
-                .daDoc(false)
-                .build();
-        conversation.getMessages().add(autoMessage);
-        conversation.setNgayCapNhat(now());
+        try {
+            // ✅ Sử dụng generateReplyWithProducts để lấy cả reply và suggestedProducts
+            ChatbotService.ChatbotReply chatbotReply = chatbotService.generateReplyWithProducts(customerMessage);
+            String reply = chatbotReply.getReply();
+            List<com.example.backend.dto.SanPhamResponse> suggestedProducts = chatbotReply.getSuggestedProducts();
+            
+            if (suggestedProducts != null && !suggestedProducts.isEmpty()) {
+                log.info("Đã lấy {} sản phẩm để gợi ý", suggestedProducts.size());
+            }
+            
+            ChatMessageDTO.ChatMessageDTOBuilder messageBuilder = ChatMessageDTO.builder()
+                    .id(messageIdSequence.getAndIncrement())
+                    .conversationId(conversation.getId())
+                    .noiDung(reply)
+                    .loaiNguoiGui("CHATBOT")
+                    .thoiGianGui(now())
+                    .tuDongTraLoi(true)
+                    .daDoc(false);
+            
+            // Set suggestedProducts nếu có
+            if (suggestedProducts != null && !suggestedProducts.isEmpty()) {
+                messageBuilder.suggestedProducts(suggestedProducts);
+            }
+            
+            ChatMessageDTO autoMessage = messageBuilder.build();
+            conversation.getMessages().add(autoMessage);
+            conversation.setNgayCapNhat(now());
+        } catch (Exception e) {
+            log.error("Lỗi khi tạo phản hồi tự động cho tin nhắn: {}", customerMessage, e);
+            // Gửi tin nhắn lỗi thân thiện cho khách hàng
+            String errorReply = "Xin lỗi, tôi gặp lỗi khi xử lý câu hỏi của bạn. Vui lòng thử lại sau hoặc liên hệ nhân viên để được hỗ trợ.";
+            ChatMessageDTO errorMessage = ChatMessageDTO.builder()
+                    .id(messageIdSequence.getAndIncrement())
+                    .conversationId(conversation.getId())
+                    .noiDung(errorReply)
+                    .loaiNguoiGui("CHATBOT")
+                    .thoiGianGui(now())
+                    .tuDongTraLoi(true)
+                    .daDoc(false)
+                    .build();
+            conversation.getMessages().add(errorMessage);
+            conversation.setNgayCapNhat(now());
+        }
     }
 
 
