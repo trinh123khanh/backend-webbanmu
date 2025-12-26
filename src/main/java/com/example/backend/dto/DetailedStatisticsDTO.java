@@ -55,7 +55,7 @@ public class DetailedStatisticsDTO {
     // Thu Thực tế: tổng thành tiền (thanhTien) của các hóa đơn có trạng thái DA_GIAO_HANG (đã hoàn thành)
     private BigDecimal thuThucTe;
     
-    // Dư nợ: tổng thành tiền (thanhTien) của các hóa đơn có trạng thái CHO_XAC_NHAN, DA_XAC_NHAN, DANG_GIAO_HANG
+    // Dư nợ: tổng thành tiền (thanhTien) của các hóa đơn có trạng thái CHO_XAC_NHAN, CHO_VAN_CHUYEN, DANG_GIAO_HANG
     private BigDecimal duNo;
     
     // Dữ liệu chi tiết theo từng period (ngày/tuần/tháng/quý/năm)

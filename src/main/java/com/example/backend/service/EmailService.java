@@ -445,7 +445,8 @@ public class EmailService {
         if (status == null) return "N/A";
         switch (status) {
             case "CHO_XAC_NHAN": return "Chờ xác nhận";
-            case "DA_XAC_NHAN": return "Đã xác nhận - Chờ vận chuyển";
+            case "CHO_VAN_CHUYEN": 
+            case "DA_XAC_NHAN": return "Chờ vận chuyển"; // DA_XAC_NHAN kept for backward compatibility
             case "DANG_GIAO_HANG": return "Đang giao hàng";
             case "DA_GIAO_HANG": return "Đã giao hàng";
             case "DA_HUY": case "HUY": return "Đã hủy";
@@ -461,7 +462,8 @@ public class EmailService {
     private String getStatusChangeMessage(String newStatus, boolean isTransferPayment) {
         if (newStatus == null) return "";
         switch (newStatus) {
-            case "DA_XAC_NHAN":
+            case "CHO_VAN_CHUYEN":
+            case "DA_XAC_NHAN": // DA_XAC_NHAN kept for backward compatibility
                 return "Đơn hàng của bạn đã được xác nhận và đang được chuẩn bị để giao hàng. Chúng tôi sẽ thông báo khi đơn hàng được gửi đi.";
             case "DANG_GIAO_HANG":
                 return "Đơn hàng của bạn đang được vận chuyển. Vui lòng chuẩn bị nhận hàng.";

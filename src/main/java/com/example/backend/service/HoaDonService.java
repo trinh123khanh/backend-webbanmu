@@ -809,7 +809,7 @@ public class HoaDonService {
         
         // QUAN TRỌNG: Logic trừ số lượng
         // 1. Đơn hàng ONLINE (nhanVienId = null): Trừ stock ngay khi đặt hàng thành công (khi tạo đơn), KHÔNG cần chờ admin xác nhận
-        // 2. Đơn hàng TẠI QUẦY (nhanVienId != null): KHÔNG trừ stock khi tạo đơn, chỉ trừ khi admin xác nhận (DA_XAC_NHAN)
+        // 2. Đơn hàng TẠI QUẦY (nhanVienId != null): KHÔNG trừ stock khi tạo đơn, chỉ trừ khi admin xác nhận (CHO_VAN_CHUYEN)
         // Lý do: 
         //   - Online: Khách hàng đặt hàng = đã thanh toán thành công, trừ stock ngay
         //   - Tại quầy: Chưa thanh toán, chỉ trừ khi admin xác nhận (thanh toán thành công)
@@ -832,9 +832,9 @@ public class HoaDonService {
                 System.err.println("   - savedChiTietList is empty: " + (savedChiTietList != null && savedChiTietList.isEmpty()));
             }
         } else {
-            // Đơn hàng TẠI QUẦY - KHÔNG trừ stock khi tạo đơn, sẽ trừ khi admin xác nhận (DA_XAC_NHAN)
+            // Đơn hàng TẠI QUẦY - KHÔNG trừ stock khi tạo đơn, sẽ trừ khi admin xác nhận (CHO_VAN_CHUYEN)
             System.out.println("🏪 Counter order detected (nhanVienId = " + saved.getNhanVien().getId() + 
-                ") - Stock will be deducted when status changes to DA_XAC_NHAN (confirmed)");
+                ") - Stock will be deducted when status changes to CHO_VAN_CHUYEN (confirmed)");
         }
         
         // Xử lý địa chỉ giao hàng: Nếu có địa chỉ từ DTO (checkout), tạo hoặc cập nhật địa chỉ khách hàng
@@ -1669,8 +1669,8 @@ public class HoaDonService {
      * Cập nhật trạng thái hóa đơn
      * QUAN TRỌNG: 
      * - CHỈ cập nhật trạng thái bằng query trực tiếp, KHÔNG động đến entity và danhSachChiTiet
-     * - Khi chuyển sang DA_XAC_NHAN (Đã xác nhận), sẽ TRỪ tồn kho sản phẩm
-     * - Khi chuyển từ DA_XAC_NHAN sang trạng thái khác (trừ DA_HUY và DA_GIAO_HANG), sẽ HOÀN LẠI tồn kho
+     * - Khi chuyển sang CHO_VAN_CHUYEN (Chờ vận chuyển), sẽ TRỪ tồn kho sản phẩm
+     * - Khi chuyển từ CHO_VAN_CHUYEN sang trạng thái khác (trừ DA_HUY và DA_GIAO_HANG), sẽ HOÀN LẠI tồn kho
      */
     @Transactional
     public HoaDonDTO updateTrangThaiHoaDon(Long id, String trangThai) {
@@ -1700,14 +1700,14 @@ public class HoaDonService {
             // QUAN TRỌNG: Xử lý tồn kho khi cập nhật trạng thái
             // Logic mới:
             // 1. Đơn hàng ONLINE (nhanVienId = null): Đã trừ stock khi tạo đơn, chỉ hoàn lại nếu hủy
-            // 2. Đơn hàng TẠI QUẦY (nhanVienId != null): Trừ stock khi xác nhận (DA_XAC_NHAN)
+            // 2. Đơn hàng TẠI QUẦY (nhanVienId != null): Trừ stock khi xác nhận (CHO_VAN_CHUYEN)
             
             boolean isOnlineOrder = hoaDon.getNhanVien() == null;
             
             // QUAN TRỌNG: Xử lý tồn kho khi cập nhật trạng thái
             // Logic mới:
             // 1. Đơn hàng ONLINE (nhanVienId = null): Đã trừ stock khi đặt hàng thành công (khi tạo đơn), chỉ hoàn lại nếu hủy
-            // 2. Đơn hàng TẠI QUẦY (nhanVienId != null): Trừ stock khi admin xác nhận (DA_XAC_NHAN), hoàn lại nếu hủy
+            // 2. Đơn hàng TẠI QUẦY (nhanVienId != null): Trừ stock khi admin xác nhận (CHO_VAN_CHUYEN), hoàn lại nếu hủy
             
             if (isOnlineOrder) {
                 // Đơn hàng ONLINE - đã trừ stock khi đặt hàng thành công (khi tạo đơn)
@@ -1719,30 +1719,30 @@ public class HoaDonService {
                         restoreStockFromInvoice(chiTietBeforeUpdate);
                     }
                 }
-                // Nếu chuyển sang DA_XAC_NHAN hoặc các trạng thái khác, không làm gì (đã trừ stock rồi)
+                // Nếu chuyển sang CHO_VAN_CHUYEN hoặc các trạng thái khác, không làm gì (đã trừ stock rồi)
             } else {
                 // Đơn hàng TẠI QUẦY - trừ stock khi admin xác nhận
-                if (newTrangThai == HoaDon.TrangThaiHoaDon.DA_XAC_NHAN && 
-                    oldTrangThai != HoaDon.TrangThaiHoaDon.DA_XAC_NHAN) {
-                    // Chuyển SANG DA_XAC_NHAN: Trừ tồn kho (thanh toán thành công)
-                    System.out.println("💰 Counter order confirmed (DA_XAC_NHAN) - Deducting stock (payment successful)...");
+                if (newTrangThai == HoaDon.TrangThaiHoaDon.CHO_VAN_CHUYEN && 
+                    oldTrangThai != HoaDon.TrangThaiHoaDon.CHO_VAN_CHUYEN) {
+                    // Chuyển SANG CHO_VAN_CHUYEN: Trừ tồn kho (thanh toán thành công)
+                    System.out.println("💰 Counter order confirmed (CHO_VAN_CHUYEN) - Deducting stock (payment successful)...");
                     deductStockFromInvoice(chiTietBeforeUpdate);
                 } else if (newTrangThai == HoaDon.TrangThaiHoaDon.DA_HUY) {
                     // Hủy đơn hàng tại quầy - hoàn lại stock nếu đã xác nhận (đã trừ stock)
-                    if (oldTrangThai == HoaDon.TrangThaiHoaDon.DA_XAC_NHAN) {
+                    if (oldTrangThai == HoaDon.TrangThaiHoaDon.CHO_VAN_CHUYEN) {
                         System.out.println("💰 Counter order cancelled (DA_HUY) after confirmation - Restoring stock...");
                         System.out.println("   - Old status: " + oldTrangThai + " -> New status: " + newTrangThai);
                         restoreStockFromInvoice(chiTietBeforeUpdate);
                     } else {
                         System.out.println("💰 Counter order cancelled (DA_HUY) before confirmation - No stock to restore");
                     }
-                } else if (oldTrangThai == HoaDon.TrangThaiHoaDon.DA_XAC_NHAN && 
-                           newTrangThai != HoaDon.TrangThaiHoaDon.DA_XAC_NHAN &&
+                } else if (oldTrangThai == HoaDon.TrangThaiHoaDon.CHO_VAN_CHUYEN && 
+                           newTrangThai != HoaDon.TrangThaiHoaDon.CHO_VAN_CHUYEN &&
                            newTrangThai != HoaDon.TrangThaiHoaDon.DA_HUY &&
                            newTrangThai != HoaDon.TrangThaiHoaDon.DA_GIAO_HANG &&
                            newTrangThai != HoaDon.TrangThaiHoaDon.DANG_GIAO_HANG) {
-                    // Chuyển TỪ DA_XAC_NHAN sang trạng thái khác (trừ DA_HUY, DA_GIAO_HANG, DANG_GIAO_HANG): Hoàn lại tồn kho
-                    System.out.println("💰 Counter order status changed from DA_XAC_NHAN to " + newTrangThai + " - Restoring stock...");
+                    // Chuyển TỪ CHO_VAN_CHUYEN sang trạng thái khác (trừ DA_HUY, DA_GIAO_HANG, DANG_GIAO_HANG): Hoàn lại tồn kho
+                    System.out.println("💰 Counter order status changed from CHO_VAN_CHUYEN to " + newTrangThai + " - Restoring stock...");
                     restoreStockFromInvoice(chiTietBeforeUpdate);
                 }
             }
@@ -2078,7 +2078,7 @@ public class HoaDonService {
     /**
      * Trừ tồn kho sản phẩm
      * - Đối với đơn hàng ONLINE: Được gọi ngay khi tạo đơn hàng (khách hàng đã thanh toán)
-     * - Đối với đơn hàng TẠI QUẦY: Được gọi khi admin/staff xác nhận đơn hàng (status = DA_XAC_NHAN)
+     * - Đối với đơn hàng TẠI QUẦY: Được gọi khi admin/staff xác nhận đơn hàng (status = CHO_VAN_CHUYEN)
      */
     private void deductStockFromInvoice(List<HoaDonChiTiet> danhSachChiTiet) {
         if (danhSachChiTiet == null || danhSachChiTiet.isEmpty()) {
@@ -2141,7 +2141,7 @@ public class HoaDonService {
     }
     
     /**
-     * Hoàn lại tồn kho sản phẩm khi hoá đơn chuyển TỪ DA_XAC_NHAN sang trạng thái khác
+     * Hoàn lại tồn kho sản phẩm khi hoá đơn chuyển TỪ CHO_VAN_CHUYEN sang trạng thái khác
      * (Không hoàn lại nếu chuyển sang DA_HUY, DA_GIAO_HANG, DANG_GIAO_HANG vì đơn đang tiến triển)
      */
     private void restoreStockFromInvoice(List<HoaDonChiTiet> danhSachChiTiet) {
@@ -2211,8 +2211,8 @@ public class HoaDonService {
         }
         
         // Map trangThai từ String (frontend) sang enum (backend)
-        // Frontend gửi: CHO_XAC_NHAN, DA_XAC_NHAN, DANG_GIAO_HANG, DA_GIAO_HANG, HUY
-        // Backend enum: CHO_XAC_NHAN, DA_XAC_NHAN, DANG_GIAO_HANG, DA_GIAO_HANG, DA_HUY
+        // Frontend gửi: CHO_XAC_NHAN, CHO_VAN_CHUYEN, DANG_GIAO_HANG, DA_GIAO_HANG, HUY
+        // Backend enum: CHO_XAC_NHAN, CHO_VAN_CHUYEN, DANG_GIAO_HANG, DA_GIAO_HANG, DA_HUY
         HoaDon.TrangThaiHoaDon trangThaiEnum = null;
         if (trangThai != null && !trangThai.trim().isEmpty()) {
             try {
@@ -2225,7 +2225,7 @@ public class HoaDonService {
                 System.out.println("✅ Mapped trangThai: " + trangThai + " -> " + trangThaiEnum.name());
             } catch (IllegalArgumentException e) {
                 System.err.println("⚠️ Invalid trangThai value: " + trangThai);
-                System.err.println("💡 Valid values: CHO_XAC_NHAN, DA_XAC_NHAN, DANG_GIAO_HANG, DA_GIAO_HANG, HUY");
+                System.err.println("💡 Valid values: CHO_XAC_NHAN, CHO_VAN_CHUYEN, DANG_GIAO_HANG, DA_GIAO_HANG, HUY");
                 trangThaiEnum = null;
             }
         }
