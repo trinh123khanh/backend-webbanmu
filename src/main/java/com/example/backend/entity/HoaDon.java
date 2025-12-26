@@ -64,7 +64,7 @@ public class HoaDon {
     
     public enum TrangThaiHoaDon {
         CHO_XAC_NHAN,
-        DA_XAC_NHAN,
+        CHO_VAN_CHUYEN,
         DANG_GIAO_HANG,
         DA_GIAO_HANG,
         DA_HUY,

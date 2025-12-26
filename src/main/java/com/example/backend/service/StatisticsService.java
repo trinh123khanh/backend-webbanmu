@@ -267,11 +267,11 @@ public class StatisticsService {
             }
             
             // Thu thực tế: tổng thành tiền của các hóa đơn có trạng thái DA_GIAO_HANG (đã giao hàng/hoàn thành)
-            // Dư nợ: tổng thành tiền của các hóa đơn có trạng thái CHO_XAC_NHAN, DA_XAC_NHAN, DANG_GIAO_HANG
+            // Dư nợ: tổng thành tiền của các hóa đơn có trạng thái CHO_XAC_NHAN, CHO_VAN_CHUYEN, DANG_GIAO_HANG
             HoaDon.TrangThaiHoaDon status = hoaDon.getTrangThai();
             boolean isCompleted = status == HoaDon.TrangThaiHoaDon.DA_GIAO_HANG;
             boolean isDebt = status == HoaDon.TrangThaiHoaDon.CHO_XAC_NHAN 
-                          || status == HoaDon.TrangThaiHoaDon.DA_XAC_NHAN 
+                          || status == HoaDon.TrangThaiHoaDon.CHO_VAN_CHUYEN 
                           || status == HoaDon.TrangThaiHoaDon.DANG_GIAO_HANG;
             
             if (hoaDon.getThanhTien() != null) {
@@ -369,7 +369,7 @@ public class StatisticsService {
             }
             
             // Thu thực tế: tổng thành tiền của các hóa đơn có trạng thái DA_GIAO_HANG (đã giao hàng/hoàn thành)
-            // Dư nợ: tổng thành tiền của các hóa đơn có trạng thái CHO_XAC_NHAN, DA_XAC_NHAN, DANG_GIAO_HANG
+            // Dư nợ: tổng thành tiền của các hóa đơn có trạng thái CHO_XAC_NHAN, CHO_VAN_CHUYEN, DANG_GIAO_HANG
             HoaDon.TrangThaiHoaDon status = hoaDon.getTrangThai();
             boolean isCompleted = status == HoaDon.TrangThaiHoaDon.DA_GIAO_HANG;
             
@@ -705,7 +705,7 @@ public class StatisticsService {
         // Map màu sắc cho các trạng thái
         Map<HoaDon.TrangThaiHoaDon, String> colorMap = new HashMap<>();
         colorMap.put(HoaDon.TrangThaiHoaDon.CHO_XAC_NHAN, "#f472b6");  // Pink
-        colorMap.put(HoaDon.TrangThaiHoaDon.DA_XAC_NHAN, "#fbbf24");   // Yellow
+        colorMap.put(HoaDon.TrangThaiHoaDon.CHO_VAN_CHUYEN, "#fbbf24");   // Yellow
         colorMap.put(HoaDon.TrangThaiHoaDon.DANG_GIAO_HANG, "#14b8a6"); // Green
         colorMap.put(HoaDon.TrangThaiHoaDon.DA_GIAO_HANG, "#a855f7");  // Purple
         colorMap.put(HoaDon.TrangThaiHoaDon.DA_HUY, "#ef4444");        // Red
@@ -713,7 +713,7 @@ public class StatisticsService {
         // Map tên hiển thị cho các trạng thái
         Map<HoaDon.TrangThaiHoaDon, String> labelMap = new HashMap<>();
         labelMap.put(HoaDon.TrangThaiHoaDon.CHO_XAC_NHAN, "Chờ xác nhận");
-        labelMap.put(HoaDon.TrangThaiHoaDon.DA_XAC_NHAN, "Chờ giao hàng");
+        labelMap.put(HoaDon.TrangThaiHoaDon.CHO_VAN_CHUYEN, "Chờ vận chuyển");
         labelMap.put(HoaDon.TrangThaiHoaDon.DANG_GIAO_HANG, "Đang giao");
         labelMap.put(HoaDon.TrangThaiHoaDon.DA_GIAO_HANG, "Hoàn thành");
         labelMap.put(HoaDon.TrangThaiHoaDon.DA_HUY, "Đã hủy");
@@ -732,7 +732,7 @@ public class StatisticsService {
         // Thứ tự hiển thị theo frontend
         HoaDon.TrangThaiHoaDon[] displayOrder = {
             HoaDon.TrangThaiHoaDon.CHO_XAC_NHAN,
-            HoaDon.TrangThaiHoaDon.DA_XAC_NHAN,
+            HoaDon.TrangThaiHoaDon.CHO_VAN_CHUYEN,
             HoaDon.TrangThaiHoaDon.DANG_GIAO_HANG,
             HoaDon.TrangThaiHoaDon.DA_GIAO_HANG,
             HoaDon.TrangThaiHoaDon.DA_HUY
@@ -1156,9 +1156,9 @@ public class StatisticsService {
                 thuThucTe = thuThucTe.add(hoaDon.getThanhTien());
             }
             
-            // Dư nợ: Tổng thành tiền của các hóa đơn CHO_XAC_NHAN, DA_XAC_NHAN, DANG_GIAO_HANG
+            // Dư nợ: Tổng thành tiền của các hóa đơn CHO_XAC_NHAN, CHO_VAN_CHUYEN, DANG_GIAO_HANG
             if ((hoaDon.getTrangThai() == HoaDon.TrangThaiHoaDon.CHO_XAC_NHAN ||
-                 hoaDon.getTrangThai() == HoaDon.TrangThaiHoaDon.DA_XAC_NHAN || 
+                 hoaDon.getTrangThai() == HoaDon.TrangThaiHoaDon.CHO_VAN_CHUYEN || 
                  hoaDon.getTrangThai() == HoaDon.TrangThaiHoaDon.DANG_GIAO_HANG) && 
                 hoaDon.getThanhTien() != null) {
                 duNo = duNo.add(hoaDon.getThanhTien());
@@ -1300,9 +1300,9 @@ public class StatisticsService {
                 thuThucTe = thuThucTe.add(hoaDon.getThanhTien());
             }
             
-            // Dư nợ: Tổng thành tiền của các hóa đơn CHO_XAC_NHAN, DA_XAC_NHAN, DANG_GIAO_HANG
+            // Dư nợ: Tổng thành tiền của các hóa đơn CHO_XAC_NHAN, CHO_VAN_CHUYEN, DANG_GIAO_HANG
             if ((hoaDon.getTrangThai() == HoaDon.TrangThaiHoaDon.CHO_XAC_NHAN ||
-                 hoaDon.getTrangThai() == HoaDon.TrangThaiHoaDon.DA_XAC_NHAN || 
+                 hoaDon.getTrangThai() == HoaDon.TrangThaiHoaDon.CHO_VAN_CHUYEN || 
                  hoaDon.getTrangThai() == HoaDon.TrangThaiHoaDon.DANG_GIAO_HANG) && 
                 hoaDon.getThanhTien() != null) {
                 duNo = duNo.add(hoaDon.getThanhTien());
@@ -1460,9 +1460,9 @@ public class StatisticsService {
                 thuThucTe = thuThucTe.add(hoaDon.getThanhTien());
             }
             
-            // Dư nợ: Tổng thành tiền của các hóa đơn CHO_XAC_NHAN, DA_XAC_NHAN, DANG_GIAO_HANG
+            // Dư nợ: Tổng thành tiền của các hóa đơn CHO_XAC_NHAN, CHO_VAN_CHUYEN, DANG_GIAO_HANG
             if ((hoaDon.getTrangThai() == HoaDon.TrangThaiHoaDon.CHO_XAC_NHAN ||
-                 hoaDon.getTrangThai() == HoaDon.TrangThaiHoaDon.DA_XAC_NHAN || 
+                 hoaDon.getTrangThai() == HoaDon.TrangThaiHoaDon.CHO_VAN_CHUYEN || 
                  hoaDon.getTrangThai() == HoaDon.TrangThaiHoaDon.DANG_GIAO_HANG) && 
                 hoaDon.getThanhTien() != null) {
                 duNo = duNo.add(hoaDon.getThanhTien());

@@ -50,7 +50,7 @@ public interface HoaDonChiTietRepository extends JpaRepository<HoaDonChiTiet, Lo
            "LEFT JOIN FETCH sp.kieuDangMu kdm " +
            "LEFT JOIN FETCH sp.nhaSanXuat nsx " +
            "WHERE hd.trangThai IN (com.example.backend.entity.HoaDon$TrangThaiHoaDon.CHO_XAC_NHAN, " +
-           "                        com.example.backend.entity.HoaDon$TrangThaiHoaDon.DA_XAC_NHAN, " +
+           "                        com.example.backend.entity.HoaDon$TrangThaiHoaDon.CHO_VAN_CHUYEN, " +
            "                        com.example.backend.entity.HoaDon$TrangThaiHoaDon.DANG_GIAO_HANG, " +
            "                        com.example.backend.entity.HoaDon$TrangThaiHoaDon.DA_GIAO_HANG) " +
            "ORDER BY hd.ngayTao DESC")

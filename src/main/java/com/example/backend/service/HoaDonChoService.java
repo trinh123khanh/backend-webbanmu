@@ -275,8 +275,8 @@ public class HoaDonChoService {
         // QUAN TRỌNG: KHÔNG trừ số lượng khi thêm vào giỏ hàng
         // Số lượng sẽ được trừ khi:
         // 1. Tạo hoá đơn từ giỏ hàng (tại quầy) - khi tạo HoaDon từ HoaDonCho
-        // 2. Tạo hoá đơn từ website (checkout) - khi tạo HoaDon với status = DA_XAC_NHAN
-        // 3. Cập nhật trạng thái hoá đơn thành DA_XAC_NHAN
+        // 2. Tạo hoá đơn từ website (checkout) - khi tạo HoaDon với status = CHO_XAC_NHAN
+        // 3. Cập nhật trạng thái hoá đơn thành CHO_VAN_CHUYEN
         // Chỉ kiểm tra tồn kho để đảm bảo đủ hàng, nhưng không trừ ngay
         
         // Calculate thanhTien
@@ -418,7 +418,7 @@ public class HoaDonChoService {
 
         // QUAN TRỌNG: KHÔNG cộng lại số lượng khi xóa khỏi giỏ hàng
         // Vì số lượng KHÔNG được trừ khi thêm vào giỏ hàng
-        // Số lượng chỉ được trừ khi tạo hoá đơn và hoá đơn được xác nhận (DA_XAC_NHAN)
+        // Số lượng chỉ được trừ khi tạo hoá đơn và hoá đơn được xác nhận (CHO_VAN_CHUYEN)
 
         log.info("✅ Removed item from cart. ChiTietSanPham id: {}, quantity removed: {} (Stock was not deducted, so no need to restore)", 
                 chiTietSanPham.getId(), quantityRemoved);

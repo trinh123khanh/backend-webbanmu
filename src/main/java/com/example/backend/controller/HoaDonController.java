@@ -339,7 +339,7 @@ public class HoaDonController {
                     .tongTien(java.math.BigDecimal.valueOf(2000000))
                     .thanhTien(java.math.BigDecimal.valueOf(1800000))
                     .tienGiamGia(java.math.BigDecimal.valueOf(200000))
-                    .trangThai("DA_XAC_NHAN")
+                    .trangThai("CHO_VAN_CHUYEN")
                     .ngayTao(java.time.LocalDateTime.now().minusHours(2))
                     .build();
 
@@ -398,9 +398,9 @@ public class HoaDonController {
                 System.out.println("✅ Valid trangThai: " + trangThaiToUpdate);
             } catch (IllegalArgumentException e) {
                 System.err.println("❌ Invalid trangThai: " + trangThaiToUpdate);
-                System.err.println("💡 Valid values: CHO_XAC_NHAN, DA_XAC_NHAN, DANG_GIAO_HANG, DA_GIAO_HANG, DA_HUY");
+                System.err.println("💡 Valid values: CHO_XAC_NHAN, CHO_VAN_CHUYEN, DANG_GIAO_HANG, DA_GIAO_HANG, DA_HUY");
                 return ResponseEntity.badRequest()
-                    .body("Trạng thái không hợp lệ: " + trangThai + ". Giá trị hợp lệ: CHO_XAC_NHAN, DA_XAC_NHAN, DANG_GIAO_HANG, DA_GIAO_HANG, HUY");
+                    .body("Trạng thái không hợp lệ: " + trangThai + ". Giá trị hợp lệ: CHO_XAC_NHAN, CHO_VAN_CHUYEN, DANG_GIAO_HANG, DA_GIAO_HANG, HUY");
             }
             
             System.out.println("📞 Calling service.updateTrangThaiHoaDon...");
