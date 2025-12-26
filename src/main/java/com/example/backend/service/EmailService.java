@@ -445,7 +445,7 @@ public class EmailService {
         if (status == null) return "N/A";
         switch (status) {
             case "CHO_XAC_NHAN": return "Chờ xác nhận";
-            case "DA_XAC_NHAN": return "Đã xác nhận - Chờ vận chuyển";
+            case "DA_XAC_NHAN": return "Đã xác nhận";
             case "DANG_GIAO_HANG": return "Đang giao hàng";
             case "DA_GIAO_HANG": return "Đã giao hàng";
             case "DA_HUY": case "HUY": return "Đã hủy";

@@ -968,9 +968,13 @@ public class HoaDonService {
             pttt.setHoaDon(saved);
             pttt.setHinhThucThanhToan(hinhThuc);
             pttt.setSoTienThanhToan(saved.getThanhTien() != null ? saved.getThanhTien() : java.math.BigDecimal.ZERO);
-            // ✅ QUAN TRỌNG: Chỉ set trạng thái "Đã Thanh Toán" khi phương thức thanh toán là chuyển khoản
-            // Với tiền mặt, trạng thái sẽ là CHUA_THANH_TOAN (mặc định)
-            if ("Chuyển khoản".equals(tenHinhThuc) || "transfer".equalsIgnoreCase(phuongThucTen)) {
+            // ✅ QUAN TRỌNG: Đơn hàng online (nhanVienId = null) luôn có trạng thái "Đã Thanh Toán"
+            // Đơn hàng tại quầy: chuyển khoản = Đã thanh toán, tiền mặt = Chờ thanh toán
+            boolean isOnlineOrder = saved.getNhanVien() == null;
+            if (isOnlineOrder) {
+                pttt.setTrangThai(PhuongThucThanhToan.TrangThaiThanhToan.DA_THANH_TOAN);
+                System.out.println("✅ Online order detected (nhanVienId = null) - Set status to DA_THANH_TOAN");
+            } else if ("Chuyển khoản".equals(tenHinhThuc) || "transfer".equalsIgnoreCase(phuongThucTen)) {
                 pttt.setTrangThai(PhuongThucThanhToan.TrangThaiThanhToan.DA_THANH_TOAN);
                 System.out.println("✅ Payment method is transfer - Set status to DA_THANH_TOAN");
             } else {
@@ -1234,9 +1238,13 @@ public class HoaDonService {
             pttt.setHoaDon(saved);
             pttt.setHinhThucThanhToan(hinhThuc);
             pttt.setSoTienThanhToan(saved.getThanhTien() != null ? saved.getThanhTien() : java.math.BigDecimal.ZERO);
-            // ✅ QUAN TRỌNG: Chỉ set trạng thái "Đã Thanh Toán" khi phương thức thanh toán là chuyển khoản
-            // Với tiền mặt, trạng thái sẽ là CHUA_THANH_TOAN (mặc định)
-            if ("Chuyển khoản".equals(tenHinhThuc) || "transfer".equalsIgnoreCase(phuongThucTen)) {
+            // ✅ QUAN TRỌNG: Đơn hàng online (nhanVienId = null) luôn có trạng thái "Đã Thanh Toán"
+            // Đơn hàng tại quầy: chuyển khoản = Đã thanh toán, tiền mặt = Chờ thanh toán
+            boolean isOnlineOrder = saved.getNhanVien() == null;
+            if (isOnlineOrder) {
+                pttt.setTrangThai(PhuongThucThanhToan.TrangThaiThanhToan.DA_THANH_TOAN);
+                System.out.println("✅ Online order detected (nhanVienId = null) - Set status to DA_THANH_TOAN");
+            } else if ("Chuyển khoản".equals(tenHinhThuc) || "transfer".equalsIgnoreCase(phuongThucTen)) {
                 pttt.setTrangThai(PhuongThucThanhToan.TrangThaiThanhToan.DA_THANH_TOAN);
                 System.out.println("✅ Payment method is transfer - Set status to DA_THANH_TOAN");
             } else {
