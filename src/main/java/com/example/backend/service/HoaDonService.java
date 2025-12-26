@@ -2197,10 +2197,10 @@ public class HoaDonService {
         System.out.println("✅ Stock restoration completed");
     }
 
-    public Page<HoaDon> getAllHoaDon(String keyword, String phuongThucThanhToan, String trangThai, Pageable pageable) {
+    public Page<HoaDon> getAllHoaDon(String keyword, String phuongThucThanhToan, String trangThai, String trangThaiThanhToan, java.time.LocalDate ngayBatDau, java.time.LocalDate ngayKetThuc, Pageable pageable) {
         // Map từ frontend format sang backend format
         String tenHinhThuc = null;
-        if (phuongThucThanhToan != null && !phuongThucThanhToan.trim().isEmpty()) {
+        if (phuongThucThanhToan != null && !phuongThucThanhToan.trim().isEmpty() && !phuongThucThanhToan.equals("all")) {
             if ("cash".equalsIgnoreCase(phuongThucThanhToan)) {
                 tenHinhThuc = "Tiền mặt";
             } else if ("transfer".equalsIgnoreCase(phuongThucThanhToan)) {
@@ -2211,10 +2211,8 @@ public class HoaDonService {
         }
         
         // Map trangThai từ String (frontend) sang enum (backend)
-        // Frontend gửi: CHO_XAC_NHAN, DA_XAC_NHAN, DANG_GIAO_HANG, DA_GIAO_HANG, HUY
-        // Backend enum: CHO_XAC_NHAN, DA_XAC_NHAN, DANG_GIAO_HANG, DA_GIAO_HANG, DA_HUY
         HoaDon.TrangThaiHoaDon trangThaiEnum = null;
-        if (trangThai != null && !trangThai.trim().isEmpty()) {
+        if (trangThai != null && !trangThai.trim().isEmpty() && !trangThai.equals("all")) {
             try {
                 String trangThaiUpper = trangThai.toUpperCase();
                 // Map HUY từ frontend sang DA_HUY trong backend
@@ -2222,12 +2220,32 @@ public class HoaDonService {
                     trangThaiUpper = "DA_HUY";
                 }
                 trangThaiEnum = HoaDon.TrangThaiHoaDon.valueOf(trangThaiUpper);
-                System.out.println("✅ Mapped trangThai: " + trangThai + " -> " + trangThaiEnum.name());
             } catch (IllegalArgumentException e) {
                 System.err.println("⚠️ Invalid trangThai value: " + trangThai);
-                System.err.println("💡 Valid values: CHO_XAC_NHAN, DA_XAC_NHAN, DANG_GIAO_HANG, DA_GIAO_HANG, HUY");
                 trangThaiEnum = null;
             }
+        }
+
+        // Map trangThaiThanhToan từ String (frontend) sang enum (backend)
+        PhuongThucThanhToan.TrangThaiThanhToan trangThaiThanhToanEnum = null;
+        if (trangThaiThanhToan != null && !trangThaiThanhToan.trim().isEmpty() && !trangThaiThanhToan.equals("all")) {
+            try {
+                trangThaiThanhToanEnum = PhuongThucThanhToan.TrangThaiThanhToan.valueOf(trangThaiThanhToan);
+            } catch (IllegalArgumentException e) {
+                System.err.println("⚠️ Invalid trangThaiThanhToan value: " + trangThaiThanhToan);
+                trangThaiThanhToanEnum = null;
+            }
+        }
+
+        // Convert dates to LocalDateTime
+        LocalDateTime startDateTime = null;
+        if (ngayBatDau != null) {
+            startDateTime = ngayBatDau.atStartOfDay();
+        }
+
+        LocalDateTime endDateTime = null;
+        if (ngayKetThuc != null) {
+            endDateTime = ngayKetThuc.atTime(23, 59, 59);
         }
         
         // Đếm tổng số bản ghi trước
@@ -2244,6 +2262,18 @@ public class HoaDonService {
         
         if (trangThaiEnum != null) {
             countQueryStr.append(" AND h.trangThai = :trangThai");
+        }
+
+        if (trangThaiThanhToanEnum != null) {
+            countQueryStr.append(" AND pttt.trangThai = :trangThaiThanhToan");
+        }
+
+        if (startDateTime != null) {
+            countQueryStr.append(" AND h.ngayTao >= :startDateTime");
+        }
+
+        if (endDateTime != null) {
+            countQueryStr.append(" AND h.ngayTao <= :endDateTime");
         }
         
         jakarta.persistence.TypedQuery<Long> countQuery = entityManager.createQuery(
@@ -2264,11 +2294,22 @@ public class HoaDonService {
         if (trangThaiEnum != null) {
             countQuery.setParameter("trangThai", trangThaiEnum);
         }
+
+        if (trangThaiThanhToanEnum != null) {
+            countQuery.setParameter("trangThaiThanhToan", trangThaiThanhToanEnum);
+        }
+
+        if (startDateTime != null) {
+            countQuery.setParameter("startDateTime", startDateTime);
+        }
+
+        if (endDateTime != null) {
+            countQuery.setParameter("endDateTime", endDateTime);
+        }
         
         long totalElements = countQuery.getSingleResult();
         
         // Query với join fetch để load các relationships
-        // Lưu ý: Không thể fetch nhiều collections cùng lúc, nên chỉ fetch danhSachChiTiet
         StringBuilder queryStr = new StringBuilder(
             "SELECT DISTINCT h FROM HoaDon h " +
             "LEFT JOIN FETCH h.khachHang " +
@@ -2291,18 +2332,27 @@ public class HoaDonService {
         if (trangThaiEnum != null) {
             queryStr.append(" AND h.trangThai = :trangThai");
         }
+
+        if (trangThaiThanhToanEnum != null) {
+            queryStr.append(" AND pttt.trangThai = :trangThaiThanhToan");
+        }
+
+        if (startDateTime != null) {
+            queryStr.append(" AND h.ngayTao >= :startDateTime");
+        }
+
+        if (endDateTime != null) {
+            queryStr.append(" AND h.ngayTao <= :endDateTime");
+        }
         
-        // Luôn có ORDER BY để đảm bảo thứ tự: mặc định ORDER BY id ASC (hóa đơn cũ nhất lên đầu, mới nhất xuống cuối)
-        // Chỉ thay đổi ORDER BY nếu user click vào cột để sort
+        // Sort logic
         Sort sort = pageable.getSort();
         if (sort != null && sort.isSorted()) {
-            // User đã click sort - sử dụng sort của user
             Sort.Order order = sort.iterator().next();
             String sortField = order.getProperty();
             String sortDir = order.getDirection().name();
             queryStr.append(" ORDER BY h.").append(sortField).append(" ").append(sortDir);
         } else {
-            // Mặc định: ORDER BY id ASC - hóa đơn mới nhất (ID lớn nhất) ở cuối
             queryStr.append(" ORDER BY h.id ASC");
         }
         
@@ -2324,13 +2374,24 @@ public class HoaDonService {
         if (trangThaiEnum != null) {
             query.setParameter("trangThai", trangThaiEnum);
         }
+
+        if (trangThaiThanhToanEnum != null) {
+            query.setParameter("trangThaiThanhToan", trangThaiThanhToanEnum);
+        }
+
+        if (startDateTime != null) {
+            query.setParameter("startDateTime", startDateTime);
+        }
+
+        if (endDateTime != null) {
+            query.setParameter("endDateTime", endDateTime);
+        }
         
         // Apply pagination
         query.setFirstResult((int) pageable.getOffset());
         query.setMaxResults(pageable.getPageSize());
         List<HoaDon> results = query.getResultList();
         
-        // Create a Page manually
         return new org.springframework.data.domain.PageImpl<>(results, pageable, totalElements);
     }
 

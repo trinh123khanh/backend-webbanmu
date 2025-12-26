@@ -59,7 +59,7 @@ public class HoaDonController {
             @RequestParam(required = false) String phuongThucThanhToan,
             @RequestParam(required = false) String sortBy,
             @RequestParam(defaultValue = "asc") String sortDirection) {
-        return getAllHoaDonPaginated(page, size, maHoaDon, keyword, trangThai, trangThaiThanhToan, phuongThucThanhToan, sortBy, sortDirection);
+        return getAllHoaDonPaginated(page, size, maHoaDon, keyword, trangThai, trangThaiThanhToan, phuongThucThanhToan, null, null, sortBy, sortDirection);
     }
 
     @GetMapping("/api/admin/invoices/{id}")
@@ -101,7 +101,7 @@ public class HoaDonController {
             @RequestParam(defaultValue = "asc") String sortDirection) {
         // TODO: Filter chỉ hóa đơn do nhân viên này tạo
         // Hiện tại trả về tất cả, cần thêm logic filter theo nhanVienId từ authentication
-        return getAllHoaDonPaginated(page, size, maHoaDon, keyword, trangThai, trangThaiThanhToan, phuongThucThanhToan, sortBy, sortDirection);
+        return getAllHoaDonPaginated(page, size, maHoaDon, keyword, trangThai, trangThaiThanhToan, phuongThucThanhToan, null, null, sortBy, sortDirection);
     }
 
     @PostMapping("/api/staff/sell")
@@ -131,6 +131,8 @@ public class HoaDonController {
             @RequestParam(required = false) String trangThai,
             @RequestParam(required = false) String trangThaiThanhToan,
             @RequestParam(required = false) String phuongThucThanhToan,
+            @RequestParam(required = false) @org.springframework.format.annotation.DateTimeFormat(iso = org.springframework.format.annotation.DateTimeFormat.ISO.DATE) java.time.LocalDate ngayBatDau,
+            @RequestParam(required = false) @org.springframework.format.annotation.DateTimeFormat(iso = org.springframework.format.annotation.DateTimeFormat.ISO.DATE) java.time.LocalDate ngayKetThuc,
             @RequestParam(required = false) String sortBy,
             @RequestParam(defaultValue = "asc") String sortDirection) {
         
@@ -146,8 +148,13 @@ public class HoaDonController {
                 pageable = PageRequest.of(page, size);
             }
             
+            // Fix: Nếu frontend gửi maHoaDon nhưng không gửi keyword, gán maHoaDon vào keyword để service tìm kiếm
+            if ((keyword == null || keyword.trim().isEmpty()) && maHoaDon != null && !maHoaDon.trim().isEmpty()) {
+                keyword = maHoaDon;
+            }
+            
             // Gọi service trả về Page<HoaDon> và map sang DTO với đầy đủ thông tin
-            Page<com.example.backend.entity.HoaDon> hoaDonPageEntity = hoaDonService.getAllHoaDon(keyword, phuongThucThanhToan, trangThai, pageable);
+            Page<com.example.backend.entity.HoaDon> hoaDonPageEntity = hoaDonService.getAllHoaDon(keyword, phuongThucThanhToan, trangThai, trangThaiThanhToan, ngayBatDau, ngayKetThuc, pageable);
             Page<HoaDonDTO> hoaDonPage = hoaDonPageEntity.map(hoaDonService::toDTO);
             
             // Create response map
