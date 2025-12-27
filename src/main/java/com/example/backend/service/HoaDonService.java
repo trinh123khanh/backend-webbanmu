@@ -2901,7 +2901,7 @@ public class HoaDonService {
             String diaChiGiaoHang = diaChiBuilder.length() > 0 ? diaChiBuilder.toString() : 
                 (dto.getDiaChiKhachHang() != null ? dto.getDiaChiKhachHang() : "N/A");
             
-            // Gửi email
+            // Gửi email với đầy đủ thông tin
             emailService.sendInvoiceNotification(
                 customerEmail,
                 customerName,
@@ -2911,7 +2911,11 @@ public class HoaDonService {
                 dto.getThanhTien(),
                 dto.getNgayTao(),
                 diaChiGiaoHang,
-                danhSachSanPham
+                danhSachSanPham,
+                dto.getPhuongThucThanhToan(),
+                dto.getTienGiamGia(),
+                dto.getPhiGiaoHang(),
+                dto.getSoDienThoaiKhachHang()
             );
             
             System.out.println("✅ Invoice email notification sent to: " + customerEmail);
