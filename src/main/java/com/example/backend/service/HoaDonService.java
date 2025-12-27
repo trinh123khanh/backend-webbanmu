@@ -984,6 +984,8 @@ public class HoaDonService {
             phuongThucThanhToanRepository.save(pttt);
         }
         
+
+        
         // Reload hóa đơn bằng cách gọi getHoaDonById để đảm bảo có dữ liệu đầy đủ
         // Lưu ý: Không fetch phuongThucThanhToan trong query để tránh MultipleBagFetchException
         Optional<HoaDon> reloaded = getHoaDonById(saved.getId());
