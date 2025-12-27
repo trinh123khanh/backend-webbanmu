@@ -246,13 +246,28 @@ public class EmailService {
     }
 
     /**
-     * Gửi email thông báo hóa đơn cho khách hàng
+     * Gửi email thông báo hóa đơn cho khách hàng (HTML format)
      */
     @Async
     public void sendInvoiceNotification(String customerEmail, String customerName, String maHoaDon,
                                        String trangThai, java.math.BigDecimal tongTien, 
                                        java.math.BigDecimal thanhTien, java.time.LocalDateTime ngayTao,
                                        String diaChiGiaoHang, java.util.List<InvoiceItemInfo> danhSachSanPham) {
+        // Gọi overload method với các tham số mặc định
+        sendInvoiceNotification(customerEmail, customerName, maHoaDon, trangThai, tongTien, thanhTien, 
+            ngayTao, diaChiGiaoHang, danhSachSanPham, null, null, null, null);
+    }
+
+    /**
+     * Gửi email thông báo hóa đơn cho khách hàng (HTML format với đầy đủ thông tin)
+     */
+    @Async
+    public void sendInvoiceNotification(String customerEmail, String customerName, String maHoaDon,
+                                       String trangThai, java.math.BigDecimal tongTien, 
+                                       java.math.BigDecimal thanhTien, java.time.LocalDateTime ngayTao,
+                                       String diaChiGiaoHang, java.util.List<InvoiceItemInfo> danhSachSanPham,
+                                       String phuongThucThanhToan, java.math.BigDecimal tienGiamGia,
+                                       java.math.BigDecimal phiGiaoHang, String soDienThoaiKhachHang) {
         if (!emailEnabled) {
             log.info("Email service is disabled. Skipping invoice notification email.");
             return;
@@ -272,68 +287,386 @@ public class EmailService {
             // Format tiền
             String tongTienText = String.format("%,.0f VNĐ", tongTien != null ? tongTien.doubleValue() : 0);
             String thanhTienText = String.format("%,.0f VNĐ", thanhTien != null ? thanhTien.doubleValue() : 0);
+            String tienGiamGiaText = tienGiamGia != null && tienGiamGia.compareTo(java.math.BigDecimal.ZERO) > 0 
+                ? String.format("%,.0f VNĐ", tienGiamGia.doubleValue()) : "0 VNĐ";
+            String phiGiaoHangText = phiGiaoHang != null && phiGiaoHang.compareTo(java.math.BigDecimal.ZERO) > 0 
+                ? String.format("%,.0f VNĐ", phiGiaoHang.doubleValue()) : "0 VNĐ";
             
             // Map trạng thái
             String trangThaiText = getStatusLabel(trangThai);
             
-            // Tạo danh sách sản phẩm
-            StringBuilder sanPhamList = new StringBuilder();
-            if (danhSachSanPham != null && !danhSachSanPham.isEmpty()) {
-                for (int i = 0; i < danhSachSanPham.size(); i++) {
-                    InvoiceItemInfo item = danhSachSanPham.get(i);
-                    String itemText = String.format(
-                        "%d. %s - Số lượng: %d - Giá: %,.0f VNĐ - Thành tiền: %,.0f VNĐ",
-                        i + 1,
-                        item.getTenSanPham() != null ? item.getTenSanPham() : "N/A",
-                        item.getSoLuong() != null ? item.getSoLuong() : 0,
-                        item.getDonGia() != null ? item.getDonGia().doubleValue() : 0,
-                        item.getThanhTien() != null ? item.getThanhTien().doubleValue() : 0
-                    );
-                    sanPhamList.append(itemText).append("\n");
-                }
-            } else {
-                sanPhamList.append("Không có sản phẩm");
-            }
+            // Map phương thức thanh toán
+            String phuongThucText = getPaymentMethodLabel(phuongThucThanhToan);
             
-            // Tạo nội dung email
-            String emailContent = String.format(
-                "Xin chào %s,\n\n" +
-                "Cảm ơn bạn đã đặt hàng tại TDK Store!\n\n" +
-                "📋 THÔNG TIN HÓA ĐƠN:\n" +
-                "- Mã hóa đơn: %s\n" +
-                "- Trạng thái: %s\n" +
-                "- Ngày tạo: %s\n" +
-                "- Tổng tiền: %s\n" +
-                "- Thành tiền: %s\n" +
-                "- Địa chỉ giao hàng: %s\n\n" +
-                "🛍️ DANH SÁCH SẢN PHẨM:\n%s\n" +
-                "Chúng tôi sẽ xử lý đơn hàng của bạn trong thời gian sớm nhất.\n\n" +
-                "Nếu có bất kỳ thắc mắc nào, vui lòng liên hệ với chúng tôi.\n\n" +
-                "Trân trọng,\n" +
-                "TDK Store - Bán mũ bảo hiểm",
+            // Tạo HTML content
+            String htmlContent = buildInvoiceEmailHTML(
                 customerName != null ? customerName : "Khách hàng",
                 maHoaDon != null ? maHoaDon : "N/A",
                 trangThaiText,
                 ngayTaoText,
                 tongTienText,
+                tienGiamGiaText,
+                phiGiaoHangText,
                 thanhTienText,
+                phuongThucText,
                 diaChiGiaoHang != null ? diaChiGiaoHang : "N/A",
-                sanPhamList.toString()
+                soDienThoaiKhachHang != null ? soDienThoaiKhachHang : "N/A",
+                customerEmail != null ? customerEmail : "N/A",
+                danhSachSanPham
             );
 
-            SimpleMailMessage message = new SimpleMailMessage();
-            message.setFrom(fromEmail);
-            message.setTo(customerEmail);
-            message.setSubject("📦 Thông báo hóa đơn " + maHoaDon + " - TDK Store");
-            message.setText(emailContent);
+            // Gửi email HTML
+            MimeMessage message = mailSender.createMimeMessage();
+            MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
+            
+            helper.setFrom(fromEmail);
+            helper.setTo(customerEmail);
+            helper.setSubject("📦 Thông báo hóa đơn " + maHoaDon + " - TDK Store");
+            helper.setText(htmlContent, true); // true = HTML content
+            
             mailSender.send(message);
 
-            log.info("✅ Invoice notification email sent successfully to: {} (Invoice: {})", customerEmail, maHoaDon);
+            log.info("✅ Invoice notification email (HTML) sent successfully to: {} (Invoice: {})", customerEmail, maHoaDon);
 
         } catch (Exception e) {
             log.error("❌ Lỗi khi gửi email thông báo hóa đơn tới {}: {}", customerEmail, e.getMessage(), e);
             // Không throw exception để không ảnh hưởng đến logic chính
         }
+    }
+    
+    /**
+     * Tạo HTML content cho email hóa đơn
+     */
+    private String buildInvoiceEmailHTML(String customerName, String maHoaDon, String trangThai,
+                                        String ngayTao, String tongTien, String tienGiamGia,
+                                        String phiGiaoHang, String thanhTien, String phuongThucThanhToan,
+                                        String diaChiGiaoHang, String soDienThoai, String email,
+                                        java.util.List<InvoiceItemInfo> danhSachSanPham) {
+        
+        // Tạo bảng sản phẩm
+        StringBuilder productsTableRows = new StringBuilder();
+        if (danhSachSanPham != null && !danhSachSanPham.isEmpty()) {
+            int stt = 1;
+            for (InvoiceItemInfo item : danhSachSanPham) {
+                String tenSanPham = item.getTenSanPham() != null ? escapeHtml(item.getTenSanPham()) : "N/A";
+                int soLuong = item.getSoLuong() != null ? item.getSoLuong() : 0;
+                String donGia = String.format("%,.0f VNĐ", item.getDonGia() != null ? item.getDonGia().doubleValue() : 0);
+                String thanhTienItem = String.format("%,.0f VNĐ", item.getThanhTien() != null ? item.getThanhTien().doubleValue() : 0);
+                
+                productsTableRows.append(String.format(
+                    "<tr style=\"border-bottom: 1px solid #e5e7eb; background-color: %s;\">" +
+                    "<td style=\"padding: 14px 12px; text-align: center; color: #6b7280; font-size: 14px; border-right: 1px solid #f3f4f6;\">%d</td>" +
+                    "<td style=\"padding: 14px 12px; color: #111827; font-weight: 500; font-size: 14px; border-right: 1px solid #f3f4f6;\">%s</td>" +
+                    "<td style=\"padding: 14px 12px; text-align: center; color: #6b7280; font-size: 14px; border-right: 1px solid #f3f4f6; font-weight: 600;\">%d</td>" +
+                    "<td style=\"padding: 14px 12px; text-align: right; color: #059669; font-size: 14px; border-right: 1px solid #f3f4f6; font-weight: 500; font-family: 'Courier New', monospace;\">%s</td>" +
+                    "<td style=\"padding: 14px 12px; text-align: right; color: #f4a11a; font-weight: 700; font-size: 15px; font-family: 'Courier New', monospace;\">%s</td>" +
+                    "</tr>",
+                    (stt % 2 == 0 ? "#fafafa" : "#ffffff"), stt++, tenSanPham, soLuong, donGia, thanhTienItem
+                ));
+            }
+        } else {
+            productsTableRows.append(
+                "<tr><td colspan=\"5\" style=\"padding: 20px; text-align: center; color: #9ca3af;\">Không có sản phẩm</td></tr>"
+            );
+        }
+        
+        // Logo URL - Thay đổi URL này thành URL logo thực tế của dự án
+        // Có thể sử dụng: URL công khai, base64 data URI, hoặc CDN
+        // Ví dụ: "https://yourdomain.com/assets/logo.png" hoặc "data:image/png;base64,..."
+        String logoUrl = "https://via.placeholder.com/200x60/febc49/ffffff?text=TDK+Store";
+        
+        return String.format(
+            "<!DOCTYPE html>" +
+            "<html lang=\"vi\">" +
+            "<head>" +
+            "<meta charset=\"UTF-8\">" +
+            "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">" +
+            "<meta http-equiv=\"X-UA-Compatible\" content=\"IE=edge\">" +
+            "<title>Thông báo hóa đơn - TDK Store</title>" +
+            "<style type=\"text/css\">" +
+            "/* Reset CSS cho email client */" +
+            "body, table, td, p, a, li, blockquote { -webkit-text-size-adjust: 100%%; -ms-text-size-adjust: 100%%; }" +
+            "table, td { mso-table-lspace: 0pt; mso-table-rspace: 0pt; }" +
+            "img { -ms-interpolation-mode: bicubic; border: 0; outline: none; text-decoration: none; }" +
+            "/* Responsive */" +
+            "@media only screen and (max-width: 600px) {" +
+            "  .email-container { width: 100%% !important; max-width: 100%% !important; }" +
+            "  .email-content { padding: 15px !important; }" +
+            "  .email-header h1 { font-size: 24px !important; }" +
+            "  .email-section h2 { font-size: 18px !important; }" +
+            "  .product-table { font-size: 12px !important; }" +
+            "  .product-table th, .product-table td { padding: 8px !important; }" +
+            "}" +
+            "</style>" +
+            "</head>" +
+            "<body style=\"margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; background-color: #f5f5f5; -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale;\">" +
+            "<table role=\"presentation\" width=\"100%%\" cellpadding=\"0\" cellspacing=\"0\" style=\"background-color: #f5f5f5; padding: 20px 0; mso-line-height-rule: exactly;\">" +
+            "<tr>" +
+            "<td align=\"center\" style=\"padding: 0;\">" +
+            "<table role=\"presentation\" class=\"email-container\" width=\"600\" cellpadding=\"0\" cellspacing=\"0\" style=\"background-color: #ffffff; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); overflow: hidden; max-width: 600px; margin: 0 auto;\">" +
+            
+            // Header với logo
+            "<tr>" +
+            "<td class=\"email-header\" style=\"background: linear-gradient(135deg, #febc49 0%%, #e6a942 100%%); padding: 40px 20px; text-align: center; mso-line-height-rule: exactly;\">" +
+            "<img src=\"%s\" alt=\"TDK Store Logo\" style=\"max-width: 200px; height: auto; margin-bottom: 15px; display: block; margin-left: auto; margin-right: auto;\">" +
+            "<h1 style=\"margin: 0 0 8px 0; color: #ffffff; font-size: 28px; font-weight: 700; line-height: 1.2; letter-spacing: -0.5px;\">TDK Store</h1>" +
+            "<p style=\"margin: 0; color: rgba(255,255,255,0.95); font-size: 15px; line-height: 1.5; font-weight: 400;\">Bán mũ bảo hiểm</p>" +
+            "</td>" +
+            "</tr>" +
+            
+            // Thông báo đặt hàng thành công
+            "<tr>" +
+            "<td style=\"padding: 35px 20px; text-align: center; background: linear-gradient(135deg, #d1fae5 0%%, #a7f3d0 100%%); mso-line-height-rule: exactly;\">" +
+            "<div style=\"display: inline-block; background: #10b981; color: #ffffff; padding: 14px 28px; border-radius: 30px; font-size: 18px; font-weight: 600; margin-bottom: 15px; box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);\">" +
+            "✓ Đặt hàng thành công!" +
+            "</div>" +
+            "<p style=\"margin: 0; color: #065f46; font-size: 16px; line-height: 1.7; font-weight: 400;\">" +
+            "Cảm ơn bạn đã đặt hàng tại TDK Store!<br style=\"mso-line-height-rule: exactly;\">Chúng tôi sẽ xử lý đơn hàng của bạn trong thời gian sớm nhất." +
+            "</p>" +
+            "</td>" +
+            "</tr>" +
+            
+            // Dòng nổi bật về tra cứu đơn hàng
+            "<tr>" +
+            "<td style=\"padding: 25px 20px; background: linear-gradient(135deg, #fef3c7 0%%, #fde68a 100%%); border-left: 5px solid #f59e0b; mso-line-height-rule: exactly;\">" +
+            "<table role=\"presentation\" width=\"100%%\" cellpadding=\"0\" cellspacing=\"0\">" +
+            "<tr>" +
+            "<td width=\"50\" valign=\"top\" style=\"padding-right: 15px;\">" +
+            "<div style=\"width: 45px; height: 45px; background: #f59e0b; border-radius: 50%%; display: inline-block; text-align: center; line-height: 45px; color: #ffffff; font-size: 22px; font-weight: bold;\">" +
+            "📧" +
+            "</div>" +
+            "</td>" +
+            "<td valign=\"top\">" +
+            "<p style=\"margin: 0 0 10px 0; color: #92400e; font-size: 16px; font-weight: 700; line-height: 1.5;\">" +
+            "Nhập đầy đủ mã đơn hàng của bạn đã được gửi qua email để tra cứu đơn hàng" +
+            "</p>" +
+            "<p style=\"margin: 0; color: #78350f; font-size: 15px; line-height: 1.6;\">" +
+            "Mã hóa đơn: <strong style=\"color: #f59e0b; font-size: 17px; letter-spacing: 1.5px; font-family: 'Courier New', monospace;\">%s</strong>" +
+            "</p>" +
+            "</td>" +
+            "</tr>" +
+            "</table>" +
+            "</td>" +
+            "</tr>" +
+            
+            // Thông tin hóa đơn
+            "<tr>" +
+            "<td class=\"email-content\" style=\"padding: 35px 20px;\">" +
+            "<h2 class=\"email-section\" style=\"margin: 0 0 25px 0; color: #111827; font-size: 22px; font-weight: 700; border-bottom: 3px solid #febc49; padding-bottom: 12px; line-height: 1.3;\">" +
+            "📋 Thông tin hóa đơn" +
+            "</h2>" +
+            "<table role=\"presentation\" width=\"100%%\" cellpadding=\"0\" cellspacing=\"0\" style=\"margin-bottom: 0;\">" +
+            "<tr>" +
+            "<td style=\"padding: 12px 0; color: #6b7280; font-weight: 500; width: 40%%; font-size: 14px; vertical-align: top;\">Mã hóa đơn:</td>" +
+            "<td style=\"padding: 12px 0; color: #111827; font-weight: 600; font-size: 14px; font-family: 'Courier New', monospace; word-break: break-all;\">%s</td>" +
+            "</tr>" +
+            "<tr>" +
+            "<td style=\"padding: 12px 0; color: #6b7280; font-weight: 500; font-size: 14px; vertical-align: top;\">Trạng thái:</td>" +
+            "<td style=\"padding: 12px 0;\">" +
+            "<span style=\"display: inline-block; padding: 8px 14px; background: %s; color: %s; border-radius: 15px; font-size: 13px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;\">%s</span>" +
+            "</td>" +
+            "</tr>" +
+            "<tr>" +
+            "<td style=\"padding: 12px 0; color: #6b7280; font-weight: 500; font-size: 14px; vertical-align: top;\">Ngày tạo:</td>" +
+            "<td style=\"padding: 12px 0; color: #111827; font-size: 14px;\">%s</td>" +
+            "</tr>" +
+            "<tr>" +
+            "<td style=\"padding: 12px 0; color: #6b7280; font-weight: 500; font-size: 14px; vertical-align: top;\">Phương thức thanh toán:</td>" +
+            "<td style=\"padding: 12px 0; color: #111827; font-weight: 500; font-size: 14px;\">%s</td>" +
+            "</tr>" +
+            "</table>" +
+            "</td>" +
+            "</tr>" +
+            
+            // Thông tin khách hàng
+            "<tr>" +
+            "<td class=\"email-content\" style=\"padding: 0 20px 35px 20px;\">" +
+            "<h2 class=\"email-section\" style=\"margin: 0 0 25px 0; color: #111827; font-size: 22px; font-weight: 700; border-bottom: 3px solid #febc49; padding-bottom: 12px; line-height: 1.3;\">" +
+            "👤 Thông tin khách hàng" +
+            "</h2>" +
+            "<table role=\"presentation\" width=\"100%%\" cellpadding=\"0\" cellspacing=\"0\">" +
+            "<tr>" +
+            "<td style=\"padding: 12px 0; color: #6b7280; font-weight: 500; width: 40%%; font-size: 14px; vertical-align: top;\">Họ tên:</td>" +
+            "<td style=\"padding: 12px 0; color: #111827; font-weight: 600; font-size: 14px;\">%s</td>" +
+            "</tr>" +
+            "<tr>" +
+            "<td style=\"padding: 12px 0; color: #6b7280; font-weight: 500; font-size: 14px; vertical-align: top;\">Email:</td>" +
+            "<td style=\"padding: 12px 0; color: #111827; font-size: 14px; word-break: break-all;\">%s</td>" +
+            "</tr>" +
+            "<tr>" +
+            "<td style=\"padding: 12px 0; color: #6b7280; font-weight: 500; font-size: 14px; vertical-align: top;\">Số điện thoại:</td>" +
+            "<td style=\"padding: 12px 0; color: #111827; font-size: 14px; font-family: 'Courier New', monospace;\">%s</td>" +
+            "</tr>" +
+            "<tr>" +
+            "<td style=\"padding: 12px 0; color: #6b7280; font-weight: 500; font-size: 14px; vertical-align: top;\">Địa chỉ giao hàng:</td>" +
+            "<td style=\"padding: 12px 0; color: #111827; line-height: 1.7; font-size: 14px;\">%s</td>" +
+            "</tr>" +
+            "</table>" +
+            "</td>" +
+            "</tr>" +
+            
+            // Danh sách sản phẩm
+            "<tr>" +
+            "<td class=\"email-content\" style=\"padding: 0 20px 35px 20px;\">" +
+            "<h2 class=\"email-section\" style=\"margin: 0 0 25px 0; color: #111827; font-size: 22px; font-weight: 700; border-bottom: 3px solid #febc49; padding-bottom: 12px; line-height: 1.3;\">" +
+            "🛍️ Danh sách sản phẩm" +
+            "</h2>" +
+            "<table role=\"presentation\" class=\"product-table\" width=\"100%%\" cellpadding=\"0\" cellspacing=\"0\" style=\"border: 2px solid #e5e7eb; border-radius: 10px; overflow: hidden; background-color: #ffffff;\">" +
+            "<thead>" +
+            "<tr style=\"background: linear-gradient(135deg, #febc49 0%%, #e6a942 100%%);\">" +
+            "<th style=\"padding: 16px 12px; text-align: center; color: #ffffff; font-weight: 700; font-size: 13px; text-transform: uppercase; letter-spacing: 0.5px; border-right: 1px solid rgba(255,255,255,0.2);\">STT</th>" +
+            "<th style=\"padding: 16px 12px; text-align: left; color: #ffffff; font-weight: 700; font-size: 13px; text-transform: uppercase; letter-spacing: 0.5px; border-right: 1px solid rgba(255,255,255,0.2);\">Tên sản phẩm</th>" +
+            "<th style=\"padding: 16px 12px; text-align: center; color: #ffffff; font-weight: 700; font-size: 13px; text-transform: uppercase; letter-spacing: 0.5px; border-right: 1px solid rgba(255,255,255,0.2);\">Số lượng</th>" +
+            "<th style=\"padding: 16px 12px; text-align: right; color: #ffffff; font-weight: 700; font-size: 13px; text-transform: uppercase; letter-spacing: 0.5px; border-right: 1px solid rgba(255,255,255,0.2);\">Đơn giá</th>" +
+            "<th style=\"padding: 16px 12px; text-align: right; color: #ffffff; font-weight: 700; font-size: 13px; text-transform: uppercase; letter-spacing: 0.5px;\">Thành tiền</th>" +
+            "</tr>" +
+            "</thead>" +
+            "<tbody>" +
+            "%s" +
+            "</tbody>" +
+            "</table>" +
+            "</td>" +
+            "</tr>" +
+            
+            // Tóm tắt thanh toán
+            "<tr>" +
+            "<td class=\"email-content\" style=\"padding: 0 20px 35px 20px;\">" +
+            "<h2 class=\"email-section\" style=\"margin: 0 0 25px 0; color: #111827; font-size: 22px; font-weight: 700; border-bottom: 3px solid #febc49; padding-bottom: 12px; line-height: 1.3;\">" +
+            "💰 Tóm tắt thanh toán" +
+            "</h2>" +
+            "<table role=\"presentation\" width=\"100%%\" cellpadding=\"0\" cellspacing=\"0\" style=\"background: linear-gradient(135deg, #f9fafb 0%%, #ffffff 100%%); border: 2px solid #e5e7eb; border-radius: 10px; padding: 25px; box-shadow: 0 2px 8px rgba(0,0,0,0.05);\">" +
+            "<tr>" +
+            "<td style=\"padding: 12px 0; color: #6b7280; font-weight: 500; font-size: 15px;\">Tổng tiền:</td>" +
+            "<td style=\"padding: 12px 0; text-align: right; color: #111827; font-weight: 600; font-size: 15px; font-family: 'Courier New', monospace;\">%s</td>" +
+            "</tr>" +
+            "%s" +
+            "<tr>" +
+            "<td colspan=\"2\" style=\"padding: 15px 0 0 0; border-top: 3px solid #e5e7eb;\"></td>" +
+            "</tr>" +
+            "<tr>" +
+            "<td style=\"padding: 18px 0 0 0; color: #111827; font-weight: 700; font-size: 19px;\">Thành tiền:</td>" +
+            "<td style=\"padding: 18px 0 0 0; text-align: right; color: #febc49; font-weight: 700; font-size: 22px; font-family: 'Courier New', monospace;\">%s</td>" +
+            "</tr>" +
+            "</table>" +
+            "</td>" +
+            "</tr>" +
+            
+            // Footer
+            "<tr>" +
+            "<td style=\"padding: 35px 20px; background: linear-gradient(135deg, #f9fafb 0%%, #f3f4f6 100%%); text-align: center; border-top: 2px solid #e5e7eb;\">" +
+            "<p style=\"margin: 0 0 15px 0; color: #6b7280; font-size: 15px; line-height: 1.7; font-weight: 400;\">" +
+            "Nếu có bất kỳ thắc mắc nào, vui lòng liên hệ với chúng tôi:<br style=\"mso-line-height-rule: exactly;\">" +
+            "<span style=\"color: #febc49; font-weight: 600;\">📧 Email:</span> <a href=\"mailto:support@tdkstore.com\" style=\"color: #059669; text-decoration: none; font-weight: 500;\">support@tdkstore.com</a> | " +
+            "<span style=\"color: #febc49; font-weight: 600;\">📞 Hotline:</span> <a href=\"tel:0909123456\" style=\"color: #059669; text-decoration: none; font-weight: 500;\">0909 123 456</a>" +
+            "</p>" +
+            "<p style=\"margin: 25px 0 0 0; color: #9ca3af; font-size: 12px; line-height: 1.5;\">" +
+            "© 2024 TDK Store - Bán mũ bảo hiểm. All rights reserved." +
+            "</p>" +
+            "</td>" +
+            "</tr>" +
+            
+            "</table>" +
+            "</td>" +
+            "</tr>" +
+            "</table>" +
+            "</body>" +
+            "</html>",
+            logoUrl,
+            maHoaDon, maHoaDon, // Dòng nổi bật và thông tin hóa đơn
+            getStatusBadgeColor(trangThai), getStatusTextColor(trangThai), trangThai,
+            ngayTao, phuongThucThanhToan,
+            customerName, email, soDienThoai, diaChiGiaoHang,
+            productsTableRows.toString(),
+            tongTien,
+            buildDiscountAndShippingRows(tienGiamGia, phiGiaoHang),
+            thanhTien
+        );
+    }
+    
+    /**
+     * Tạo các dòng giảm giá và phí vận chuyển
+     */
+    private String buildDiscountAndShippingRows(String tienGiamGia, String phiGiaoHang) {
+        StringBuilder rows = new StringBuilder();
+        
+        if (tienGiamGia != null && !tienGiamGia.equals("0 VNĐ")) {
+            rows.append(String.format(
+                "<tr>" +
+                "<td style=\"padding: 12px 0; color: #6b7280; font-weight: 500; font-size: 15px;\">Giảm giá:</td>" +
+                "<td style=\"padding: 12px 0; text-align: right; color: #dc2626; font-weight: 600; font-size: 15px; font-family: 'Courier New', monospace;\">-%s</td>" +
+                "</tr>",
+                tienGiamGia
+            ));
+        }
+        
+        if (phiGiaoHang != null && !phiGiaoHang.equals("0 VNĐ")) {
+            rows.append(String.format(
+                "<tr>" +
+                "<td style=\"padding: 12px 0; color: #6b7280; font-weight: 500; font-size: 15px;\">Phí vận chuyển:</td>" +
+                "<td style=\"padding: 12px 0; text-align: right; color: #059669; font-weight: 600; font-size: 15px; font-family: 'Courier New', monospace;\">%s</td>" +
+                "</tr>",
+                phiGiaoHang
+            ));
+        }
+        
+        return rows.toString();
+    }
+    
+    /**
+     * Lấy màu badge cho trạng thái
+     */
+    private String getStatusBadgeColor(String status) {
+        if (status == null) return "#9ca3af";
+        switch (status) {
+            case "Chờ xác nhận": return "#fef3c7";
+            case "Đã xác nhận": return "#dbeafe";
+            case "Đang giao hàng": return "#e0e7ff";
+            case "Đã giao hàng": return "#d1fae5";
+            case "Đã hủy": return "#fee2e2";
+            default: return "#f3f4f6";
+        }
+    }
+    
+    /**
+     * Lấy màu chữ cho trạng thái
+     */
+    private String getStatusTextColor(String status) {
+        if (status == null) return "#6b7280";
+        switch (status) {
+            case "Chờ xác nhận": return "#92400e";
+            case "Đã xác nhận": return "#1e40af";
+            case "Đang giao hàng": return "#3730a3";
+            case "Đã giao hàng": return "#065f46";
+            case "Đã hủy": return "#991b1b";
+            default: return "#374151";
+        }
+    }
+    
+    /**
+     * Lấy label phương thức thanh toán
+     */
+    private String getPaymentMethodLabel(String phuongThuc) {
+        if (phuongThuc == null || phuongThuc.trim().isEmpty()) {
+            return "Tiền mặt";
+        }
+        String phuongThucLower = phuongThuc.toLowerCase().trim();
+        if (phuongThucLower.contains("chuyển khoản") || phuongThucLower.contains("chuyen khoan") || 
+            phuongThucLower.equals("transfer")) {
+            return "Chuyển khoản";
+        }
+        return "Tiền mặt";
+    }
+    
+    /**
+     * Escape HTML để tránh XSS
+     */
+    private String escapeHtml(String text) {
+        if (text == null) return "";
+        return text.replace("&", "&amp;")
+                   .replace("<", "&lt;")
+                   .replace(">", "&gt;")
+                   .replace("\"", "&quot;")
+                   .replace("'", "&#39;");
     }
 
     /**
@@ -445,7 +778,7 @@ public class EmailService {
         if (status == null) return "N/A";
         switch (status) {
             case "CHO_XAC_NHAN": return "Chờ xác nhận";
-            case "DA_XAC_NHAN": return "Đã xác nhận - Chờ vận chuyển";
+            case "DA_XAC_NHAN": return "Đã xác nhận";
             case "DANG_GIAO_HANG": return "Đang giao hàng";
             case "DA_GIAO_HANG": return "Đã giao hàng";
             case "DA_HUY": case "HUY": return "Đã hủy";
