@@ -205,9 +205,11 @@ public class KhachHangService {
 
     // Tạo khách hàng mới
     public KhachHangDTO createKhachHang(KhachHangDTO khachHangDTO) {
-        // Kiểm tra email đã tồn tại
-        if (khachHangRepository.findByEmail(khachHangDTO.getEmail()).isPresent()) {
-            throw new RuntimeException("Email đã tồn tại: " + khachHangDTO.getEmail());
+        // Kiểm tra email đã tồn tại (chỉ khi email không null và không rỗng)
+        if (khachHangDTO.getEmail() != null && !khachHangDTO.getEmail().trim().isEmpty()) {
+            if (khachHangRepository.findByEmail(khachHangDTO.getEmail()).isPresent()) {
+                throw new RuntimeException("Email đã tồn tại: " + khachHangDTO.getEmail());
+            }
         }
 
         // ✅ BỎ QUA VALIDATE SỐ ĐIỆN THOẠI ĐÃ TỒN TẠI - Cho phép tạo khách hàng với số điện thoại trùng
