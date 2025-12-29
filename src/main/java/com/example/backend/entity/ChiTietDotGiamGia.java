@@ -17,6 +17,11 @@ public class ChiTietDotGiamGia {
     private DotGiamGia dotGiamGia;
     
     @ManyToOne
+    // Link to ChiTietSanPham (Variant) instead of SanPham (Parent)
+    @JoinColumn(name = "chi_tiet_san_pham_id", nullable = false)
+    private ChiTietSanPham chiTietSanPham;
+    
+    @ManyToOne
     @JoinColumn(name = "san_pham_id", nullable = false)
     private SanPham sanPham;
     

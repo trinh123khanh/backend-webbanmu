@@ -103,6 +103,9 @@ public class ChiTietSanPhamServiceImpl implements ChiTietSanPhamService {
         if (e.getSanPham() != null) {
             r.setSanPhamId(e.getSanPham().getId());
             r.setSanPhamTen(e.getSanPham().getTenSanPham());
+            if (e.getSanPham().getNhaSanXuat() != null) {
+                r.setNhaSanXuatTen(e.getSanPham().getNhaSanXuat().getTenNhaSanXuat());
+            }
         }
         if (e.getKichThuoc() != null) {
             r.setKichThuocId(e.getKichThuoc().getId());
