@@ -29,8 +29,9 @@ import java.util.stream.Collectors;
  */
 @Service
 @RequiredArgsConstructor
-@Slf4j
 public class ChatbotService {
+
+    private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(ChatbotService.class);
 
     private final SanPhamService sanPhamService;
     private final ChiTietSanPhamService chiTietSanPhamService;

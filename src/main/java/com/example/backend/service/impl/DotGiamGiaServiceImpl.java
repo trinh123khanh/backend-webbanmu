@@ -18,9 +18,10 @@ import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
-@Slf4j
 @Transactional
 public class DotGiamGiaServiceImpl implements DotGiamGiaService {
+
+    private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(DotGiamGiaServiceImpl.class);
 
     private final DotGiamGiaRepository dotGiamGiaRepository;
     private final com.example.backend.repository.ChiTietDotGiamGiaRepository chiTietDotGiamGiaRepository;
