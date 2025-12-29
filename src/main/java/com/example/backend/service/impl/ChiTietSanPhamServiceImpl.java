@@ -20,17 +20,20 @@ public class ChiTietSanPhamServiceImpl implements ChiTietSanPhamService {
     private final KichThuocRepository kichThuocRepository;
     private final MauSacRepository mauSacRepository;
     private final TrongLuongRepository trongLuongRepository;
+    private final ChiTietDotGiamGiaRepository chiTietDotGiamGiaRepository;
 
     public ChiTietSanPhamServiceImpl(ChiTietSanPhamRepository repository,
                                     SanPhamRepository sanPhamRepository,
                                     KichThuocRepository kichThuocRepository,
                                     MauSacRepository mauSacRepository,
-                                    TrongLuongRepository trongLuongRepository) {
+                                    TrongLuongRepository trongLuongRepository,
+                                    ChiTietDotGiamGiaRepository chiTietDotGiamGiaRepository) {
         this.repository = repository;
         this.sanPhamRepository = sanPhamRepository;
         this.kichThuocRepository = kichThuocRepository;
         this.mauSacRepository = mauSacRepository;
         this.trongLuongRepository = trongLuongRepository;
+        this.chiTietDotGiamGiaRepository = chiTietDotGiamGiaRepository;
     }
 
     @Override
@@ -103,6 +106,7 @@ public class ChiTietSanPhamServiceImpl implements ChiTietSanPhamService {
         if (e.getSanPham() != null) {
             r.setSanPhamId(e.getSanPham().getId());
             r.setSanPhamTen(e.getSanPham().getTenSanPham());
+            r.setNhaSanXuatTen(e.getSanPham().getNhaSanXuat() != null ? e.getSanPham().getNhaSanXuat().getTenNhaSanXuat() : "");
         }
         if (e.getKichThuoc() != null) {
             r.setKichThuocId(e.getKichThuoc().getId());
@@ -119,6 +123,39 @@ public class ChiTietSanPhamServiceImpl implements ChiTietSanPhamService {
         r.setSoLuongTon(e.getSoLuongTon());
         r.setTrangThai(e.getTrangThai());
         r.setAnhSanPham(e.getAnhSanPham());
+        // Calculate discounted price
+        try {
+            java.util.List<ChiTietDotGiamGia> promos = chiTietDotGiamGiaRepository.findActivePromotionForProduct(e.getId());
+            if (!promos.isEmpty()) {
+                ChiTietDotGiamGia activePromo = promos.get(0);
+                java.math.BigDecimal originalPrice = new java.math.BigDecimal(e.getGiaBan());
+                java.math.BigDecimal discountValue = activePromo.getPhanTramGiam(); // This might be percentage or amount depending on logic, check getter name
+                // Note: getPhanTramGiam might be a misnomer if it stores value. Let's assume it stores the value.
+                
+                String promoType = activePromo.getDotGiamGia().getLoaiDotGiamGia();
+                
+                java.math.BigDecimal discountedPrice;
+                
+                if ("SO_TIEN".equalsIgnoreCase(promoType) || "TIEN_MAT".equalsIgnoreCase(promoType)) {
+                     discountedPrice = originalPrice.subtract(discountValue);
+                } else {
+                     // Percentage
+                     java.math.BigDecimal discountAmount = originalPrice.multiply(discountValue).divide(new java.math.BigDecimal(100));
+                     discountedPrice = originalPrice.subtract(discountAmount);
+                }
+                
+                if (discountedPrice.compareTo(java.math.BigDecimal.ZERO) < 0) {
+                    discountedPrice = java.math.BigDecimal.ZERO;
+                }
+                
+                r.setGiaSauGiam(String.valueOf(discountedPrice.longValue()));
+                
+                // Debug log (remove in prod)
+                // System.out.println("Product " + e.getId() + " has promo: " + promoType + " val: " + discountValue + " -> new price: " + discountedPrice);
+            }
+        } catch (Exception ex) {
+            ex.printStackTrace();
+        }
         return r;
     }
 }

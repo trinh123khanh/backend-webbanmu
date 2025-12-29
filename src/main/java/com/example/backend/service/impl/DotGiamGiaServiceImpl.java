@@ -18,11 +18,14 @@ import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
-@Slf4j
 @Transactional
 public class DotGiamGiaServiceImpl implements DotGiamGiaService {
 
+    private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(DotGiamGiaServiceImpl.class);
+
     private final DotGiamGiaRepository dotGiamGiaRepository;
+    private final com.example.backend.repository.ChiTietDotGiamGiaRepository chiTietDotGiamGiaRepository;
+    private final com.example.backend.repository.ChiTietSanPhamRepository chiTietSanPhamRepository;
 
     @Override
     public DotGiamGiaResponse createDotGiamGia(DotGiamGiaRequest request) {
@@ -40,6 +43,27 @@ public class DotGiamGiaServiceImpl implements DotGiamGiaService {
         
         DotGiamGia dotGiamGia = mapRequestToEntity(request);
         DotGiamGia savedDotGiamGia = dotGiamGiaRepository.save(dotGiamGia);
+        
+        // Save details
+        if (request.getChiTietDotGiamGias() != null && !request.getChiTietDotGiamGias().isEmpty()) {
+            List<com.example.backend.entity.ChiTietDotGiamGia> details = request.getChiTietDotGiamGias().stream()
+                .map(detailDto -> {
+                    com.example.backend.entity.ChiTietDotGiamGia detail = new com.example.backend.entity.ChiTietDotGiamGia();
+                    detail.setDotGiamGia(savedDotGiamGia);
+                    detail.setPhanTramGiam(detailDto.getGiaTriGiam());
+                    detail.setTrangThai(true);
+                    
+                    com.example.backend.entity.ChiTietSanPham variant = chiTietSanPhamRepository.findById(detailDto.getChiTietSanPhamId())
+                        .orElseThrow(() -> new RuntimeException("Variant not found: " + detailDto.getChiTietSanPhamId()));
+                    detail.setChiTietSanPham(variant);
+                    detail.setSanPham(variant.getSanPham());
+                    
+                    return detail;
+                })
+                .collect(Collectors.toList());
+            
+            chiTietDotGiamGiaRepository.saveAll(details);
+        }
         
         log.info("Created DotGiamGia with id: {}", savedDotGiamGia.getId());
         return mapEntityToResponse(savedDotGiamGia);
@@ -94,6 +118,29 @@ public class DotGiamGiaServiceImpl implements DotGiamGiaService {
         
         DotGiamGia updatedDotGiamGia = dotGiamGiaRepository.save(existingDotGiamGia);
         
+        // Update details: Delete old ones and add new ones
+        chiTietDotGiamGiaRepository.deleteByDotGiamGiaId(id);
+        
+        if (request.getChiTietDotGiamGias() != null && !request.getChiTietDotGiamGias().isEmpty()) {
+            List<com.example.backend.entity.ChiTietDotGiamGia> details = request.getChiTietDotGiamGias().stream()
+                .map(detailDto -> {
+                    com.example.backend.entity.ChiTietDotGiamGia detail = new com.example.backend.entity.ChiTietDotGiamGia();
+                    detail.setDotGiamGia(updatedDotGiamGia);
+                    detail.setPhanTramGiam(detailDto.getGiaTriGiam());
+                    detail.setTrangThai(true);
+                    
+                    com.example.backend.entity.ChiTietSanPham variant = chiTietSanPhamRepository.findById(detailDto.getChiTietSanPhamId())
+                        .orElseThrow(() -> new RuntimeException("Variant not found: " + detailDto.getChiTietSanPhamId()));
+                    detail.setChiTietSanPham(variant);
+                    detail.setSanPham(variant.getSanPham());
+                    
+                    return detail;
+                })
+                .collect(Collectors.toList());
+            
+            chiTietDotGiamGiaRepository.saveAll(details);
+        }
+        
         log.info("Updated DotGiamGia with id: {}", updatedDotGiamGia.getId());
         return mapEntityToResponse(updatedDotGiamGia);
     }
@@ -105,6 +152,9 @@ public class DotGiamGiaServiceImpl implements DotGiamGiaService {
         if (!dotGiamGiaRepository.existsById(id)) {
             throw new RuntimeException("Không tìm thấy đợt giảm giá với ID: " + id);
         }
+        
+        // Delete associated details first
+        chiTietDotGiamGiaRepository.deleteByDotGiamGiaId(id);
         
         dotGiamGiaRepository.deleteById(id);
         log.info("Deleted DotGiamGia with id: {}", id);
@@ -212,6 +262,44 @@ public class DotGiamGiaServiceImpl implements DotGiamGiaService {
         response.setSoLuongSuDung(dotGiamGia.getSoLuongSuDung());
         response.setTenDotGiamGia(dotGiamGia.getTenDotGiamGia());
         response.setTrangThai(dotGiamGia.getTrangThai());
+        
+        // Fetch and map details
+        List<com.example.backend.entity.ChiTietDotGiamGia> details = chiTietDotGiamGiaRepository.findByDotGiamGiaId(dotGiamGia.getId());
+        if (details != null && !details.isEmpty()) {
+            List<DotGiamGiaResponse.ChiTietDotGiamGiaResponse> detailResponses = details.stream()
+                .map(detail -> {
+                    DotGiamGiaResponse.ChiTietDotGiamGiaResponse detailResponse = new DotGiamGiaResponse.ChiTietDotGiamGiaResponse();
+                    detailResponse.setId(detail.getId());
+                    
+                    com.example.backend.entity.ChiTietSanPham variant = detail.getChiTietSanPham();
+                    detailResponse.setChiTietSanPhamId(variant.getId());
+                    detailResponse.setTenSanPham(variant.getSanPham().getTenSanPham());
+                    detailResponse.setMauSac(variant.getMauSac() != null ? variant.getMauSac().getTenMau() : "");
+                    detailResponse.setKichThuoc(variant.getKichThuoc() != null ? variant.getKichThuoc().getTenKichThuoc() : "");
+                    detailResponse.setPhanTramGiam(detail.getPhanTramGiam());
+                    
+                    // Parse prices safely
+                    try {
+                        java.math.BigDecimal giaBan = new java.math.BigDecimal(variant.getGiaBan().replaceAll("[^0-9]", ""));
+                        detailResponse.setGiaBan(giaBan);
+                        
+                        // Calculate discounted price
+                        java.math.BigDecimal discountAmount = giaBan.multiply(detail.getPhanTramGiam()).divide(new java.math.BigDecimal(100));
+                        detailResponse.setGiaSauGiam(giaBan.subtract(discountAmount));
+                    } catch (Exception e) {
+                        log.warn("Error parsing price for variant {}: {}", variant.getId(), e.getMessage());
+                        detailResponse.setGiaBan(java.math.BigDecimal.ZERO);
+                        detailResponse.setGiaSauGiam(java.math.BigDecimal.ZERO);
+                    }
+                    
+                    return detailResponse;
+                })
+                .collect(Collectors.toList());
+            response.setChiTietDotGiamGias(detailResponses);
+        } else {
+            response.setChiTietDotGiamGias(new java.util.ArrayList<>());
+        }
+        
         return response;
     }
 }

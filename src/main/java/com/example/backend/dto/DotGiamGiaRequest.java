@@ -32,4 +32,12 @@ public class DotGiamGiaRequest {
     
     @NotNull(message = "Trạng thái không được để trống")
     private Boolean trangThai;
+    
+    private java.util.List<ChiTietDotGiamGiaDto> chiTietDotGiamGias;
+    
+    @Data
+    public static class ChiTietDotGiamGiaDto {
+        private Long chiTietSanPhamId;
+        private java.math.BigDecimal giaTriGiam;
+    }
 }
