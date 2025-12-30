@@ -2263,7 +2263,7 @@ public class HoaDonService {
             "SELECT COUNT(DISTINCT h) FROM HoaDon h " +
             "LEFT JOIN h.phuongThucThanhToan pttt " +
             "LEFT JOIN pttt.hinhThucThanhToan htt " +
-            "WHERE (:keyword IS NULL OR h.maHoaDon LIKE :keyword)"
+            "WHERE (:keyword IS NULL OR LOWER(h.maHoaDon) LIKE :keyword OR LOWER(h.khachHang.tenKhachHang) LIKE :keyword OR LOWER(h.khachHang.soDienThoai) LIKE :keyword OR LOWER(h.khachHang.email) LIKE :keyword)"
         );
         
         if (tenHinhThuc != null) {
@@ -2292,7 +2292,7 @@ public class HoaDonService {
         );
         
         if (keyword != null && !keyword.isEmpty()) {
-            countQuery.setParameter("keyword", "%" + keyword + "%");
+            countQuery.setParameter("keyword", "%" + keyword.toLowerCase() + "%");
         } else {
             countQuery.setParameter("keyword", null);
         }
@@ -2332,7 +2332,7 @@ public class HoaDonService {
             "LEFT JOIN FETCH ct.kichThuoc " +
             "LEFT JOIN h.phuongThucThanhToan pttt " +
             "LEFT JOIN pttt.hinhThucThanhToan htt " +
-            "WHERE (:keyword IS NULL OR h.maHoaDon LIKE :keyword)"
+            "WHERE (:keyword IS NULL OR LOWER(h.maHoaDon) LIKE :keyword OR LOWER(h.khachHang.tenKhachHang) LIKE :keyword OR LOWER(h.khachHang.soDienThoai) LIKE :keyword OR LOWER(h.khachHang.email) LIKE :keyword)"
         );
         
         if (tenHinhThuc != null) {
@@ -2372,7 +2372,7 @@ public class HoaDonService {
         );
         
         if (keyword != null && !keyword.isEmpty()) {
-            query.setParameter("keyword", "%" + keyword + "%");
+            query.setParameter("keyword", "%" + keyword.toLowerCase() + "%");
         } else {
             query.setParameter("keyword", null);
         }
