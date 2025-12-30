@@ -121,6 +121,15 @@ public class HoaDonChoService {
                 .donGia(item.getDonGia())
                 .giamGia(item.getGiamGia())
                 .thanhTien(item.getThanhTien())
+                .mauSac(item.getChiTietSanPham() != null && item.getChiTietSanPham().getMauSac() != null ? 
+                        item.getChiTietSanPham().getMauSac().getTenMau() : null)
+                .kichThuoc(item.getChiTietSanPham() != null && item.getChiTietSanPham().getKichThuoc() != null ? 
+                        item.getChiTietSanPham().getKichThuoc().getTenKichThuoc() : null)
+                .anhSanPham(item.getChiTietSanPham() != null ? 
+                        (item.getChiTietSanPham().getAnhSanPham() != null ? 
+                         item.getChiTietSanPham().getAnhSanPham() : 
+                         (item.getChiTietSanPham().getSanPham() != null ? item.getChiTietSanPham().getSanPham().getAnhSanPham() : null)) 
+                        : null)
                 .build();
     }
 

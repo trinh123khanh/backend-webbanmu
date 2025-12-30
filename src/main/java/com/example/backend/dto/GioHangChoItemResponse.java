@@ -14,5 +14,8 @@ public class GioHangChoItemResponse {
     private BigDecimal donGia;
     private BigDecimal giamGia;
     private BigDecimal thanhTien;
+    private String mauSac;
+    private String kichThuoc;
+    private String anhSanPham;
 }
 
