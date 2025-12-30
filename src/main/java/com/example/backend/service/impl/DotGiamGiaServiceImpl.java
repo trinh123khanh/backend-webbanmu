@@ -284,8 +284,25 @@ public class DotGiamGiaServiceImpl implements DotGiamGiaService {
                         detailResponse.setGiaBan(giaBan);
                         
                         // Calculate discounted price
-                        java.math.BigDecimal discountAmount = giaBan.multiply(detail.getPhanTramGiam()).divide(new java.math.BigDecimal(100));
-                        detailResponse.setGiaSauGiam(giaBan.subtract(discountAmount));
+                        // Calculate discounted price
+                        java.math.BigDecimal discountAmount;
+                        String promoType = dotGiamGia.getLoaiDotGiamGia();
+                        
+                        if ("SO_TIEN".equalsIgnoreCase(promoType) || 
+                            "TIEN_MAT".equalsIgnoreCase(promoType) || 
+                            "Số tiền cố định".equalsIgnoreCase(promoType) ||
+                            "FIXED".equalsIgnoreCase(promoType) ||
+                            (promoType != null && (promoType.toUpperCase().contains("TIEN") || promoType.toUpperCase().contains("AMOUNT")))) {
+                             discountAmount = detail.getPhanTramGiam();
+                        } else {
+                             discountAmount = giaBan.multiply(detail.getPhanTramGiam()).divide(new java.math.BigDecimal(100));
+                        }
+                        
+                        java.math.BigDecimal discountedVal = giaBan.subtract(discountAmount);
+                        if (discountedVal.compareTo(java.math.BigDecimal.ZERO) < 0) {
+                            discountedVal = java.math.BigDecimal.ZERO;
+                        }
+                        detailResponse.setGiaSauGiam(discountedVal);
                     } catch (Exception e) {
                         log.warn("Error parsing price for variant {}: {}", variant.getId(), e.getMessage());
                         detailResponse.setGiaBan(java.math.BigDecimal.ZERO);

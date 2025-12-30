@@ -136,7 +136,11 @@ public class ChiTietSanPhamServiceImpl implements ChiTietSanPhamService {
                 
                 java.math.BigDecimal discountedPrice;
                 
-                if ("SO_TIEN".equalsIgnoreCase(promoType) || "TIEN_MAT".equalsIgnoreCase(promoType)) {
+                if ("SO_TIEN".equalsIgnoreCase(promoType) || 
+                    "TIEN_MAT".equalsIgnoreCase(promoType) || 
+                    "Số tiền cố định".equalsIgnoreCase(promoType) ||
+                    "FIXED".equalsIgnoreCase(promoType) ||
+                    (promoType != null && (promoType.toUpperCase().contains("TIEN") || promoType.toUpperCase().contains("AMOUNT")))) {
                      discountedPrice = originalPrice.subtract(discountValue);
                 } else {
                      // Percentage
