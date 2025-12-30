@@ -910,37 +910,6 @@ public class HoaDonService {
             }
         }
         
-        // ✅ Xử lý danh sách phiếu giảm giá nếu có
-        if (dto.getPhieuGiamGiaIds() != null && !dto.getPhieuGiamGiaIds().isEmpty()) {
-            // Lưu danh sách ID phiếu giảm giá vào ghiChu dưới dạng JSON
-            try {
-                ObjectMapper objectMapper = new ObjectMapper();
-                String phieuGiamGiaIdsJson = objectMapper.writeValueAsString(dto.getPhieuGiamGiaIds());
-                String existingGhiChu = saved.getGhiChu() != null ? saved.getGhiChu() : "";
-                String newGhiChu = existingGhiChu.isEmpty() 
-                    ? "PHIEU_GIAM_GIA_IDS: " + phieuGiamGiaIdsJson
-                    : existingGhiChu + "\nPHIEU_GIAM_GIA_IDS: " + phieuGiamGiaIdsJson;
-                saved.setGhiChu(newGhiChu);
-                System.out.println("✅ Saved phieuGiamGiaIds to ghiChu: " + phieuGiamGiaIdsJson);
-            } catch (Exception e) {
-                System.err.println("❌ Error saving phieuGiamGiaIds: " + e.getMessage());
-            }
-        } else if (dto.getPhieuGiamGiaId() != null) {
-            // Giữ tương thích với phieuGiamGiaId cũ
-            try {
-                ObjectMapper objectMapper = new ObjectMapper();
-                String phieuGiamGiaIdsJson = objectMapper.writeValueAsString(java.util.Arrays.asList(dto.getPhieuGiamGiaId()));
-                String existingGhiChu = saved.getGhiChu() != null ? saved.getGhiChu() : "";
-                String newGhiChu = existingGhiChu.isEmpty() 
-                    ? "PHIEU_GIAM_GIA_IDS: " + phieuGiamGiaIdsJson
-                    : existingGhiChu + "\nPHIEU_GIAM_GIA_IDS: " + phieuGiamGiaIdsJson;
-                saved.setGhiChu(newGhiChu);
-                System.out.println("✅ Saved phieuGiamGiaId (legacy) to ghiChu: " + phieuGiamGiaIdsJson);
-            } catch (Exception e) {
-                System.err.println("❌ Error saving phieuGiamGiaId: " + e.getMessage());
-            }
-        }
-        
         // Xử lý phương thức thanh toán nếu có
         if (dto.getPhuongThucThanhToan() != null && !dto.getPhuongThucThanhToan().trim().isEmpty()) {
             String phuongThucTen = dto.getPhuongThucThanhToan().trim();
@@ -1171,40 +1140,6 @@ public class HoaDonService {
         System.out.println("   - tongTien: " + saved.getTongTien());
         System.out.println("   - tienGiamGia: " + saved.getTienGiamGia());
         System.out.println("   - thanhTien: " + saved.getThanhTien());
-        
-        // ✅ Xử lý danh sách phiếu giảm giá nếu có (trong updateHoaDon)
-        if (dto.getPhieuGiamGiaIds() != null && !dto.getPhieuGiamGiaIds().isEmpty()) {
-            // Lưu danh sách ID phiếu giảm giá vào ghiChu dưới dạng JSON
-            try {
-                ObjectMapper objectMapper = new ObjectMapper();
-                String phieuGiamGiaIdsJson = objectMapper.writeValueAsString(dto.getPhieuGiamGiaIds());
-                String existingGhiChu = saved.getGhiChu() != null ? saved.getGhiChu() : "";
-                // Xóa dòng PHIEU_GIAM_GIA_IDS cũ nếu có
-                String cleanedGhiChu = existingGhiChu.replaceAll("(?m)^PHIEU_GIAM_GIA_IDS:.*$", "").trim();
-                String newGhiChu = cleanedGhiChu.isEmpty() 
-                    ? "PHIEU_GIAM_GIA_IDS: " + phieuGiamGiaIdsJson
-                    : cleanedGhiChu + "\nPHIEU_GIAM_GIA_IDS: " + phieuGiamGiaIdsJson;
-                saved.setGhiChu(newGhiChu);
-                System.out.println("✅ Updated phieuGiamGiaIds in ghiChu: " + phieuGiamGiaIdsJson);
-            } catch (Exception e) {
-                System.err.println("❌ Error updating phieuGiamGiaIds: " + e.getMessage());
-            }
-        } else if (dto.getPhieuGiamGiaId() != null) {
-            // Giữ tương thích với phieuGiamGiaId cũ
-            try {
-                ObjectMapper objectMapper = new ObjectMapper();
-                String phieuGiamGiaIdsJson = objectMapper.writeValueAsString(java.util.Arrays.asList(dto.getPhieuGiamGiaId()));
-                String existingGhiChu = saved.getGhiChu() != null ? saved.getGhiChu() : "";
-                String cleanedGhiChu = existingGhiChu.replaceAll("(?m)^PHIEU_GIAM_GIA_IDS:.*$", "").trim();
-                String newGhiChu = cleanedGhiChu.isEmpty() 
-                    ? "PHIEU_GIAM_GIA_IDS: " + phieuGiamGiaIdsJson
-                    : cleanedGhiChu + "\nPHIEU_GIAM_GIA_IDS: " + phieuGiamGiaIdsJson;
-                saved.setGhiChu(newGhiChu);
-                System.out.println("✅ Updated phieuGiamGiaId (legacy) in ghiChu: " + phieuGiamGiaIdsJson);
-            } catch (Exception e) {
-                System.err.println("❌ Error updating phieuGiamGiaId: " + e.getMessage());
-            }
-        }
         
         // Xử lý phương thức thanh toán nếu có
         // ✅ QUAN TRỌNG: Chỉ xóa và tạo lại phương thức thanh toán nếu có trong DTO
